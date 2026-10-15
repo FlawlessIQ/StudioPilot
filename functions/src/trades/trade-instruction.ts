@@ -9,8 +9,17 @@ import { tradeProfile, tradeVocab } from "./trades.js";
  * and Cue must staff DJs, call the sales call a vibe call, and know the
  * planning form is the music planner (docs/vendor-journeys-plan.md, 2.10).
  */
-export function tradeInstruction(trade: unknown): string {
+export function tradeInstruction(
+  trade: unknown,
+  /**
+   * Writing to a client: leave out the how-to facts. They name the studio's
+   * own screens ("Lay out the morning", the trial card, the crew's brief), and
+   * an inquiry reply to a mitzvah family explained them (prod walk, 2026-10-14).
+   */
+  options: { forClient?: boolean } = {},
+): string {
   const profile = tradeProfile(trade);
+  const howTo = !options.forClient;
   if (profile.family === "photo") return "";
   const words = tradeVocab(trade);
   const roles = profile.coverageRoles.map((role) => coverageRoleLabel(role as CoverageRole, 2)).join(" and ");
@@ -30,15 +39,15 @@ export function tradeInstruction(trade: unknown): string {
     // only from the facts it is given (ai/copilot.ts), and those were all a
     // photographer's (vendor journeys, Phase 6; the How-to guides
     // music-planner, trial and party-list say the same).
-    profile.musicPlanner
+    howTo && profile.musicPlanner
       ? ` How-to facts for this studio: the ${words.detailsForm ?? "planning form"} goes to the couple when they book and locks ${profile.planning?.lockDaysBefore ?? 10} days before the event. On the job's run of show, "Lay out the night" builds the running order from it, each line with its song, what to say on the mic and how to say the names (the MC script); once published it prints on the run-of-show PDF and each DJ's day sheet.`
       : "",
-    profile.chairSchedule
+    howTo && profile.chairSchedule
       ? ` How-to facts for this studio:${words.trial ? ` the job's ${words.trial.toLowerCase()} card invites the client to book the trial from the studio's trial hours, and after it the look and products are saved there for the crew's brief;` : ""} the ${words.detailsForm ?? "planning form"} goes to the client when they book, one person per line, and locks ${profile.planning?.lockDaysBefore ?? 30} days before the event (the headcount can grow after that, not shrink); on the ${(words.planOfDay ?? "schedule").toLowerCase()}, "Lay out the morning" gives everyone a chair worked back from the ready-by time;${words.kitChecklist ? ` the ${words.kitChecklist.title.toLowerCase()} goes in the crew's reminder the day before;` : ""} the balance is due ${profile.balanceDueDaysBefore === 0 ? "the morning of the event" : `${profile.balanceDueDaysBefore} days before the event`}.`
       : "",
     // A planner's flows (docs/planner-journey-plan.md): the vendor team is the
     // work, and the couple pays every vendor themselves.
-    profile.journey.vendorSteps
+    howTo && profile.journey.vendorSteps
       ? ` How-to facts for this studio: a ${words.consultation.toLowerCase()} comes before every proposal. Each package has a planning tier: full planning, partial planning or month-of coordination. Full and partial planning work the job's vendor team from booking; a month-of couple's ${(words.detailsForm ?? "planning form").toLowerCase()} goes out eight weeks before, and the vendors they list on it join the vendor team, booked. The ${(words.detailsForm ?? "planning form").toLowerCase()} is due four weeks out and locks two weeks out. The job's vendor team panel lists every vendor with their status, arrival time, balance and tip; "Vendor team" is done when every vendor the wedding needs is booked. The job's walkthrough card invites the couple to book the venue walkthrough, four to six weeks out. On the ${(words.planOfDay ?? "schedule").toLowerCase()}, "Add vendor arrivals" draws each booked vendor's arrival from the team; once it is published, one press on the vendor team sends every booked vendor their part and each confirms from their link ("Vendors confirmed", e.g. "7 of 9 confirmed"). The day before, the ${(words.kitChecklist?.title ?? "kit").toLowerCase()} and the payments and tips to hand out (from the team) are on the job and in the assistants' reminder. After the day, "Send vendor credits" emails the couple every vendor's name and website. The couple contracts with and pays every vendor directly: never say the studio pays vendors or holds their money. The balance is due ${profile.balanceDueDaysBefore} days before the wedding.`
       : "",
     profile.delivery ? "" : " Nothing is delivered after the event — no gallery, album, editing or film — so after the event the only steps are the review and closing the job.",

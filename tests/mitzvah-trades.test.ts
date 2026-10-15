@@ -267,3 +267,16 @@ test("a form's name keeps its initials mid-sentence, and the family's portal nam
     assert.match(readFileSync(file, "utf8"), /tradeVocab\(workspace\.tenantTrade, project \? jobKindOf\(project\) : undefined\)/, file);
   }
 });
+
+test("a client's email never explains the studio's own screens, or asks how they heard of the studio", async () => {
+  const { tradeInstruction } = await import("../functions/src/trades/trade-instruction.ts");
+  for (const trade of ["makeup", "hair", "dj", "planner"]) {
+    assert.match(tradeInstruction(trade), /How-to facts/, trade);
+    assert.doesNotMatch(tradeInstruction(trade, { forClient: true }), /How-to facts|Lay out the morning|crew's brief/, trade);
+  }
+  const { messageDraftSystemInstruction } = await import("../functions/src/ai/message-draft.ts");
+  const prompt = messageDraftSystemInstruction({ trigger: "inquiry_received", trade: "makeup" });
+  assert.doesNotMatch(prompt, /Lay out the morning|How-to facts/);
+  assert.match(prompt, /Never ask the client how they heard about the studio/);
+  assert.match(readFileSync("functions/src/ai/communications.ts", "utf8"), /tradeInstruction\(input\.trade, \{ forClient: true \}\)/);
+});
