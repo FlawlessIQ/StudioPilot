@@ -139,7 +139,8 @@ test("what the prod walk of 2026-10-14 found stays fixed", async () => {
   // The job made when the inquiry arrives keeps who it celebrates, and names which mitzvah.
   const convert = read("functions/src/intake/convert.ts");
   assert.match(convert, /\.\.\.\(mitzvah \? \{ honoreeName: mitzvah\.honoree, mitzvahType: mitzvah\.type \} : \{\}\)/);
-  assert.match(convert, /name: `\$\{displayName\} \$\{jobWord\}`/);
+  assert.match(convert, /: `\$\{displayName\} \$\{jobWord\}`;/);
+  assert.match(convert, /name: jobName\.trim\(\)/);
   // A taken date gets no "pick a time to talk" under a reply that declines it.
   assert.match(read("functions/src/intake/inquiry-link.ts"), /availabilityStatus"\) === "conflict"\) return \{ body: input\.body, linked: false \}/);
   // The studio's alert says who and which.
@@ -239,4 +240,19 @@ test("what the emulator walk of 2026-10-14 found stays fixed", async () => {
     values: { trade: "dj", eventKind: "mitzvah", formName: "Mitzvah music & MC planner", actionUrl: "https://studio-cue.com/client" },
   });
   assert.equal(email.subject, "Your mitzvah music & MC planner for Spin Theory");
+});
+
+test("what the DJ's prod walk of 2026-10-14 found stays fixed", async () => {
+  const { tradeVocab } = await import("@/features/trades/trades");
+  // The family's form is named as they get it, on the journey and in Questionnaires.
+  assert.equal(tradeVocab("dj", "mitzvah").detailsForm, "Mitzvah music & MC planner");
+  assert.equal(tradeVocab("dj").detailsForm, "Music & moments planner");
+  assert.match(readFileSync("features/journey/steps.ts", "utf8"), /const tradeWords = tradeVocab\(input\.trade, input\.profile\?\.kind\);/);
+  assert.match(readFileSync("components/planning/inquiry-event-form-setting.tsx", "utf8"), /tradeVocab\(workspace\.tenantTrade, kind\)\.detailsForm/);
+  // Schedule A: one "Service" on a mitzvah, the synagogue's; the DJ's row is what was booked.
+  const { eventDetailsFrom } = await import("@/features/contracts/event-details");
+  const rows = eventDetailsFrom({ date: "June 12, 2027", coverage: "1 DJ, 6 hours", trade: "dj", answers: [], kindDetails: { parts: "mitzvah", title: "Mitzvah details" } } as never);
+  const labels = (rows as unknown as { rows?: Array<{ label: string }> }).rows ?? (rows as unknown as Array<{ label: string }>);
+  assert.ok(Array.isArray(labels) && labels.some((row) => row.label === "Booked"), JSON.stringify(rows));
+  assert.ok(!labels.some((row) => row.label === "Service" && /DJ/.test(String((row as { value?: unknown }).value))));
 });

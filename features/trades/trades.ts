@@ -419,6 +419,11 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
  * family has no bride, no veil and no marriage license.
  */
 const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVocabulary>>>>> = {
+  // The recommended form's own name (recommended-templates.ts), so the job's
+  // journey, the portal and Questionnaires name the form the family gets.
+  dj: {
+    mitzvah: { detailsForm: "Mitzvah music & MC planner" },
+  },
   makeup: {
     mitzvah: {
       kitChecklist: {

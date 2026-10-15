@@ -260,7 +260,9 @@ export function eventDetailsFrom(input: {
   // "Service" (trades.ts `coverage`, written out because this file has no
   // imports). An unknown trade is a photographer, as tradeOf() reads it.
   const vendor = ["dj", "makeup", "hair", "planner"].includes(String(input.trade ?? "").trim().toLowerCase());
-  if (input.coverage) rows.push({ label: vendor ? "Service" : "Coverage", value: input.coverage });
+  // A mitzvah's "Service" is the one at the synagogue, so a vendor's row is
+  // what was booked (prod walk, 2026-10-14: two "Service" rows).
+  if (input.coverage) rows.push({ label: vendor ? (parts === "mitzvah" ? "Booked" : "Service") : "Coverage", value: input.coverage });
   const order: Category[] = ["getting_ready", "ceremony", "reception", "photo_locations", "venue_logistics", "rehearsal", "times", "guests", "contacts"];
   const missing: string[] = [];
   for (const category of order) {

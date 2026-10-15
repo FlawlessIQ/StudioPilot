@@ -370,7 +370,7 @@ async function walk(trade: Trade) {
   let project = await data(`projects/${projectId}`);
   record(
     "2. the job is Sam's bar mitzvah",
-    project?.eventKind === "mitzvah" && project?.honoreeName === "Sam" && project?.mitzvahType === "bar" && /Bar mitzvah/.test(String(project?.name)),
+    project?.eventKind === "mitzvah" && project?.honoreeName === "Sam" && project?.mitzvahType === "bar" && /^Sam Cohen's bar mitzvah$/.test(String(project?.name)),
     `eventKind ${project?.eventKind}, honoree ${project?.honoreeName}, type ${project?.mitzvahType}, name "${project?.name}", eventTypeId ${project?.eventTypeId}, eventType "${project?.eventType}"`,
   );
   record("2. the lead keeps the honoree", inquiry.lead?.honoreeName === "Sam" && inquiry.lead?.mitzvahType === "bar", `lead honoree ${inquiry.lead?.honoreeName}, type ${inquiry.lead?.mitzvahType}`);

@@ -638,7 +638,7 @@ function shapeForLightJourney(steps: JourneyStep[], input: JourneyInput): void {
     }
     remove(foldKey);
   };
-  const words = tradeVocab(input.trade);
+  const words = tradeVocab(input.trade, input.profile?.kind);
 
   if (light.foldRoutine) {
     // Cue sends the first reply; it is part of the inquiry arriving.
@@ -766,7 +766,7 @@ export function projectJourney(input: JourneyInput): {
   // The kind's words: "the family", "Session details" (job-kinds.ts). No
   // profile is the wedding journey, as it always was.
   const words = vocab(input.profile?.kind ?? BEFORE_KINDS);
-  const tradeWords = tradeVocab(input.trade);
+  const tradeWords = tradeVocab(input.trade, input.profile?.kind);
   const delivers = tradeProfile(input.trade).delivery;
   const who = words.clientFallback;
   const Who = `${who.charAt(0).toUpperCase()}${who.slice(1)}`;

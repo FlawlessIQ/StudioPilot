@@ -174,13 +174,20 @@ export async function convertInquiryToJob(
     const leadKind = jobKindOf({ eventKind: lead.get("eventKind"), eventTypeId: lead.get("eventTypeId"), eventTypeLabel });
     const mitzvah = journeyProfile(leadKind).honoree ? mitzvahOf(lead.data()) : null;
     const jobWord = mitzvah?.type ? MITZVAH_TYPE_LABELS[mitzvah.type] : eventTypeLabel;
+    // Named for the child when the family said who: "Noah Levine's bar
+    // mitzvah". "Dana Levine Bar mitzvah" welcomed the family to a mitzvah
+    // that read as the parent's (prod walk, 2026-10-14).
+    const familyName = namedAs(text(lead.get("lastName")));
+    const jobName = mitzvah?.honoree
+      ? `${[mitzvah.honoree, familyName].filter(Boolean).join(" ")}'s ${mitzvah.type ? MITZVAH_TYPE_LABELS[mitzvah.type].toLowerCase() : "mitzvah"}`
+      : `${displayName} ${jobWord}`;
 
     if (!existingProject.exists) {
       transaction.create(projectReference, {
         id: projectId,
         projectId,
         tenantId: input.tenantId,
-        name: `${displayName} ${jobWord}`.trim().slice(0, 160),
+        name: jobName.trim().slice(0, 160),
         ...(mitzvah ? { honoreeName: mitzvah.honoree, mitzvahType: mitzvah.type } : {}),
         eventTypeId: text(lead.get("eventTypeId")) || eventTypeLabel.toLowerCase(),
         eventType: eventTypeLabel,

@@ -48,7 +48,7 @@ export function InquiryEventFormSetting({
   const callWord = tradeVocab(workspace.tenantTrade).consultation.toLowerCase();
   const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
   // A vendor's client fills in one form, sent when they book (trades.ts `journey.oneForm`).
-  const ownForm = tradeProfile(workspace.tenantTrade).journey.oneForm ? tradeVocab(workspace.tenantTrade).detailsForm : null;
+  const ownForm = tradeProfile(workspace.tenantTrade).journey.oneForm ? tradeVocab(workspace.tenantTrade, kind).detailsForm : null;
   const { records: templates } = useTenantDocuments("questionnaireTemplates");
   const ownerOrAdmin = ["studio_owner", "studio_admin"].includes(String(workspace.role));
   const [savedId, setSavedId] = useState<string | null>(null);
