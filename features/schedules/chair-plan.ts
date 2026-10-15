@@ -71,7 +71,9 @@ function order(chair: readonly Job[]): Job[] {
   const bride = chair.find((job) => job.person.role === "bride");
   if (!bride) return [...chair];
   const others = chair.filter((job) => job !== bride);
-  const before = Math.ceil(others.length / 2);
+  // Rounded down: with one other person she goes first, never last (prom
+  // walk, 2026-10-15 — a two-person list put the honoree last).
+  const before = Math.floor(others.length / 2);
   return [...others.slice(0, before), bride, ...others.slice(before)];
 }
 

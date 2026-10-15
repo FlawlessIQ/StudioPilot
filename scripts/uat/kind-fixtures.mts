@@ -57,7 +57,8 @@ export type KindFixture = {
   yourEvent: string;
   /** How the agreement, the portal and the emails name the event ("bar mitzvah"). */
   eventPhrase: string;
-  inquiry: { message: string; city: string; venue: string; guests: number };
+  /** venue/guests undefined for a kind whose inquiry asks for neither (dayFieldsForKind). */
+  inquiry: { message: string; city: string; venue?: string; guests?: number };
   package: { name: string; description: string; deliverables: string[] };
   /** The agreement's schedule headings; null for a kind with no agreement (journeyProfile(kind).agreement false). */
   scheduleA: string | null;
@@ -282,6 +283,30 @@ function sacramentChairs({ trade, stored, record }: PlanContext) {
   const slots = plan.slots.map((slot) => `${slot.start}-${slot.end} ${slot.name} (${slot.role})`).join(", ") || "no slots";
   record(`5. planChairs lays out the ${service} chairs`, plan.slots.length === 2 && plan.fits, `${slots} ${plan.notes.join(" ")}`);
 }
+
+/**
+ * The words a prom family must never read: a wedding's (with its veil,
+ * ceremony, officiant and marriage), "couple" other than "a couple of", and
+ * the other honoree kinds'.
+ */
+const PROM_WORDS = /\b(weddings?|brides?|bridal|grooms?|bridesmaids?|fianc[ée]e?s?|officiants?|marriage|ceremony|ceremonies|veils?|(?<!\ba )couples?(?! of\b)|(?:bar|bat|b'?nai) mitzvahs?|mitzvahs?|synagogue|quincea[ñn]eras?|sweet 16|athletes?|communions?)\b/i;
+
+/** A makeup or hair party list and its chairs for prom. */
+function promChairs({ trade, stored, record }: PlanContext) {
+  const service = trade as "makeup" | "hair";
+  const people = parsePartyList(stored["party-list"], service);
+  const role = (name: string) => people.find((person) => person.name === name)?.role;
+  record("5. party list read: Ava (the student) is the honoree, Mia (friend) the party",
+    role("Ava") === "bride" && role("Mia") === "party",
+    people.map((person) => `${person.name}: ${person.role} ${person.services.join("+")} ${person.notes ?? ""}`).join(", "));
+  const plan = planChairs({ people, service, readyBy: "17:00", earliestStart: "13:00", artists: 1 });
+  const slots = plan.slots.map((slot) => `${slot.start}-${slot.end} ${slot.name} (${slot.role})`).join(", ") || "no slots";
+  record(`5. planChairs lays out the ${service} chairs`, plan.slots.length === 2 && plan.fits, `${slots} ${plan.notes.join(" ")}`);
+  const at = plan.slots.findIndex((slot) => slot.name === "Ava");
+  record("5. Ava is never last in the chair (chair-plan.ts: the middle)", at >= 0 && at < plan.slots.length - 1, slots);
+}
+
+const PROM_BEFORE_ANSWERS = { "ready-by-time": "17:00", "earliest-start-time": "13:00", "getting-ready": "The Park home, 5 Birch Ln, Ridgewood NJ" };
 
 export const KIND_FIXTURES: Record<string, KindFixture> = {
   mitzvah: {
@@ -514,6 +539,45 @@ export const KIND_FIXTURES: Record<string, KindFixture> = {
           "party-list": "Lily — first communion — curls, with her veil\nMaria Lopez — mom — blowout",
         },
         plan: sacramentChairs,
+      },
+    },
+  },
+  // Phase 4: getting ready for prom. An honoree with no variant, no agreement,
+  // paid in full; the inquiry asks for no venue and no guest count. Makeup and
+  // hair here; the photographer's prom details + shot list are not walked.
+  prom: {
+    kind: "prom",
+    word: "prom",
+    eventType: { id: "prom", label: "Prom" },
+    client: { firstName: "Kim", lastName: "Park" },
+    honoree: { name: "Ava", variantField: null, variant: null },
+    jobName: "Ava Park's prom",
+    yourEvent: "Ava's prom",
+    eventPhrase: "prom",
+    inquiry: { message: "Ava's getting ready for prom at home with her friend Mia.", city: "Ridgewood, NJ", venue: undefined, guests: undefined },
+    package: { name: "Prom glam", description: "Getting ready at home before prom.", deliverables: ["Getting ready for prom"] },
+    scheduleA: null,
+    scheduleB: null,
+    foreignForms: /^(wedding|mitzvah|quince|sweet16|sacrament|dj-|makeup-|hair-|planner-)/,
+    // journeyProfile("prom").detailsFormDaysBefore is 14.
+    formDueDaysOut: 10,
+    fillerText: "The Park home, 5 Birch Ln, Ridgewood NJ",
+    forbidden: PROM_WORDS,
+    coupleWord: COUPLE_WORD,
+    trades: {
+      makeup: {
+        studioName: "Prom Glow Makeup",
+        form: "prom-makeup-party-list",
+        scheduleB: null,
+        answers: { ...PROM_BEFORE_ANSWERS, "party-list": "Ava — the student — soft glam — lashes\nMia — friend — natural makeup" },
+        plan: promChairs,
+      },
+      hair: {
+        studioName: "Prom Night Hair",
+        form: "prom-hair-party-list",
+        scheduleB: null,
+        answers: { ...PROM_BEFORE_ANSWERS, "party-list": "Ava — the student — loose curls\nMia — friend — sleek updo" },
+        plan: promChairs,
       },
     },
   },

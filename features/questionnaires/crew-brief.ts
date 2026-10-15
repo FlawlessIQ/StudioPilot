@@ -110,6 +110,11 @@ export const crewStarterFieldIds: ReadonlySet<string> = new Set([
   // a First Communion, Confirmation or Baptism (Phase 3)
   "godparents",
   "church-photo-rules",
+  // getting ready for prom (Phase 4)
+  "prom-date-name",
+  "photo-location",
+  "photo-start-time",
+  "leave-time",
 ]);
 
 /** The answers a photographer must have read before lifting a camera. */

@@ -66,6 +66,7 @@ export default async function QuestionnairesPage({ searchParams }: { searchParam
             <InquiryEventFormSetting kind="quince" />
             <InquiryEventFormSetting kind="sweet16" />
             <InquiryEventFormSetting kind="sacrament" />
+            <InquiryEventFormSetting kind="prom" />
             {/* The builder and the recommended forms have their own page
                 (questionnaires/templates): rendered here they put 812 buttons
                 under the list (laptop UI audit, 2026-10-14). */}

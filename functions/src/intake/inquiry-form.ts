@@ -93,7 +93,7 @@ export function inquiryGetsEventForm(
  * prod walk, 2026-10-14 — "Send it with new bar and bat mitzvah inquiries"
  * had no setting to do it with).
  */
-export const INQUIRY_FORM_KINDS = ["mitzvah", "quince", "sweet16", "sacrament"] as const;
+export const INQUIRY_FORM_KINDS = ["mitzvah", "quince", "sweet16", "sacrament", "prom"] as const;
 export type InquiryFormKind = (typeof INQUIRY_FORM_KINDS)[number];
 
 /**

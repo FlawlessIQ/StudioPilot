@@ -2917,7 +2917,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const act = sessions ? "Book" : "Sign up";
       // Who signs up, in the event's words (features/group-events/words.ts):
       // a class's First Communion signs up children, not athletes.
-      const persons = ({ sports: "athletes", sacrament: "children" } as Record<string, string>)[stringValue(values, "eventKind")] ?? "people";
+      const persons = ({ sports: "athletes", sacrament: "children", prom: "students" } as Record<string, string>)[stringValue(values, "eventKind")] ?? "people";
       return {
         subject: `${act} ${sessions ? "your session at" : "for"} ${event} with ${brand.studioName}`,
         preheader: `Pick a package${from ? ` from ${from}` : ""}${times ? ", a time" : ""} and how you'll pay. It takes a minute.`,

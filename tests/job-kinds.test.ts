@@ -128,7 +128,10 @@ test("the wedding-only steps are switches, and only a wedding has them on (mitzv
     [sacrament.planningTimeline, sacrament.shotList, sacrament.vendorTeam, sacrament.dayPlan, sacrament.partner, sacrament.scheduleAParts],
     [false, true, false, null, false, null],
   );
-  for (const kind of JOB_KINDS.filter((kind) => !["wedding", "mitzvah", "quince", "sweet16", "sacrament"].includes(kind))) {
+  // Getting ready for prom: the shot list only, as a communion (Phase 4).
+  const prom = journeyProfile("prom");
+  assert.deepEqual([prom.shotList, prom.dayPlan, prom.scheduleAParts, prom.honoree], [true, null, null, true]);
+  for (const kind of JOB_KINDS.filter((kind) => !["wedding", "mitzvah", "quince", "sweet16", "sacrament", "prom"].includes(kind))) {
     const profile = journeyProfile(kind);
     assert.deepEqual(
       [profile.planningTimeline, profile.shotList, profile.vendorTeam, profile.dayPlan, profile.partner, profile.scheduleAParts],
@@ -155,7 +158,7 @@ test("a mitzvah runs at a wedding's weight, for the parents, naming their child 
   assert.equal(profile.detailsFormDaysBefore, 90);
   assert.equal(profile.honoree, true);
   // Only a mitzvah, a quinceañera and a Sweet 16 have someone they celebrate.
-  for (const kind of JOB_KINDS.filter((kind) => !["mitzvah", "quince", "sweet16", "sacrament"].includes(kind))) assert.equal(journeyProfile(kind).honoree, false, kind);
+  for (const kind of JOB_KINDS.filter((kind) => !["mitzvah", "quince", "sweet16", "sacrament", "prom"].includes(kind))) assert.equal(journeyProfile(kind).honoree, false, kind);
 
   assert.equal(vocab("mitzvah").clientFallback, "the family");
   assert.equal(vocab("mitzvah").yourEvent, "your celebration");

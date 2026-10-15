@@ -115,6 +115,25 @@ export const EXAMPLE_PACKAGES: Record<JobKind, readonly ExamplePackage[]> = {
       deliverables: "Online gallery, High-resolution downloads",
     },
   ],
+  // Phase 4: pre-prom photos, at home or a park before they leave.
+  prom: [
+    {
+      name: "Pre-prom portraits",
+      description: "Portraits before they leave for prom, with family and the date.",
+      coverageHours: 1,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Online gallery, High-resolution downloads",
+    },
+    {
+      name: "Group pre-prom photos",
+      description: "The whole group of friends and their families, before the limo leaves.",
+      coverageHours: 1.5,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Online gallery, High-resolution downloads",
+    },
+  ],
   portraits: [
     {
       name: "Mini session",
@@ -329,6 +348,16 @@ const MAKEUP_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       deliverables: "Full makeup, Lashes, Touch-up kit",
     },
   ],
+  prom: [
+    {
+      name: "Prom makeup",
+      description: "Makeup for prom night, with lashes, and friends booking together priced per person.",
+      coverageHours: 1,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Full makeup, Lashes, Touch-up kit",
+    },
+  ],
   other: [
     {
       name: "Event makeup",
@@ -386,6 +415,16 @@ const HAIR_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       name: "Sweet 16 hair",
       description: "The birthday girl's style, with friends and family after her priced per person.",
       coverageHours: 2,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Styling",
+    },
+  ],
+  prom: [
+    {
+      name: "Prom hair",
+      description: "Hair for prom night, with friends booking together priced per person.",
+      coverageHours: 1,
       photographers: 1,
       videographers: 0,
       deliverables: "Styling",

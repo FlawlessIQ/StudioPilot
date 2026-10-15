@@ -443,11 +443,33 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
         title: "Kit checklist",
         items: [
           "the address, room number and parking",
-          "the getting-ready schedule: the quinceañera last, the damas before her",
+          "the getting-ready schedule, with the quinceañera in the middle, never last",
           "brushes and sponges cleaned",
           "lashes and adhesive for everyone who wanted them",
           "the quinceañera's shades and products from her trial",
           "a touch-up kit for the quinceañera and her mom",
+          "a light, a power strip and an extension cord",
+        ],
+      },
+    },
+    prom: {
+      detailsForm: "Prom party list",
+      prepGuide: {
+        lead: "So your makeup goes on beautifully and lasts all night",
+        items: [
+          "arrive with a clean, moisturized face and no makeup",
+          "wear a button-up or zip-front top, so nothing goes over your head",
+          "have your inspiration photos and any lashes you love with you",
+        ],
+      },
+      kitChecklist: {
+        title: "Kit checklist",
+        items: [
+          "the address and parking, and when they leave for photos",
+          "the getting-ready order, with the student in the middle, never last",
+          "products suited to teenage skin",
+          "lashes and adhesive for everyone who wanted them",
+          "a touch-up kit for the night",
           "a light, a power strip and an extension cord",
         ],
       },
@@ -458,7 +480,7 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
         title: "Kit checklist",
         items: [
           "the address, room number and parking",
-          "the getting-ready schedule: the birthday girl last, her friends before her",
+          "the getting-ready schedule, with the birthday girl in the middle, never last",
           "brushes and sponges cleaned",
           "lashes and adhesive for everyone who wanted them",
           "products suited to teenage skin",
@@ -499,7 +521,7 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
         title: "Kit checklist",
         items: [
           "the address, room number and parking",
-          "the getting-ready schedule: the quinceañera last, the damas before her",
+          "the getting-ready schedule, with the quinceañera in the middle, never last",
           "irons, dryer and brushes",
           "pins, elastics and hairspray — extra pins for the tiara",
           "the quinceañera's look from her trial",
@@ -518,13 +540,36 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
       },
     },
     // A First Communion has a veil of its own; a Confirmation and a Baptism don't wait on one.
+    prom: {
+      detailsForm: "Prom party list",
+      trialHint: null,
+      trialBring: ["pictures of looks you love", "a photo of the outfit", "any hair accessories you'll wear"],
+      prepGuide: {
+        lead: "So your hair holds all night",
+        items: [
+          "come with clean, completely dry hair — washed the night before, with no oils or products — or there's a blow-dry fee",
+          "wear a button-up or zip-front top, so nothing goes over your head",
+          "have your hair accessories with you",
+        ],
+      },
+      kitChecklist: {
+        title: "Kit checklist",
+        items: [
+          "the address and parking, and when they leave for photos",
+          "the getting-ready order, with the student in the middle, never last",
+          "irons, dryer and brushes",
+          "pins, elastics and hairspray",
+          "a power strip and an extension cord",
+        ],
+      },
+    },
     sacrament: {
       trialHint: null,
       kitChecklist: {
         title: "Kit checklist",
         items: [
           "the address and parking, and when the family leaves for the church",
-          "the getting-ready schedule: your client's child last",
+          "the getting-ready schedule, with your client's child in the middle, never last",
           "irons, dryer and brushes",
           "pins, elastics and hairspray — extra pins for a veil or a headpiece",
           "the look from the trial, if there was one",
@@ -538,7 +583,7 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
         title: "Kit checklist",
         items: [
           "the address, room number and parking",
-          "the getting-ready schedule: the birthday girl last, her friends before her",
+          "the getting-ready schedule, with the birthday girl in the middle, never last",
           "irons, dryer and brushes",
           "pins, elastics and hairspray",
           "the birthday girl's look from her trial, if there was one",

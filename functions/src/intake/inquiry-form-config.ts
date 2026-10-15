@@ -7,7 +7,7 @@
 // ── mirrored below ──
 
 /** What kind of event a studio's type is. "wedding" keeps the wedding-only behaviour (the event form). */
-export const INQUIRY_EVENT_KINDS = ["wedding", "mitzvah", "quince", "sweet16", "sacrament", "portraits", "sports", "corporate", "other", "general"] as const;
+export const INQUIRY_EVENT_KINDS = ["wedding", "mitzvah", "quince", "sweet16", "sacrament", "prom", "portraits", "sports", "corporate", "other", "general"] as const;
 export type InquiryEventKind = (typeof INQUIRY_EVENT_KINDS)[number];
 
 export const INQUIRY_FIELD_MODES = ["required", "optional", "hidden"] as const;
@@ -90,6 +90,9 @@ export function dayFieldsForKind(kind: InquiryEventKind): InquiryDayFields {
     // A church in the morning: the date, and the church as the venue.
     case "sacrament":
       return { eventDate: "required", city: "optional", venue: true, guests: false, coi: false };
+    // Getting ready at home: the date and the town; no venue, no guest count.
+    case "prom":
+      return { eventDate: "required", city: "optional", venue: false, guests: false, coi: false };
     case "portraits":
     case "sports":
       return { eventDate: "optional", city: "optional", venue: false, guests: false, coi: false };
@@ -506,7 +509,7 @@ export function questionsForType(config: InquiryFormConfig, type: InquiryEventTy
  * name, and which mitzvah (job-kinds.ts `honoree`, restated here since this
  * file has no imports; tests/job-kinds.test.ts keeps the two the same).
  */
-export const HONOREE_KINDS: readonly InquiryEventKind[] = ["mitzvah", "quince", "sweet16", "sacrament"];
+export const HONOREE_KINDS: readonly InquiryEventKind[] = ["mitzvah", "quince", "sweet16", "sacrament", "prom"];
 
 export function asksHonoree(type: { kind: InquiryEventKind } | null | undefined): boolean {
   return Boolean(type && HONOREE_KINDS.includes(type.kind));

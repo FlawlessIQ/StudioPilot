@@ -324,7 +324,8 @@ export function LeadIntakeForm({
   const chosenType = types.find((type) => type.id === typeKey) ?? null;
   // A session's date, a mitzvah's party date (the service is often another
   // day: prod walk, 2026-10-14), anything else's event date.
-  const dateLabel = chosenType?.kind === "portraits" ? "Session date" : asksHonoree(chosenType) ? "Party date" : "Event date";
+  // A kind's own label first: a prom's "Prom date" (job-kinds.ts vocab).
+  const dateLabel = (chosenType ? vocab(chosenType.kind).inquiryDateLabel : undefined) ?? (chosenType?.kind === "portraits" ? "Session date" : asksHonoree(chosenType) ? "Party date" : "Event date");
   const day = dayFieldsFor(chosenType);
   const steps: StepKey[] = inquirySkipsDetails(chosenType) ? ["you", "more"] : ["you", "day", "more"];
   const stepIndex = Math.min(step, steps.length - 1);
@@ -643,7 +644,7 @@ export function LeadIntakeForm({
                     <Field
                       autoComplete="off"
                       hint="Optional — their first name, so the studio can use it."
-                      label="Who are we celebrating?"
+                      label={(chosenType ? vocab(chosenType.kind).honoreeQuestion : undefined) ?? "Who are we celebrating?"}
                       {...register("honoreeName", { setValueAs: (value) => value || null })}
                     />
                     <input type="hidden" {...register("mitzvahType", { setValueAs: (value) => value || null })} />

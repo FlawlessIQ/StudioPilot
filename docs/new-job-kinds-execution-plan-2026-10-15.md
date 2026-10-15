@@ -261,6 +261,17 @@ suited to age, already in the mitzvah's beauty Schedule B), photographer
 shot list for pre-prom groups; DJ dance plan (school rules: clean edits,
 end time).
 
+**Built 2026-10-15 — getting ready first (Conor).** Kind `prom`: the student
+named ("Ava's prom"), no agreement and paid in full by default (a package can
+change how it's paid), many on one night; the inquiry asks "Who's going to
+prom?" and a "Prom date" (vocab `honoreeQuestion`, `inquiryDateLabel`), no venue
+or guest count; makeup and hair party lists, photographer details + shot list;
+a friends' group books as a group event (student/parent/group). Emulator walk:
+prom (makeup + hair) 76/78 → fixed, sacrament 39, mitzvah 154, quince 156,
+sweet16 154. Fixed for every kind: with one other person the honoree was done
+last in the chair (chair-plan.ts rounds down now); kit lists said "last".
+Not built: the school-booked dance (DJ/photographer for the school).
+
 **Done when:** emulator walk for makeup, hair and photographer (getting
 ready) and DJ (school); prod walk on Glow by Ana and Jess Styles with a
 friends-group booking.

@@ -1513,6 +1513,88 @@ const SACRAMENT_SHOT_LIST: RecommendedSection[] = [
   },
 ];
 
+/**
+ * Getting ready for prom (docs/new-job-kinds-execution-plan-2026-10-15.md,
+ * Phase 4). A parent fills it in for their student, or for a group of friends
+ * getting ready together. No agreement and no Schedule A: what they give
+ * goes to the crew's brief and the chair plan.
+ */
+const PROM_DETAILS: RecommendedSection[] = [
+  {
+    id: "family",
+    title: "You and your student",
+    fields: [
+      field("event-date", "Prom date", "date", true),
+      field("parent-names", "Parent's name", "text", true),
+      field("parent-email", "Parent's email", "email", true),
+      field("parent-phone", "Parent's phone", "phone", true),
+      field("honoree-name", "Your student's first name", "text", true),
+      field("prom-date-name", "Their date's name, if they're going with someone", "text", false),
+    ],
+  },
+  {
+    id: "photos",
+    title: "The photos",
+    fields: [
+      field("photo-location", "Where we're taking the photos", "address", true, {
+        help: "Home, a park, or wherever the group is meeting.",
+      }),
+      field("photo-start-time", "When to start", "time", true),
+      field("leave-time", "When they leave for prom", "time", false, { help: "We finish before they go." }),
+      field("group-size", "How many in the group, if friends are coming", "text", false),
+    ],
+  },
+];
+
+const PROM_SHOT_LIST: RecommendedSection[] = [
+  {
+    id: "groups",
+    title: "Group pictures",
+    fields: [
+      field("must-have-groups", "Group pictures, in the order to call them", "long_text", false, {
+        help: "One per line. For example: \"Ava with her date\", \"Ava with her parents\", \"The whole group\".",
+      }),
+    ],
+  },
+  {
+    id: "must-take",
+    title: "Must-take pictures",
+    fields: [
+      field("must-have-shots", "Pictures you don't want us to miss", "long_text", false, {
+        help: "The corsage, leaving in the car, with grandparents — anything that matters most to you.",
+      }),
+      field("no-photo-list", "Anyone who must not be photographed or filmed", "long_text", false, {
+        help: "Including any friend whose parents haven't agreed to photos.",
+      }),
+    ],
+  },
+];
+
+/** A prom's party list: the student and any friends getting ready together, for a makeup artist or a hair stylist. */
+const promPartyList = (example: string): RecommendedSection[] => [
+  {
+    ...PARTY_LIST[0]!,
+    id: "getting-ready",
+    title: "Getting ready",
+    fields: PARTY_LIST[0]!.fields.map((entry) =>
+      entry.id === "ready-by-time"
+        ? { ...entry, help: "When everyone needs to be done — usually an hour before photos, or before you leave." }
+        : entry.id === "day-of-contact"
+          ? { ...entry, help: "Who we call on the day if it isn't you: another parent or a friend." }
+          : entry,
+    ),
+  },
+  {
+    id: "your-party",
+    title: "Who's getting ready",
+    fields: [
+      field("party-list", "Everyone getting ready, one person per line", "repeating_group", true, {
+        help: `Name — who they are — anything we should know. For example: ${example}`,
+      }),
+    ],
+  },
+];
+
 export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
   return [
     {
@@ -1904,6 +1986,59 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
         PARTY_LIST[2]!,
       ],
     },
+    // Getting ready for prom (new-job-kinds plan, Phase 4).
+    {
+      id: "prom-details",
+      name: "Prom details",
+      summary: "Your student, their date, and where and when we take the photos before they leave.",
+      useIt: "Send it with new prom inquiries.",
+      eventTypeId: "prom",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 7,
+      reminderDaysBeforeDue: [7, 2],
+      sections: PROM_DETAILS,
+    },
+    {
+      id: "prom-shot-list",
+      name: "Prom shot list",
+      summary: "Group pictures in the order to call them, must-take pictures and anyone to avoid.",
+      useIt: "It goes out with the prom details.",
+      eventTypeId: "prom",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 5,
+      reminderDaysBeforeDue: [7, 2],
+      sections: PROM_SHOT_LIST,
+    },
+    {
+      id: "prom-makeup-party-list",
+      name: "Prom party list",
+      summary: "When everyone needs to be ready, where, and the student and any friends getting makeup.",
+      useIt: "Your prom planning form: it goes out when they book.",
+      eventTypeId: "prom",
+      trades: ["makeup"],
+      dueDaysBeforeEvent: 7,
+      reminderDaysBeforeDue: [7, 2],
+      sections: [
+        ...promPartyList("\"Ava — the student — soft glam — lashes\", \"Mia — friend — natural makeup\"."),
+        MAKEUP_SKIN,
+        PARTY_LIST[2]!,
+      ],
+    },
+    {
+      id: "prom-hair-party-list",
+      name: "Prom party list",
+      summary: "When everyone needs to be ready, where, and the student and any friends getting their hair done.",
+      useIt: "Your prom planning form: it goes out when they book.",
+      eventTypeId: "prom",
+      trades: ["hair"],
+      dueDaysBeforeEvent: 7,
+      reminderDaysBeforeDue: [7, 2],
+      sections: [
+        ...promPartyList("\"Ava — the student — loose curls\", \"Mia — friend — sleek updo\"."),
+        { ...HAIR_DETAILS, fields: HAIR_DETAILS.fields.filter((entry) => entry.id !== "veil") },
+        PARTY_LIST[2]!,
+      ],
+    },
     {
       id: "dj-music-planner",
       name: "Music & moments planner",
@@ -2035,7 +2170,7 @@ const SIGNUP_KINDS: readonly string[] = ["wedding"];
  * the kind on its inquiry form: a mitzvah's details, final schedule and shot
  * list.
  */
-export const OFFERED_KIND_FORMS: readonly string[] = ["mitzvah", "quince", "sweet16", "sacrament"];
+export const OFFERED_KIND_FORMS: readonly string[] = ["mitzvah", "quince", "sweet16", "sacrament", "prom"];
 
 /** How many questions a form asks. */
 export function recommendedFieldCount(template: RecommendedQuestionnaire): number {

@@ -19,7 +19,7 @@
 // ── mirrored below ──
 
 /** The kinds of job the product understands. `general` (an inquiry-only kind) is not one. */
-export const JOB_KINDS = ["wedding", "mitzvah", "quince", "sweet16", "sacrament", "portraits", "corporate", "sports", "other"] as const;
+export const JOB_KINDS = ["wedding", "mitzvah", "quince", "sweet16", "sacrament", "prom", "portraits", "corporate", "sports", "other"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 /**
@@ -37,6 +37,7 @@ export const JOB_KIND_LABELS: Record<JobKind, string> = {
   quince: "Quinceañera",
   sweet16: "Sweet 16",
   sacrament: "Communion, confirmation & baptism",
+  prom: "Prom",
   portraits: "Family & portraits",
   corporate: "Corporate & events",
   sports: "Sports",
@@ -63,6 +64,7 @@ export function jobKindFromLabel(label: unknown): JobKind | null {
   if (/quince|quincea[ñn]er|\bxv\b|xv a[ñn]os/.test(value)) return "quince";
   if (/sweet\s*(16|sixteen)/.test(value)) return "sweet16";
   if (/communion|confirmation|baptism|baptiz|christening/.test(value)) return "sacrament";
+  if (/\bprom\b|homecoming|\bformal dance\b/.test(value)) return "prom";
   if (/wedding|elop|marriage|ceremony|engagement|bridal/.test(value)) return "wedding";
   if (/headshot|corporate|conference|company|business|gala|summit|brand|commercial|staff/.test(value)) return "corporate";
   if (/sport|cheer|game|team|tournament|league|athlet|match|meet\b|race/.test(value)) return "sports";
@@ -176,6 +178,10 @@ export type JobVocabulary = {
   occasionByName: boolean;
   /** One of the kind, mid-sentence, where its own word won't do: "a bar or bat mitzvah". Else "a <event>". */
   oneOf?: string;
+  /** The inquiry form's date label, where "Party date" or "Event date" won't do: "Prom date". */
+  inquiryDateLabel?: string;
+  /** The inquiry form's question for who it's for, where "Who are we celebrating?" won't do. */
+  honoreeQuestion?: string;
 };
 
 /** The words every kind but a wedding shares. */
@@ -382,6 +388,41 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
     Clients: "Families",
     typicalDay: "celebration",
     inquiryDayTitle: "Tell us about the day",
+  },
+  // docs/new-job-kinds-execution-plan-2026-10-15.md, Phase 4: a family books
+  // getting ready for prom (Conor, 2026-10-15) — hair, makeup and pre-prom
+  // photos for a student or a group of friends. The parent is the client;
+  // vocab(kind, job) names the student: "Ava's prom".
+  prom: {
+    event: "prom",
+    Event: "Prom",
+    yourEvent: "prom night",
+    YourEvent: "Prom night",
+    theDay: "prom night",
+    Day: "Prom night",
+    clientFallback: "the family",
+    detailsForm: "Prom details",
+    schedule: "Prom night plan",
+    brief: "Prom brief",
+    scheduleA: "Prom details (Schedule A)",
+    afterwards: "After prom",
+    dayBeforeChecklist: [
+      "the outfit, the shoes and any accessories laid out",
+      "clean, dry hair, with no products, for anyone getting their hair done",
+      "where everyone's getting ready, and when you leave",
+    ],
+    ...PLAIN_WORDS,
+    dayBeforeLine: "The outfit and accessories laid out",
+    aboutYours: "prom night",
+    whenQuestion: "when’s prom?",
+    dateAsk: "The date of prom",
+    newClient: "A new family",
+    othersLikeYou: "other families",
+    Clients: "Families",
+    typicalDay: "prom night",
+    inquiryDayTitle: "Tell us about prom night",
+    inquiryDateLabel: "Prom date",
+    honoreeQuestion: "Who's going to prom?",
   },
   portraits: {
     event: "session",
@@ -922,6 +963,25 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
     coi: false,
     billingAddressRequest: false,
     album: true,
+    exclusiveDay: false,
+    ...PLAIN_STEPS,
+    shotList: true,
+    honoree: true,
+  },
+  // Getting ready for prom (Phase 4): a family session's weight — no
+  // agreement, paid in full by default (a studio's package can change how it
+  // is paid), the party list two weeks out, many on the same night.
+  prom: {
+    consultation: false,
+    agreement: false,
+    payment: "paid_in_full",
+    detailsFormDaysBefore: 14,
+    finalDetailsLock: false,
+    runOfShow: false,
+    crew: false,
+    coi: false,
+    billingAddressRequest: false,
+    album: false,
     exclusiveDay: false,
     ...PLAIN_STEPS,
     shotList: true,

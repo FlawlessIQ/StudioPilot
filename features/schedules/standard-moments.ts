@@ -216,6 +216,14 @@ export const KIND_STANDARD_MOMENTS: Readonly<Partial<Record<string, readonly Kin
     { label: "Surprise dance", title: "Surprise dance", minutes: 10 },
     { label: "Last dance", title: "Last dance", minutes: 5 },
   ],
+  // Pre-prom photos (Phase 4): before they leave.
+  prom: [
+    { label: "Arrive", title: "Photo and video arrive", minutes: 10 },
+    { label: "Portraits", title: "Portraits of the student", minutes: 15 },
+    { label: "With their date", title: "Photos with their date", minutes: 10 },
+    { label: "Group photos", title: "Group photos", minutes: 20 },
+    { label: "Leave for prom", title: "Leave for prom", minutes: 5 },
+  ],
   // A First Communion, Confirmation or Baptism (Phase 3): the church, then the family.
   sacrament: [
     { label: "Arrive at the church", title: "Photo and video arrive at the church", minutes: 15 },
