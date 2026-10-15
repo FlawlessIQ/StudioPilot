@@ -128,10 +128,22 @@ export const tenantDataCommand = onRequest(
         const tenant = await db.doc(`tenants/${parsed.tenantId}`).get();
         if (parsed.confirmation !== String(tenant.get("businessName")))
           throw new Error("BUSINESS_NAME_CONFIRMATION_REQUIRED");
-        const deleteAfter = new Date(Date.now() + 30 * 86400000).toISOString();
-        const reference = db.doc(`deletionRequests/${id}`);
-        if (!(await reference.get()).exists)
-          await reference.create({
+        // One open request per studio. Each press carried a fresh key, so a
+        // double tap (or a slow first response) made three requests in a
+        // second (prod test, 2026-10-15). An open one answers again instead.
+        const opened = await db.runTransaction(async (transaction) => {
+          const open = await transaction.get(
+            db
+              .collection("deletionRequests")
+              .where("tenantId", "==", parsed.tenantId)
+              .where("status", "in", ["cooling_off", "platform_approved", "deleting"])
+              .limit(1),
+          );
+          const existing = open.docs[0];
+          if (existing)
+            return { id: existing.id, status: String(existing.get("status")), deleteAfter: String(existing.get("deleteAfter")) };
+          const deleteAfter = new Date(Date.now() + 30 * 86400000).toISOString();
+          transaction.create(db.doc(`deletionRequests/${id}`), {
             id,
             tenantId: parsed.tenantId,
             requestedBy: identity.uid,
@@ -143,9 +155,11 @@ export const tenantDataCommand = onRequest(
             createdAt: now,
             updatedAt: now,
           });
+          return { id, status: "cooling_off", deleteAfter };
+        });
         response
           .status(200)
-          .json({ deletionRequestId: id, status: "cooling_off", deleteAfter });
+          .json({ deletionRequestId: opened.id, status: opened.status, deleteAfter: opened.deleteAfter });
         return;
       }
       const reference = db.doc(`deletionRequests/${parsed.requestId}`);

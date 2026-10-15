@@ -19,6 +19,8 @@ type Context = { tenantId: string; businessName: string };
 export function DataControls() {
   const [context, setContext] = useState<Context | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // One request at a time: three taps made three deletion requests (prod test, 2026-10-15).
+  const [busy, setBusy] = useState<"export" | "deletion" | null>(null);
   const [exports, setExports] = useState<Array<{ id: string; status: string }>>(
     [],
   );
@@ -102,6 +104,9 @@ export function DataControls() {
     return result;
   }
   async function requestExport() {
+    if (busy) return;
+    setBusy("export");
+    setNotice(null);
     try {
       const result = await command({ type: "requestExport" });
       if (result) {
@@ -117,11 +122,16 @@ export function DataControls() {
       setNotice(
         friendlyError(caught, "Export request failed."),
       );
+    } finally {
+      setBusy(null);
     }
   }
   async function requestDeletion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy) return;
     const data = new FormData(event.currentTarget);
+    setBusy("deletion");
+    setNotice(null);
     try {
       const result = await command({
         type: "requestDeletion",
@@ -136,6 +146,8 @@ export function DataControls() {
       setNotice(
         friendlyError(caught, "Deletion request failed."),
       );
+    } finally {
+      setBusy(null);
     }
   }
   async function download(id: string) {
@@ -181,10 +193,11 @@ export function DataControls() {
         </div>
         <button
           className="button button-dark"
+          disabled={busy !== null}
           type="button"
           onClick={() => void requestExport()}
         >
-          Request export
+          {busy === "export" ? "Requesting…" : "Request export"}
         </button>
         {exports.length ? (
           <ul>
@@ -224,8 +237,8 @@ export function DataControls() {
               placeholder={context?.businessName ?? "Your business name"}
             />
           </label>
-          <button className="button button-danger" type="submit">
-            Begin cooling-off period
+          <button className="button button-danger" disabled={busy !== null} type="submit">
+            {busy === "deletion" ? "Starting…" : "Begin cooling-off period"}
           </button>
         </form>
       </section>
