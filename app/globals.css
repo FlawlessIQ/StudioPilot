@@ -4422,11 +4422,19 @@ textarea:focus-visible {
   resize: vertical;
 }
 
+/* A field's own line: a hint, or (marked .form-error) what's wrong with it.
+   Every hint under a form field used to be red — "Installments between the
+   retainer and the final balance" read as an error on a fresh form (mobile
+   audit, 2026-10-15). Errors carry the class; everything else is a hint. */
 .form-grid label > small,
 .form-error {
-  color: var(--rose-dark);
+  color: var(--ds-muted, var(--muted));
   font-size: 8px;
   min-height: 10px;
+}
+.form-grid label > small.form-error,
+.form-error {
+  color: var(--rose-dark);
 }
 
 .form-span {
@@ -6407,6 +6415,20 @@ textarea:focus-visible {
   font-weight: 700;
   gap: 5px;
   text-decoration: none;
+}
+
+/* An empty list's link never breaks: in a phone's narrow card "Add client"
+   stood one word a line beside the text (mobile audit, 2026-10-15). The text
+   keeps a minimum width and the link wraps under it instead. */
+.live-record-state {
+  flex-wrap: wrap;
+}
+.live-record-state > span {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.live-state-action {
+  white-space: nowrap;
 }
 
 .hub-page {

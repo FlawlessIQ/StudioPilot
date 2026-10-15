@@ -296,12 +296,12 @@ export function CreatePackageForm({
         <label className="form-span">
           Package name <span className="required-mark">Required</span>
           <input {...register("name")} />
-          <small>{errors.name?.message}</small>
+          <small className="form-error">{errors.name?.message}</small>
         </label>
         <label className="form-span">
           Description <span className="required-mark">Required</span>
           <textarea {...register("description")} rows={3} />
-          <small>{errors.description?.message}</small>
+          <small className="form-error">{errors.description?.message}</small>
         </label>
         <label>
           Kind of job <span className="required-mark">Required</span>
@@ -318,7 +318,7 @@ export function CreatePackageForm({
               </option>
             ))}
           </select>
-          <small>{errors.eventType?.message}</small>
+          <small className="form-error">{errors.eventType?.message}</small>
         </label>
         <label>
           How it&rsquo;s paid <span className="required-mark">Required</span>
@@ -357,7 +357,7 @@ export function CreatePackageForm({
         <label>
           Base price (USD) <span className="required-mark">Required</span>
           <input {...register("basePrice")} min="0.01" step="0.01" type="number" />
-          <small>{errors.basePrice?.message ?? (typicalPrice ? `Planners often charge ${typicalPrice} for this.` : null)}</small>
+          <small className="form-error">{errors.basePrice?.message ?? (typicalPrice ? `Planners often charge ${typicalPrice} for this.` : null)}</small>
         </label>
         {hasDeposit ? (
         <>
@@ -368,7 +368,7 @@ export function CreatePackageForm({
             <option value="fixed">Fixed amount</option>
             <option value="per_crew_member">Per crew member</option>
           </select>
-          <small>{errors.retainerMode?.message}</small>
+          <small className="form-error">{errors.retainerMode?.message}</small>
         </label>
         <label>
           {retainerMode === "percentage"
@@ -384,14 +384,14 @@ export function CreatePackageForm({
             step="0.01"
             type="number"
           />
-          <small>{errors.retainerAmount?.message}</small>
+          <small className="form-error">{errors.retainerAmount?.message}</small>
         </label>
         {retainerMode === "per_crew_member" ? (
           <>
             <label className="form-checkbox">
               <input {...register("billPhotographers")} type="checkbox" />
               <span>{`Charge this per ${coverageRoleLabel(roles[0] ?? COVERAGE_ROLES[0]!, 1)}`}</span>
-              <small>{errors.billPhotographers?.message}</small>
+              <small className="form-error">{errors.billPhotographers?.message}</small>
             </label>
             {roles[1] ? (
               <label className="form-checkbox">
@@ -419,7 +419,7 @@ export function CreatePackageForm({
           {words.hoursLabel}{" "}
           <span className="required-mark">Required</span>
           <input {...register("coverageHours")} min="0.5" step="0.5" type="number" />
-          <small>{errors.coverageHours?.message}</small>
+          <small className="form-error">{errors.coverageHours?.message}</small>
         </label>
         {/*
           Neither count is required on its own — the pair is. Marking
@@ -431,13 +431,13 @@ export function CreatePackageForm({
         <label>
           {roleHeading(roles[0])}
           <input {...register("photographers")} min="0" type="number" />
-          <small>{errors.photographers?.message}</small>
+          <small className="form-error">{errors.photographers?.message}</small>
         </label>
         {roles[1] ? (
           <label>
             {roleHeading(roles[1])}
             <input {...register("videographers")} min="0" type="number" />
-            <small>{errors.videographers?.message}</small>
+            <small className="form-error">{errors.videographers?.message}</small>
           </label>
         ) : null}
         <p className="field-hint form-span">
@@ -454,18 +454,18 @@ export function CreatePackageForm({
         <label>
           Travel area <span className="required-mark">Required</span>
           <input {...register("travelArea")} />
-          <small>{errors.travelArea?.message}</small>
+          <small className="form-error">{errors.travelArea?.message}</small>
         </label>
         <label className="form-span">
           {`${words.includedLabel} (comma separated)`}{" "}
           <span className="required-mark">Required</span>
           <input {...register("deliverables")} />
-          <small>{errors.deliverables?.message}</small>
+          <small className="form-error">{errors.deliverables?.message}</small>
         </label>
         <label className="form-span">
           Terms <span className="required-mark">Required</span>
           <textarea {...register("terms")} rows={3} />
-          <small>{errors.terms?.message}</small>
+          <small className="form-error">{errors.terms?.message}</small>
         </label>
         <PackageAddOnPicker currency="USD" onChange={setAddOnIds} value={addOnIds} />
       </div>

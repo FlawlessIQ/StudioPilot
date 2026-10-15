@@ -591,7 +591,7 @@ export function CreateProjectForm({
               Job name <span className="required-mark">Required</span>
               {filled.name ? <FilledTag /> : null}
               <input {...fieldProps("name")} placeholder="e.g. Johnson wedding" required />
-              <small>{errors.name?.message}</small>
+              <small className="form-error">{errors.name?.message}</small>
             </label>
             <label className={filled.eventType ? "is-filled" : ""}>
               Type of job <span className="required-mark">Required</span>
@@ -609,7 +609,7 @@ export function CreateProjectForm({
               Event date <span className="required-mark">Required</span>
               {filled.eventDate ? <FilledTag /> : null}
               <input {...fieldProps("eventDate")} required type="date" />
-              <small>{errors.eventDate?.message}</small>
+              <small className="form-error">{errors.eventDate?.message}</small>
             </label>
             <HonoreeFields kind={chosenKind} nameProps={register("honoreeName")} typeProps={register("variant")} />
             {perPerson ? (
@@ -671,7 +671,7 @@ export function CreateProjectForm({
                     </option>
                   ))}
                 </select>
-                <small>{errors.primaryContactId?.message}</small>
+                <small className="form-error">{errors.primaryContactId?.message}</small>
                 {!contactsLoading && !contacts?.length ? (
                   <small>
                     No clients yet — switch to &ldquo;New client&rdquo; to add
@@ -686,13 +686,13 @@ export function CreateProjectForm({
                 First name <span className="required-mark">Required</span>
                 {filled.newClientFirstName ? <FilledTag /> : null}
                 <input {...fieldProps("newClientFirstName")} placeholder="Ava" />
-                <small>{errors.newClientFirstName?.message}</small>
+                <small className="form-error">{errors.newClientFirstName?.message}</small>
               </label>
               <label className={filled.newClientLastName ? "is-filled" : ""}>
                 Last name <span className="required-mark">Required</span>
                 {filled.newClientLastName ? <FilledTag /> : null}
                 <input {...fieldProps("newClientLastName")} placeholder="Chen" />
-                <small>{errors.newClientLastName?.message}</small>
+                <small className="form-error">{errors.newClientLastName?.message}</small>
               </label>
               <label className={filled.newClientEmail ? "is-filled" : ""}>
                 Email
@@ -702,7 +702,7 @@ export function CreateProjectForm({
                   inputMode="email"
                   placeholder="ava@example.com"
                 />
-                <small>{errors.newClientEmail?.message}</small>
+                <small className="form-error">{errors.newClientEmail?.message}</small>
               </label>
               <label className={filled.newClientPhone ? "is-filled" : ""}>
                 Phone

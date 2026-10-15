@@ -96,14 +96,33 @@
   font-family: var(--ds-sans, system-ui, sans-serif);
   font-size: 0.9rem;
   overflow: hidden;
+  container-type: inline-size;
 }
 
+/* An amount never breaks: on a phone "$1,600.00" split into "$1,600.0 / 0"
+   (mobile audit, 2026-10-15). Its column takes the amount's own width, and the
+   label and due date share the rest and wrap between words. */
 .contract-schedule-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(0, 1.4fr) max-content minmax(0, 1.2fr);
   gap: 0.75rem;
   padding: 0.55rem 0.85rem;
   border-top: 1px solid var(--ds-line, #e9e1d4);
+}
+
+.contract-schedule-row > :nth-child(2) {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+@container (max-width: 360px) {
+  .contract-schedule-row {
+    gap: 0.5rem;
+    padding: 0.5rem 0.6rem;
+  }
+  .contract-schedule-row.is-head {
+    letter-spacing: 0;
+  }
 }
 
 .contract-schedule-row.is-head {

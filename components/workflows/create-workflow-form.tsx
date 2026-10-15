@@ -461,8 +461,8 @@ export function CreateWorkflowForm({
   return (
     <form className="command-form panel workflow-create-form" onSubmit={submit}>
       <div className="form-grid">
-        <label className="form-span">Template name<input {...register("name")} /><small>{errors.name?.message}</small></label>
-        <label className="form-span">Description<textarea {...register("description")} rows={3} /><small>{errors.description?.message}</small></label>
+        <label className="form-span">Template name<input {...register("name")} /><small className="form-error">{errors.name?.message}</small></label>
+        <label className="form-span">Description<textarea {...register("description")} rows={3} /><small className="form-error">{errors.description?.message}</small></label>
         <label>
           Kind of job
           <select {...register("eventType")}>

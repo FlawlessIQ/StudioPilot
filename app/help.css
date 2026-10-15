@@ -580,6 +580,13 @@
   white-space: normal;
   overflow: visible;
 }
+/* Closed is hidden, whatever the panel around it says about spans: the
+   proposal composer's `.proposal-composer-retainer span { display: grid }`
+   beat the browser's own hiding and left the Retainer note open over the
+   total on every phone (mobile audit, 2026-10-15). */
+.info-hint-pop:not(:popover-open) {
+  display: none !important;
+}
 .info-hint-pop:popover-open {
   animation: info-hint-in 0.12s ease;
 }

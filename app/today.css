@@ -1676,8 +1676,14 @@
   .ds-root .today-card.has-glyph:has(.today-card-facts li + li) .today-card-facts {
     grid-column: 2 / -1;
   }
+  /* Nor does one fact beside two buttons ("Approve" + "Review"): the date
+     chip was clipped to "Aug 15, 2026 · 61d a" (mobile audit, 2026-10-15). */
+  .ds-root .today-card.has-glyph:has(> .today-card-actions > :nth-child(2)) .today-card-facts {
+    grid-column: 2 / -1;
+  }
   .ds-root .today-card.is-act.has-glyph > .today-card-actions,
   .ds-root .today-card.has-glyph:has(.today-card-facts li + li) > .today-card-actions,
+  .ds-root .today-card.has-glyph:has(> .today-card-actions > :nth-child(2)) > .today-card-actions,
   .ds-root .today-card.has-glyph:not(:has(.today-card-facts)) > .today-card-actions {
     grid-column: 2 / -1;
     justify-content: flex-start;

@@ -51,9 +51,9 @@ export function CreateContactForm() {
   return (
     <form className="command-form panel" onSubmit={submit}>
       <div className="form-grid">
-        <label>First name<input {...register("firstName")} /><small>{errors.firstName?.message}</small></label>
-        <label>Last name<input {...register("lastName")} /><small>{errors.lastName?.message}</small></label>
-        <label>Email<input {...register("email")} type="email" /><small>{errors.email?.message}</small></label>
+        <label>First name<input {...register("firstName")} /><small className="form-error">{errors.firstName?.message}</small></label>
+        <label>Last name<input {...register("lastName")} /><small className="form-error">{errors.lastName?.message}</small></label>
+        <label>Email<input {...register("email")} type="email" /><small className="form-error">{errors.email?.message}</small></label>
         <label>Phone<input {...register("phone")} type="tel" /></label>
         <label className="form-span">Company<input {...register("company")} /></label>
       </div>

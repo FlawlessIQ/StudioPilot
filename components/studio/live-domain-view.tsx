@@ -700,7 +700,12 @@ function display(
     // every domain list, so it was the widest single source of the drift.
     return formatDueDate(String(value));
   }
-  if (kind === "count") return Array.isArray(value) ? value.length : Number(value);
+  // A record with no count (a contract signed outside StudioCue has no
+  // signers list) read "NaN" on the Contracts list (mobile audit, 2026-10-15).
+  if (kind === "count") {
+    const count = Array.isArray(value) ? value.length : Number(value);
+    return Number.isFinite(count) ? count : "—";
+  }
   // A schedule version of 0 is not a quantity, it is "none of these exist
   // yet". The crew assignment row printed a bare "0" under the heading
   // "Schedule", which reads as a count of something rather than as the
