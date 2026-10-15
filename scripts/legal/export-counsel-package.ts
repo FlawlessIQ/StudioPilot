@@ -46,7 +46,7 @@ export function documentMarkdown(document: LegalDocument): string {
   ].join("\n\n") + "\n";
 }
 
-function agreementTextMarkdown(): string {
+export function agreementTextMarkdown(): string {
   const schedule = eventDetailsBlocks(
     eventDetailsFrom({
       eventType: "Wedding",
@@ -122,7 +122,7 @@ cannot disagree. Nothing is changed for them. Source:
 `;
 }
 
-function esignMarkdown(): string {
+export function esignMarkdown(): string {
   const consent = (version: typeof currentEsignConsent) =>
     [`**Confirmation the signer ticks:** ${version.label}`, ...version.disclosure.map((line) => `- ${line}`)].join("\n\n");
   return `# Electronic signature consent
@@ -141,7 +141,7 @@ ${consent(ESIGN_CONSENT_V1)}
 `;
 }
 
-function noticesMarkdown(): string {
+export function noticesMarkdown(): string {
   return `# Notices people see
 
 ## Studio signup (register page)
