@@ -111,7 +111,7 @@ test("a DJ's night runs from the ceremony music to the send-off, anchored on the
   assert.equal(planNight({ answers: {} }).rows.length, 0);
   // The editor lays out a DJ's night, not a photographer's day.
   // A mitzvah's night runs from the party instead (mitzvah-plan.ts, planMitzvahNight).
-  assert.match(read("components/planning/ai-schedule-generator.tsx"), /const plan = mcScript\s*\? dayPlanOf\(selectedProject\) === "mitzvah"\s*\? planMitzvahNight\(nightInput\)\s*: planNight\(nightInput\)/);
+  assert.match(read("components/planning/ai-schedule-generator.tsx"), /const plan = mcScript\s*\? planBuiltNight\(dayPlanOf\(selectedProject\), nightInput\)/);
 });
 
 test("DJs are a crew role: D1, D2, never ranked as photographers", () => {

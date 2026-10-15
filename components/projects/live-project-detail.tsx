@@ -1,7 +1,7 @@
 "use client";
 
 import { AMENDABLE_STATES, BookingAmendment } from "@/components/booking/booking-amendment";
-import { jobKindOf, journeyFor, journeyProfile, mitzvahOf, projectProfile, vocab, type JobVocabulary } from "@/features/job-kinds/job-kinds";
+import { jobKindOf, journeyFor, journeyProfile, namesHonoree, projectProfile, vocab, type JobVocabulary } from "@/features/job-kinds/job-kinds";
 import { eventDateLock } from "@/features/projects/event-date-lock";
 import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
 import { type FormEvent, useEffect, useState } from "react";
@@ -1791,6 +1791,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
                   eventTypeId: typeof project.eventTypeId === "string" ? project.eventTypeId : null,
                   honoreeName: typeof project.honoreeName === "string" ? project.honoreeName : null,
                   mitzvahType: typeof project.mitzvahType === "string" ? project.mitzvahType : null,
+                  occasionVariant: typeof project.occasionVariant === "string" ? project.occasionVariant : null,
                   venueName:
                     typeof project.venueName === "string" ? project.venueName : null,
                   city: typeof project.city === "string" ? project.city : null,
@@ -1827,7 +1828,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
               trade is not ours to add. */}
           <p>
             {/* A mitzvah names itself and its child: "Sam's bar mitzvah" (job-kinds.ts). */}
-            {journeyProfile(jobKindOf(project)).honoree && mitzvahOf(project).type
+            {namesHonoree(project)
               ? vocab(jobKindOf(project), project).YourEvent
               : String(project.eventType)}{" "}
             · {displayDate(project.eventDate)}

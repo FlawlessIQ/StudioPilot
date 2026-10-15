@@ -131,14 +131,14 @@ test("Schedule B: the congregation's rules and children, in each trade's words, 
   assert.equal(headings(mitzvah.document.blocks).at(-2)?.startsWith("Schedule A"), true);
 
   const sourcesCode = readFileSync("functions/src/contracts/sources.ts", "utf8");
-  assert.match(sourcesCode, /agreementTerms === "mitzvah"\s*\? \{ kindTerms: mitzvahTermsBlocks\(/);
+  assert.match(sourcesCode, /\? \{ kindTerms: kindTermsBlocks\(journeyProfile\(jobKindOf\(project\.data\(\)\)\)\.agreementTerms, /);
 });
 
 test("what the prod walk of 2026-10-14 found stays fixed", async () => {
   const read = (path: string) => readFileSync(path, "utf8");
   // The job made when the inquiry arrives keeps who it celebrates, and names which mitzvah.
   const convert = read("functions/src/intake/convert.ts");
-  assert.match(convert, /\.\.\.\(mitzvah \? \{ honoreeName: mitzvah\.honoree, mitzvahType: mitzvah\.type \} : \{\}\)/);
+  assert.match(convert, /\.\.\.\(honoree \? \{ honoreeName: honoree\.name, \[variantFieldFor\(leadKind\) \?\? "occasionVariant"\]: honoree\.variant \} : \{\}\)/);
   assert.match(convert, /: `\$\{displayName\} \$\{jobWord\}`;/);
   assert.match(convert, /name: jobName\.trim\(\)/);
   // A taken date gets no "pick a time to talk" under a reply that declines it.
@@ -163,7 +163,7 @@ test("what the prod walk of 2026-10-14 found stays fixed", async () => {
   // The proposal draft never offers the service.
   assert.match(read("functions/src/ai/copilot.ts"), /never offer to photograph or film the service itself/);
   // The contract names which mitzvah, not the studio's type label.
-  assert.match(read("functions/src/contracts/sources.ts"), /MITZVAH_TYPE_LABELS\[mitzvahOf\(project\.data\(\)\)\.type!\]/);
+  assert.match(read("functions/src/contracts/sources.ts"), /variantLabel\(jobKindOf\(project\.data\(\)\), honoreeOf\(project\.data\(\)\)\.variant\)/);
 });
 
 test("a mitzvah inquiry gets its own form; a wedding inquiry the wedding one", async () => {

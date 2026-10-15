@@ -355,13 +355,34 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
   },
 };
 
-// ── Mitzvahs ─────────────────────────────────────────────────────────────
+// ── Who it celebrates ────────────────────────────────────────────────────
+
+/**
+ * A kind whose job is for someone other than the client (journeyProfile's
+ * `honoree`): a mitzvah is the child's, booked by the parents. The job
+ * carries the person's first name as `honoreeName` and, where the kind has
+ * variants, which one it is: a mitzvah's bar, bat, b'nai or b'not.
+ *
+ * Variants live in KIND_VARIANTS. The mitzvah's are stored as `mitzvahType`
+ * (jobs from before this table); every other kind's as `occasionVariant`.
+ * Read them with honoreeOf(); copy them with honoreeFieldsOf(). A new kind
+ * with variants is a row here (docs/adding-a-job-kind-playbook.md).
+ */
+export type KindVariant = { id: string; label: string };
+
+type KindVariantSpec = {
+  /** The job field the variant is stored in. */
+  field: "mitzvahType" | "occasionVariant";
+  /** The studio's question in the job's fields: "Which mitzvah". */
+  question: string;
+  variants: readonly KindVariant[];
+  /** The variant a free-text label names; null when it names none, or more than one. */
+  fromLabel: (label: string) => string | null;
+};
 
 /**
  * Which mitzvah a job is: bar (a boy), bat (a girl), b'nai (twins or
- * siblings, or a mixed group), b'not (girls together). Stored on the job as
- * `mitzvahType`, with the child's first name as `honoreeName`; the parents
- * stay the client and the contact.
+ * siblings, or a mixed group), b'not (girls together).
  */
 export const MITZVAH_TYPES = ["bar", "bat", "bnai", "bnot"] as const;
 export type MitzvahType = (typeof MITZVAH_TYPES)[number];
@@ -373,48 +394,150 @@ export const MITZVAH_TYPE_LABELS: Record<MitzvahType, string> = {
   bnot: "B'not mitzvah",
 };
 
+const KIND_VARIANTS: Partial<Record<JobKind, KindVariantSpec>> = {
+  mitzvah: {
+    field: "mitzvahType",
+    question: "Which mitzvah",
+    variants: MITZVAH_TYPES.map((id) => ({ id, label: MITZVAH_TYPE_LABELS[id] })),
+    fromLabel: (value) => {
+      // "Bar or bat mitzvah" names both: it says neither.
+      if (/\bbar\b/.test(value) && /\bbat\b/.test(value)) return null;
+      if (/\bbar[\s-]*mitzv/.test(value)) return "bar";
+      if (/\bbat[\s-]*mitzv/.test(value)) return "bat";
+      if (/\bb'?nai\b/.test(value)) return "bnai";
+      if (/\bb'?not\b/.test(value)) return "bnot";
+      return null;
+    },
+  },
+};
+
+const asKind = (kind: unknown): JobKind | null => (isJobKind(kind) ? (kindText(kind) as JobKind) : null);
+
+/** A kind's variants, in order; empty for a kind without any. */
+export function kindVariants(kind: unknown): readonly KindVariant[] {
+  const known = asKind(kind);
+  return (known && KIND_VARIANTS[known]?.variants) || [];
+}
+
+/** The job field a kind's variant is stored in, or null for a kind without variants. */
+export function variantFieldFor(kind: unknown): "mitzvahType" | "occasionVariant" | null {
+  const known = asKind(kind);
+  return (known && KIND_VARIANTS[known]?.field) || null;
+}
+
+/** The studio's question for a kind's variant ("Which mitzvah"); null for a kind without variants. */
+export function variantQuestion(kind: unknown): string | null {
+  const known = asKind(kind);
+  return (known && KIND_VARIANTS[known]?.question) || null;
+}
+
+/** Whether a value is one of a kind's variants. */
+export function isKindVariant(kind: unknown, value: unknown): boolean {
+  return kindVariants(kind).some((variant) => variant.id === kindText(value));
+}
+
+/** The variant a label names ("Bat Mitzvah" is bat); null when it names none, or more than one. */
+export function variantFromLabel(kind: unknown, label: unknown): string | null {
+  const known = asKind(kind);
+  const spec = known ? KIND_VARIANTS[known] : undefined;
+  return spec ? spec.fromLabel(kindText(label)) : null;
+}
+
+/** A variant's label: "Bat mitzvah". Null when the kind has no such variant. */
+export function variantLabel(kind: unknown, variant: unknown): string | null {
+  return kindVariants(kind).find((entry) => entry.id === kindText(variant))?.label ?? null;
+}
+
+type HonoreeSource = {
+  honoreeName?: unknown;
+  mitzvahType?: unknown;
+  occasionVariant?: unknown;
+  eventType?: unknown;
+  eventTypeLabel?: unknown;
+  eventKind?: unknown;
+  eventTypeId?: unknown;
+};
+
+/**
+ * Who a job celebrates, and which variant: from its own fields, then its
+ * type's label. `kind` defaults to the job's own.
+ */
+export function honoreeOf(job: unknown, kind?: unknown): { name: string | null; variant: string | null } {
+  const record = (job && typeof job === "object" ? job : {}) as HonoreeSource;
+  const resolved = kind === undefined ? jobKindOf(job) : kind;
+  const field = variantFieldFor(resolved);
+  const stored = field ? record[field] : undefined;
+  const variant = isKindVariant(resolved, stored)
+    ? kindText(stored)
+    : (variantFromLabel(resolved, record.eventTypeLabel) ?? variantFromLabel(resolved, record.eventType));
+  const name = typeof record.honoreeName === "string" ? record.honoreeName.trim().slice(0, 80) : "";
+  return { name: name || null, variant };
+}
+
+/**
+ * The honoree fields to copy from one record to another (a lead to its job,
+ * a job into an email or Cue's context): `honoreeName` and whichever variant
+ * fields it has. Empty for a record with none, so spreading it adds nothing.
+ */
+export function honoreeFieldsOf(source: unknown): { honoreeName?: string | null; mitzvahType?: string | null; occasionVariant?: string | null } {
+  const record = (source && typeof source === "object" ? source : {}) as HonoreeSource;
+  const read = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : null);
+  const out: { honoreeName?: string | null; mitzvahType?: string | null; occasionVariant?: string | null } = {};
+  if (read(record.honoreeName)) out.honoreeName = read(record.honoreeName);
+  if (read(record.mitzvahType)) out.mitzvahType = read(record.mitzvahType);
+  if (read(record.occasionVariant)) out.occasionVariant = read(record.occasionVariant);
+  return out;
+}
+
+/**
+ * Who a job celebrates, for a prompt or a payload: `honoreeName` and the
+ * kind's own variant field (read through its label when unset). Empty for a
+ * kind without an honoree.
+ */
+export function honoreeContext(job: unknown): Record<string, string | null> {
+  const kind = jobKindOf(job);
+  if (!PROFILES[kind].honoree) return {};
+  const { name, variant } = honoreeOf(job, kind);
+  const field = variantFieldFor(kind);
+  return { honoreeName: name, ...(field ? { [field]: variant } : {}) };
+}
+
+/** Whether the job's words name it for its honoree ("Sam's bar mitzvah") rather than the kind's. */
+export function namesHonoree(job: unknown): boolean {
+  const kind = jobKindOf(job);
+  if (!PROFILES[kind].honoree) return false;
+  const { name, variant } = honoreeOf(job, kind);
+  return kindVariants(kind).length ? Boolean(variantLabel(kind, variant)) : Boolean(name);
+}
+
 export function isMitzvahType(value: unknown): value is MitzvahType {
-  return (MITZVAH_TYPES as readonly string[]).includes(kindText(value));
+  return isKindVariant("mitzvah", value);
 }
 
 /** The mitzvah a label names: "Bat Mitzvah" is bat. Null when it doesn't say. */
 export function mitzvahTypeFromLabel(label: unknown): MitzvahType | null {
-  const value = kindText(label);
-  // "Bar or bat mitzvah" names both: it says neither.
-  if (/\bbar\b/.test(value) && /\bbat\b/.test(value)) return null;
-  if (/\bbar[\s-]*mitzv/.test(value)) return "bar";
-  if (/\bbat[\s-]*mitzv/.test(value)) return "bat";
-  if (/\bb'?nai\b/.test(value)) return "bnai";
-  if (/\bb'?not\b/.test(value)) return "bnot";
-  return null;
+  return variantFromLabel("mitzvah", label) as MitzvahType | null;
 }
 
 /** A job's mitzvah, from its own fields, then its type's label. */
 export function mitzvahOf(job: unknown): { type: MitzvahType | null; honoree: string | null } {
-  const record = (job && typeof job === "object" ? job : {}) as {
-    mitzvahType?: unknown;
-    honoreeName?: unknown;
-    eventType?: unknown;
-    eventTypeLabel?: unknown;
-  };
-  const type = isMitzvahType(record.mitzvahType)
-    ? (kindText(record.mitzvahType) as MitzvahType)
-    : (mitzvahTypeFromLabel(record.eventTypeLabel) ?? mitzvahTypeFromLabel(record.eventType));
-  const honoree = typeof record.honoreeName === "string" ? record.honoreeName.trim().slice(0, 80) : "";
-  return { type, honoree: honoree || null };
+  const { name, variant } = honoreeOf(job, "mitzvah");
+  return { type: variant as MitzvahType | null, honoree: name };
 }
 
 const capitalize = (value: string) => `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 
 /**
- * A mitzvah's words for one job: "bat mitzvah", "Sam's bat mitzvah". Without
- * a type it stays "mitzvah" and "your celebration".
+ * One job's words, for a kind that celebrates someone: "bat mitzvah",
+ * "Sam's bat mitzvah". A kind with variants needs the variant to say more
+ * than its kind's words; one without names the person: "Sofia's quinceañera".
  */
-function mitzvahWords(base: JobVocabulary, job: unknown): JobVocabulary {
-  const { type, honoree } = mitzvahOf(job);
-  if (!type) return base;
-  const event = MITZVAH_TYPE_LABELS[type].toLowerCase();
-  const yours = honoree ? `${honoree}'s ${event}` : `the ${event}`;
+function honoreeWords(kind: JobKind, base: JobVocabulary, job: unknown): JobVocabulary {
+  const { name, variant } = honoreeOf(job, kind);
+  const label = variantLabel(kind, variant);
+  if (kindVariants(kind).length ? !label : !name) return base;
+  const event = label ? label.toLowerCase() : base.event;
+  const yours = name ? `${name}'s ${event}` : `the ${event}`;
   return {
     ...base,
     event,
@@ -427,10 +550,11 @@ function mitzvahWords(base: JobVocabulary, job: unknown): JobVocabulary {
 
 /**
  * The words for a kind of job. Pass the job as well where it is at hand: a
- * mitzvah then names itself ("Sam's bar mitzvah").
+ * kind that celebrates someone then names them ("Sam's bar mitzvah").
  */
 export function vocab(kind: unknown, job?: unknown): JobVocabulary {
-  if (job !== undefined && isJobKind(kind) && kindText(kind) === "mitzvah") return mitzvahWords(vocabFor(kind), job);
+  const known = asKind(kind);
+  if (job !== undefined && known && PROFILES[known].honoree) return honoreeWords(known, vocabFor(known), job);
   return vocabFor(kind);
 }
 

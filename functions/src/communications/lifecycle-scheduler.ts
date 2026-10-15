@@ -162,6 +162,7 @@ export const lifecycleMessageScheduler = onSchedule(
           eventKind: jobKindOf(project.data()),
           honoreeName: text(project.get("honoreeName")) || null,
           mitzvahType: text(project.get("mitzvahType")) || null,
+          occasionVariant: text(project.get("occasionVariant")) || null,
           trade: tenantEntry.trade,
           recipientEmail,
           recipientName,

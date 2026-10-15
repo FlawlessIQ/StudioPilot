@@ -841,6 +841,8 @@ async function handleInquiryCommand(
               text(context.project?.get("honoreeName")) || text(context.lead.get("honoreeName")) || null,
             mitzvahType:
               text(context.project?.get("mitzvahType")) || text(context.lead.get("mitzvahType")) || null,
+            occasionVariant:
+              text(context.project?.get("occasionVariant")) || text(context.lead.get("occasionVariant")) || null,
           }
         : {}),
       // A proposal is out: the call happened, so the link stops offering one.

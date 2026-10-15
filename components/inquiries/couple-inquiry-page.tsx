@@ -88,6 +88,7 @@ type Preview = {
   /** Who a mitzvah celebrates, and which (job-kinds.ts vocab(kind, job)). */
   honoreeName?: string | null;
   mitzvahType?: string | null;
+  occasionVariant?: string | null;
   /** A proposal is out: the call has happened. Absent from an older build. */
   pastConsultation?: boolean;
   /**

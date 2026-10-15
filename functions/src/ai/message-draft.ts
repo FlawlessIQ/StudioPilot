@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { US_ENGLISH_PART } from "./language.js";
-import { jobKindOf, journeyProfile, mitzvahOf } from "../job-kinds/job-kinds.js";
+import { honoreeContext, jobKindOf } from "../job-kinds/job-kinds.js";
 import { tradeInstruction } from "../trades/trade-instruction.js";
 import { tradeProfile, tradeVocab } from "../trades/trades.js";
 import { getFirestore } from "firebase-admin/firestore";
@@ -542,6 +542,7 @@ export const aiMessageDraftCommand = onRequest(
             // Who a mitzvah celebrates, and which (job-kinds.ts).
             honoreeName: lead.get("honoreeName") ?? null,
             mitzvahType: lead.get("mitzvahType") ?? null,
+            occasionVariant: lead.get("occasionVariant") ?? null,
             eventDate: lead.get("eventDate"),
             venue: lead.get("venue"),
             city: lead.get("city"),
@@ -581,9 +582,7 @@ export const aiMessageDraftCommand = onRequest(
           eventType: project.get("eventType"),
           eventKind: jobKindOf(project.data()),
           // Who a mitzvah celebrates, and which (job-kinds.ts).
-          ...(journeyProfile(jobKindOf(project.data())).honoree
-            ? { honoreeName: mitzvahOf(project.data()).honoree, mitzvahType: mitzvahOf(project.data()).type }
-            : {}),
+          ...honoreeContext(project.data()),
           eventDate: project.get("eventDate"),
           venueName: project.get("venueName"),
           city: project.get("city"),
@@ -716,6 +715,7 @@ export const aiMessageDraftCommand = onRequest(
           eventKind: jobKindOf(context.project),
           honoreeName: text(record(context.project).honoreeName) || null,
           mitzvahType: text(record(context.project).mitzvahType) || null,
+          occasionVariant: text(record(context.project).occasionVariant) || null,
           trade: text(tenant.get("trade")) || null,
           recipientEmail,
           recipientName,

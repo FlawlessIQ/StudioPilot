@@ -65,11 +65,16 @@ drift).
   occasionByName…). Start from the closest kind and reword each one. Never
   "couple", "bride", "ceremony" or "wedding" unless it is one.
 - `PROFILES[kind]` — the switches (see the table below).
-- **Kind-specific fields** (only if decision 3 or 4 says so): a type list
-  and labels (`MITZVAH_TYPES`, `MITZVAH_TYPE_LABELS`), a reader
-  (`mitzvahOf(job)`), a label parser (`mitzvahTypeFromLabel` — return
-  `null` when a label names two variants: "Bar or bat mitzvah" read as bat),
-  and `vocab(kind, job)` personalising the words ("Sam's bar mitzvah").
+- **Who it celebrates** (only if decision 3 says so): set
+  `profile.honoree: true`. The job then carries `honoreeName`, and
+  `vocab(kind, job)` names the person ("Sofia's quinceañera"). Nothing else
+  to write: `honoreeOf(job)`, `honoreeContext(job)` (for prompts),
+  `honoreeFieldsOf(record)` (for copying) and `namesHonoree(job)` are generic.
+- **Variants** (only if decision 4 says so): one row in `KIND_VARIANTS` —
+  `{ field: "occasionVariant", question, variants: [{ id, label }], fromLabel }`.
+  `fromLabel` returns `null` when a label names two ("Bar or bat mitzvah").
+  The inquiry form, the job's fields, the job name and the Schedule A title
+  all read the row. Only the mitzvah stores its variant as `mitzvahType`.
 - `features/job-kinds/example-packages.ts` — `EXAMPLE_PACKAGES[kind]` per
   trade, used by setup and the Packages panel.
 
@@ -103,7 +108,8 @@ Traps 7).
 - `features/leads/inquiry-form-config.ts` (+ mirror
   `functions/src/intake/inquiry-form-config.ts`): `dayFieldsForKind(kind)`
   (date/city/venue/guests/COI defaults for a new type), and any kind list
-  such as `HONOREE_KINDS`. Mind the defaults per trade: a mitzvah row asks
+  such as `HONOREE_KINDS` (it must match the kinds with `profile.honoree`;
+  `tests/job-kind-registry.test.ts` checks). Mind the defaults per trade: a mitzvah row asks
   the guest count even of a makeup artist.
 - `features/leads/schema.ts`, `features/leads/public-intake-validate.ts`
   (Zod-free, diffed against the schema by a test),
@@ -164,7 +170,8 @@ Mirrored to `functions/src/trades/trades.ts`.
   trade and fails on a wedding word: copy it for the new kind.
 - **Cue:**
   - `functions/src/ai/copilot.ts` `compact()` has an allow-list of record
-    fields. **Add the new fields** or Cue never sees them and guesses
+    fields. `honoreeName`, `mitzvahType` and `occasionVariant` are on it;
+    **add any other new field** or Cue never sees it and guesses
     ("Rachel Cohen's bat mitzvah").
   - `functions/src/ai/message-draft.ts` — add the fields to the lead and
     project context, and one sentence to `MESSAGE_DRAFT_RULES` on how to
@@ -193,8 +200,9 @@ Mirrored to `functions/src/trades/trades.ts`.
   (`functions/src/intake/inquiry-form.ts`) and render
   `<InquiryEventFormSetting kind="…" />` on `app/studio/questionnaires/page.tsx`.
 - **The day:** a plan file like `features/schedules/mitzvah-plan.ts`
-  (`planMitzvahDay`, `planMitzvahNight`), picked by
-  `features/schedules/built-day.ts` `planBuiltDay`; standard moments
+  (`planMitzvahDay`, `planMitzvahNight`), and one row in `BUILT_DAYS`
+  (`features/schedules/built-day.ts`: `{ day, night }`) under the kind's
+  `dayPlan` id; standard moments
   (`features/schedules/standard-moments.ts`, `functions/src/ai/schedule-moments.ts`);
   DJ MC-script rules (`features/schedules/mc-script.ts` + mirror);
   crew brief rules (`features/questionnaires/crew-brief.ts`,
@@ -213,12 +221,15 @@ Mirrored to `functions/src/trades/trades.ts`.
 ## 6. The agreement
 
 - `features/contracts/event-details.ts` (identical copy at
-  `functions/src/contracts/event-details.ts` below line 30): the Schedule A
-  labels for `scheduleAParts`. **Check label collisions** — "Service" was
+  `functions/src/contracts/event-details.ts` below line 30): one row in
+  `KIND_PARTS` for the kind's `scheduleAParts` id — what its ceremony and
+  reception are called, the question words that mean them, the parts it
+  requires. **Check label collisions** — "Service" was
   both the synagogue service and the DJ's package (now "Booked").
-- Schedule B: a terms function like `mitzvahTermsBlocks(trade)`, wired
-  through `functions/src/contracts/sources.ts` (`kindTerms`) and
-  `features/contracts/document.ts` (+ mirror). It says it governs conflicts.
+- Schedule B: a terms function like `mitzvahTermsBlocks(trade)` and one row
+  in `KIND_TERMS` (same file) under the kind's `agreementTerms` id;
+  `kindTermsBlocks()` wires it into the agreement. It says it governs
+  conflicts.
 - `features/contracts/sample.ts` starter agreements must not hardcode
   "wedding".
 - Write a counsel pack like `docs/mitzvah-schedule-b-counsel-review.md`.
@@ -247,6 +258,7 @@ The guards that will fire, and what to do:
 | Guard | Fires when | Do |
 |---|---|---|
 | `tests/job-kind-branches.test.ts` | a new `=== "wedding"` | use a profile switch |
+| `tests/job-kind-registry.test.ts` | a kind is half-added: no vocab/profile/packages, or a per-kind list (`HONOREE_KINDS`, `OFFERED_KIND_FORMS`, `INQUIRY_FORM_KINDS`, `CHECKLIST_KINDS`) disagrees with what exists | add the missing row |
 | `tests/job-kind-copy.test.ts` | wedding words in code paths | reword; re-pin down with `JOB_KIND_COPY_WRITE=1` |
 | mirror checks (`tests/job-kinds.test.ts`, `tests/trades.test.ts`, `tests/preloaded-forms.test.ts`…) | a `functions/` copy drifted | copy the tail below the marker |
 | `tests/us-english-copy.test.ts` | British spelling | fix |
@@ -282,15 +294,15 @@ The guards that will fire, and what to do:
 
 ## 10. Walk it — tests never found these
 
-**Emulator** (an hour): copy `scripts/uat/mitzvah-walk.mts` and change the
-kind, fields and forms. For each trade: save the inquiry form offering the
+**Emulator** (an hour): add the kind's fixture to `scripts/uat/kind-fixtures.mts`
+and run `scripts/uat/kind-walk.mts --kind <id>`. For each trade: save the inquiry form offering the
 kind → public inquiry → job fields and name → to booked → the agreement's
 schedules → the form sent at booking → the trade's plan (night plan, chairs,
 checklist) → the portal payload and every client email checked for wedding
 words. Run it with `functions/.env.local` sourced:
 ```bash
 set -a; . functions/.env.local; set +a
-FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 npx tsx scripts/uat/<kind>-walk.mts
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 npx tsx scripts/uat/kind-walk.mts --kind <id>
 ```
 
 **Prod, per trade** (Spin Theory DJs, Glow by Ana, Jess Styles Bridal,

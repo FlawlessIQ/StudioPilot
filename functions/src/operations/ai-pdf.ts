@@ -141,6 +141,7 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
       // A mitzvah's child and which mitzvah (job-kinds.ts): the parents wrote.
       honoreeName:lead.get("honoreeName")??null,
       mitzvahType:lead.get("mitzvahType")??null,
+      occasionVariant:lead.get("occasionVariant")??null,
       clientFirstName:lead.get("firstName"),
       clientPartnerName:lead.get("partnerName"),
       eventType:lead.get("eventTypeLabel"),

@@ -41,7 +41,7 @@ import type { CapturedPlace } from "@/features/places/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useEmbedFrame } from "@/components/crm/use-embed-frame";
 import { TRADE_LABELS, tradeOf, tradeProfile } from "@/features/trades/trades";
-import { BEFORE_KINDS, MITZVAH_TYPES, MITZVAH_TYPE_LABELS, journeyProfile, vocab, type MitzvahType } from "@/features/job-kinds/job-kinds";
+import { BEFORE_KINDS, journeyProfile, kindVariants, variantFieldFor, vocab, type MitzvahType } from "@/features/job-kinds/job-kinds";
 
 
 type SubmissionResult = {
@@ -99,7 +99,7 @@ function prewarmAppCheck() {
 type StepKey = "you" | "day" | "more";
 
 const STEP_FIELDS: Record<StepKey, ReadonlyArray<keyof PublicLeadIntakeInput>> = {
-  you: ["firstName", "lastName", "email", "phone", "eventTypeKey", "eventType", "partnerName", "honoreeName", "mitzvahType"],
+  you: ["firstName", "lastName", "email", "phone", "eventTypeKey", "eventType", "partnerName", "honoreeName", "mitzvahType", "occasionVariant"],
   day: ["eventDate", "venue", "city", "estimatedGuestCount", "coiRequired", "venueContactName", "venueContactEmail"],
   more: ["message", "customAnswers", "budgetRange", "referralSource", "consent", "honeypot"],
 };
@@ -126,8 +126,6 @@ function packageAsk(trade: unknown): string {
   return "Photo, video or both, how many hours, an album — and anything else we should know.";
 }
 
-/** Which mitzvah, for a type that asks who it celebrates (inquiry-form-config.ts `asksHonoree`). */
-const MITZVAH_ANSWERS = MITZVAH_TYPES.map((value) => ({ value, label: MITZVAH_TYPE_LABELS[value] }));
 
 const COI_ANSWERS = [
   { value: "yes", label: "Yes" },
@@ -317,6 +315,7 @@ export function LeadIntakeForm({
   const budget = useWatch({ control, name: "budgetRange" });
   const coiRequired = useWatch({ control, name: "coiRequired" });
   const mitzvahType = useWatch({ control, name: "mitzvahType" });
+  const occasionVariant = useWatch({ control, name: "occasionVariant" });
   const answers = (useWatch({ control, name: "customAnswers" }) ?? {}) as Record<string, string | undefined>;
   // "Did you mean …@gmail.com?" once they've left the field (email-typo.ts).
   const email = useWatch({ control, name: "email" }) ?? "";
@@ -372,6 +371,7 @@ export function LeadIntakeForm({
     if (!asksHonoree(type)) {
       setValue("honoreeName", null);
       setValue("mitzvahType", null);
+      setValue("occasionVariant", null);
     }
   }
 
@@ -647,12 +647,20 @@ export function LeadIntakeForm({
                       {...register("honoreeName", { setValueAs: (value) => value || null })}
                     />
                     <input type="hidden" {...register("mitzvahType", { setValueAs: (value) => value || null })} />
-                    <Choices
-                      legend="Which is it?"
-                      onChange={(next) => setValue("mitzvahType", next as MitzvahType, { shouldDirty: true })}
-                      options={MITZVAH_ANSWERS}
-                      value={(mitzvahType ?? null) as MitzvahType | null}
-                    />
+                    <input type="hidden" {...register("occasionVariant", { setValueAs: (value) => value || null })} />
+                    {/* Which one, for a kind with variants (job-kinds.ts `KIND_VARIANTS`), in the kind's own field. */}
+                    {kindVariants(chosenType?.kind).length ? (
+                      <Choices
+                        legend="Which is it?"
+                        onChange={(next) =>
+                          variantFieldFor(chosenType?.kind) === "mitzvahType"
+                            ? setValue("mitzvahType", next as MitzvahType, { shouldDirty: true })
+                            : setValue("occasionVariant", String(next), { shouldDirty: true })
+                        }
+                        options={kindVariants(chosenType?.kind).map((variant) => ({ value: variant.id, label: variant.label }))}
+                        value={(variantFieldFor(chosenType?.kind) === "mitzvahType" ? mitzvahType : occasionVariant) ?? null}
+                      />
+                    ) : null}
                   </>
                 ) : null}
               </div>

@@ -25,7 +25,7 @@ import {
 } from "@/lib/ai/project-intake-client";
 import { runCrmCommand, teamEmailWarning } from "@/lib/crm/command-client";
 import { useStudioJobTypes } from "@/components/job-kinds/use-studio-job-types";
-import { isMitzvahType, jobKindFromLabel, journeyProfile, vocab } from "@/features/job-kinds/job-kinds";
+import { isKindVariant, jobKindFromLabel, journeyProfile, variantFieldFor, vocab } from "@/features/job-kinds/job-kinds";
 import { HonoreeFields } from "@/components/job-kinds/honoree-fields";
 import {
   clientMatchNote,
@@ -65,7 +65,8 @@ const schema = z
     city: z.string().trim().max(120),
     // Who the job celebrates, for a kind that has someone (job-kinds.ts `honoree`).
     honoreeName: z.string().trim().max(80),
-    mitzvahType: z.string().trim(),
+    // Which variant (a mitzvah's bar or bat), stored in the kind's own field.
+    variant: z.string().trim(),
   })
   .superRefine((values, context) => {
     if (values.clientMode === "existing" && !values.primaryContactId) {
@@ -233,7 +234,7 @@ export function CreateProjectForm({
       venueName: "",
       city: "",
       honoreeName: "",
-      mitzvahType: "",
+      variant: "",
     },
   });
   const clientMode = watch("clientMode");
@@ -434,7 +435,9 @@ export function CreateProjectForm({
         ...(journeyProfile(chosenKind).honoree
           ? {
               honoreeName: values.honoreeName || null,
-              mitzvahType: isMitzvahType(values.mitzvahType) ? values.mitzvahType : null,
+              ...(variantFieldFor(chosenKind)
+                ? { [variantFieldFor(chosenKind)!]: isKindVariant(chosenKind, values.variant) ? values.variant : null }
+                : {}),
             }
           : {}),
         eventDate: values.eventDate,
@@ -608,7 +611,7 @@ export function CreateProjectForm({
               <input {...fieldProps("eventDate")} required type="date" />
               <small>{errors.eventDate?.message}</small>
             </label>
-            <HonoreeFields kind={chosenKind} nameProps={register("honoreeName")} typeProps={register("mitzvahType")} />
+            <HonoreeFields kind={chosenKind} nameProps={register("honoreeName")} typeProps={register("variant")} />
             {perPerson ? (
               <label className={filled.readyByTime ? "is-filled" : ""}>
                 Everyone ready by

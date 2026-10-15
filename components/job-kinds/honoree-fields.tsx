@@ -1,16 +1,18 @@
 "use client";
 
 import type { InputHTMLAttributes, SelectHTMLAttributes } from "react";
-import { MITZVAH_TYPES, MITZVAH_TYPE_LABELS, journeyProfile } from "@/features/job-kinds/job-kinds";
+import { journeyProfile, kindVariants, variantFieldFor, variantQuestion } from "@/features/job-kinds/job-kinds";
 
 /**
  * Who a job celebrates, when that isn't the client: a mitzvah's child
- * (job-kinds.ts `honoree`). The parents stay the client; these two fields
- * let every email and screen say "Sam's bat mitzvah".
+ * (job-kinds.ts `honoree`). The parents stay the client; these fields let
+ * every email and screen say "Sam's bat mitzvah".
  *
- * Shown only for a kind that has an honoree. The inputs are named
- * `honoreeName` and `mitzvahType`, so a plain form reads them from FormData;
- * a react-hook-form passes its own props instead.
+ * Shown only for a kind that has an honoree; the variant only for a kind
+ * that has variants (job-kinds.ts `KIND_VARIANTS`). The inputs are named
+ * `honoreeName` and the kind's own variant field (`mitzvahType`, or
+ * `occasionVariant`), so a plain form reads them from FormData; a
+ * react-hook-form passes its own props instead.
  */
 export function HonoreeFields({
   kind,
@@ -22,6 +24,8 @@ export function HonoreeFields({
   typeProps?: SelectHTMLAttributes<HTMLSelectElement>;
 }) {
   if (!journeyProfile(kind).honoree) return null;
+  const variants = kindVariants(kind);
+  const field = variantFieldFor(kind);
   return (
     <>
       <label>
@@ -30,17 +34,19 @@ export function HonoreeFields({
         </span>
         <input autoComplete="off" maxLength={80} name="honoreeName" placeholder="e.g. Sam" {...nameProps} />
       </label>
-      <label>
-        Which mitzvah
-        <select name="mitzvahType" {...typeProps}>
-          <option value="">Not sure yet</option>
-          {MITZVAH_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {MITZVAH_TYPE_LABELS[type]}
-            </option>
-          ))}
-        </select>
-      </label>
+      {field && variants.length ? (
+        <label>
+          {variantQuestion(kind)}
+          <select name={field} {...typeProps}>
+            <option value="">Not sure yet</option>
+            {variants.map((variant) => (
+              <option key={variant.id} value={variant.id}>
+                {variant.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
     </>
   );
 }

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { plausiblePersonName } from "./form-email.js";
 import { moveLeadThreadsToProject } from "./lead-thread.js";
-import { jobKindOf, journeyProfile, MITZVAH_TYPE_LABELS, mitzvahOf } from "../job-kinds/job-kinds.js";
+import { honoreeOf, jobKindOf, journeyProfile, variantFieldFor, variantLabel, vocab } from "../job-kinds/job-kinds.js";
 import { budgetPrefillCents } from "../planning/vendor-team.js";
 
 /**
@@ -168,18 +168,19 @@ export async function convertInquiryToJob(
       });
     }
 
-    // Who a mitzvah celebrates, from the inquiry (job-kinds.ts `honoree`): the
-    // job was made without them, so it read "Bar or bat mitzvah" with no
-    // child (prod walk, 2026-10-14). The name says which mitzvah, when known.
+    // Who the job celebrates, from the inquiry (job-kinds.ts `honoree`): the
+    // job was made without them, so a mitzvah read "Bar or bat mitzvah" with
+    // no child (prod walk, 2026-10-14). The name says which, when known.
     const leadKind = jobKindOf({ eventKind: lead.get("eventKind"), eventTypeId: lead.get("eventTypeId"), eventTypeLabel });
-    const mitzvah = journeyProfile(leadKind).honoree ? mitzvahOf(lead.data()) : null;
-    const jobWord = mitzvah?.type ? MITZVAH_TYPE_LABELS[mitzvah.type] : eventTypeLabel;
-    // Named for the child when the family said who: "Noah Levine's bar
+    const honoree = journeyProfile(leadKind).honoree ? honoreeOf(lead.data(), leadKind) : null;
+    const variantName = honoree?.variant ? variantLabel(leadKind, honoree.variant) : null;
+    const jobWord = variantName ?? eventTypeLabel;
+    // Named for the person when the family said who: "Noah Levine's bar
     // mitzvah". "Dana Levine Bar mitzvah" welcomed the family to a mitzvah
     // that read as the parent's (prod walk, 2026-10-14).
     const familyName = namedAs(text(lead.get("lastName")));
-    const jobName = mitzvah?.honoree
-      ? `${[mitzvah.honoree, familyName].filter(Boolean).join(" ")}'s ${mitzvah.type ? MITZVAH_TYPE_LABELS[mitzvah.type].toLowerCase() : "mitzvah"}`
+    const jobName = honoree?.name
+      ? `${[honoree.name, familyName].filter(Boolean).join(" ")}'s ${variantName ? variantName.toLowerCase() : vocab(leadKind).event}`
       : `${displayName} ${jobWord}`;
 
     if (!existingProject.exists) {
@@ -188,7 +189,8 @@ export async function convertInquiryToJob(
         projectId,
         tenantId: input.tenantId,
         name: jobName.trim().slice(0, 160),
-        ...(mitzvah ? { honoreeName: mitzvah.honoree, mitzvahType: mitzvah.type } : {}),
+        // The kind's own variant field: a mitzvah's `mitzvahType`, another's `occasionVariant`.
+        ...(honoree ? { honoreeName: honoree.name, [variantFieldFor(leadKind) ?? "occasionVariant"]: honoree.variant } : {}),
         eventTypeId: text(lead.get("eventTypeId")) || eventTypeLabel.toLowerCase(),
         eventType: eventTypeLabel,
         // The kind decides the job's words, steps and timings

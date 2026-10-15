@@ -8,7 +8,7 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import type { EventDateLock } from "@/features/projects/event-date-lock";
 import { jobTypeFor, useStudioJobTypes } from "@/components/job-kinds/use-studio-job-types";
-import { JOB_KIND_LABELS, jobKindOf, journeyProfile } from "@/features/job-kinds/job-kinds";
+import { JOB_KIND_LABELS, jobKindOf, journeyProfile, variantFieldFor } from "@/features/job-kinds/job-kinds";
 import { HonoreeFields } from "@/components/job-kinds/honoree-fields";
 
 /**
@@ -49,6 +49,7 @@ export function ProjectEdit({
     eventTypeId?: string | null;
     honoreeName?: string | null;
     mitzvahType?: string | null;
+    occasionVariant?: string | null;
     venueName: string | null;
     city: string | null;
     timezone: string;
@@ -88,7 +89,11 @@ export function ProjectEdit({
         ...(chosenType ? { eventKind: chosenType.kind, eventTypeKey: chosenType.key } : {}),
         // Who the job celebrates, when its kind has someone (a mitzvah's child).
         ...(journeyProfile(nextKind).honoree
-          ? { honoreeName: text("honoreeName") || null, mitzvahType: text("mitzvahType") || null }
+          ? {
+              honoreeName: text("honoreeName") || null,
+              // The kind's own variant field (job-kinds.ts `KIND_VARIANTS`).
+              ...(variantFieldFor(nextKind) ? { [variantFieldFor(nextKind)!]: text(variantFieldFor(nextKind)!) || null } : {}),
+            }
           : {}),
         venueName: text("venueName") || null,
         city: text("city") || null,
@@ -199,7 +204,10 @@ export function ProjectEdit({
             <HonoreeFields
               kind={chosenType?.kind ?? currentKind}
               nameProps={{ defaultValue: project.honoreeName ?? "" }}
-              typeProps={{ defaultValue: project.mitzvahType ?? "" }}
+              typeProps={{
+                defaultValue:
+                  (variantFieldFor(chosenType?.kind ?? currentKind) === "occasionVariant" ? project.occasionVariant : project.mitzvahType) ?? "",
+              }}
             />
             <label>
               Venue

@@ -924,6 +924,7 @@ async function emailContext(
       // (job-kinds.ts vocab(kind, job)). The email's own value wins.
       honoreeName: firstString(document.get("honoreeName"), project?.get("honoreeName")) ?? null,
       mitzvahType: firstString(document.get("mitzvahType"), project?.get("mitzvahType")) ?? null,
+      occasionVariant: firstString(document.get("occasionVariant"), project?.get("occasionVariant")) ?? null,
       // How the job is paid, when its package said (job-kinds.ts).
       paymentShape: firstString(document.get("paymentShape"), project?.get("paymentShape")) ?? null,
       portalUrl: firstString(document.get("portalUrl")) ?? clientHome,

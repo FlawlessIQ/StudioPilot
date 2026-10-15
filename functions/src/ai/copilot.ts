@@ -6,7 +6,7 @@ import { tradeInstruction } from "../trades/trade-instruction.js";
 import { tradeProfile, tradeVocab } from "../trades/trades.js";
 import { randomUUID } from "node:crypto";
 import { US_ENGLISH_PART } from "./language.js";
-import { jobKindFromLabel, jobKindOf, journeyProfile, mitzvahOf } from "../job-kinds/job-kinds.js";
+import { honoreeContext, jobKindFromLabel, jobKindOf } from "../job-kinds/job-kinds.js";
 import {
   FieldValue,
   getFirestore,
@@ -585,6 +585,7 @@ function compact(document: DocumentSnapshot): Json & { id: string } {
     // mitzvah (prod Cue scenarios, 2026-10-14).
     "honoreeName",
     "mitzvahType",
+    "occasionVariant",
     "eventDate",
     "state",
     // A job the studio has put away. Without it "is this archived?" is
@@ -2673,12 +2674,7 @@ export const aiCopilotCommand = onRequest(
             venueName: projectDocument.get("venueName"),
             city: projectDocument.get("city"),
             // Who a mitzvah celebrates (job-kinds.ts `honoree`), so the draft names the child.
-            ...(journeyProfile(jobKindOf(projectDocument.data())).honoree
-              ? {
-                  honoreeName: mitzvahOf(projectDocument.data()).honoree,
-                  mitzvahType: mitzvahOf(projectDocument.data()).type,
-                }
-              : {}),
+            ...honoreeContext(projectDocument.data()),
             ...(source?.occasion ? { occasion: source.occasion } : {}),
             // When everyone must be ready, as the studio confirmed it on New
             // job (a makeup artist's or hair stylist's only): the draft knows
@@ -2967,9 +2963,7 @@ export const aiCopilotCommand = onRequest(
           // The kind decides the words (job-kinds.ts): see the system note.
           eventKind: jobKindOf(project),
           // Who a mitzvah celebrates, when the job knows (job-kinds.ts `honoree`).
-          ...(journeyProfile(jobKindOf(project)).honoree
-            ? { honoreeName: mitzvahOf(project).honoree, mitzvahType: mitzvahOf(project).type }
-            : {}),
+          ...honoreeContext(project),
           eventDate: project.eventDate ?? null,
           state: project.state ?? null,
           /**

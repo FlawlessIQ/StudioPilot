@@ -50,6 +50,8 @@ export const publicLeadIntakeFields = z.object({
    */
   honoreeName: z.string().trim().max(80, "Keep this under 80 characters.").nullable().default(null),
   mitzvahType: z.enum(["bar", "bat", "bnai", "bnot"], { message: "Choose one of the answers." }).nullable().default(null),
+  /** Which variant, for a kind other than the mitzvah that has them (job-kinds.ts `KIND_VARIANTS`). Checked against the kind on the server. */
+  occasionVariant: z.string().trim().max(40, "Choose one of the answers.").nullable().default(null),
   email: z
     .string()
     .trim()

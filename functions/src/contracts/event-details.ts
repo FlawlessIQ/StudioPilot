@@ -118,12 +118,40 @@ const normalise = (value: string) =>
  */
 export const REQUIRED_MITZVAH_PARTS: readonly Category[] = ["ceremony", "reception", "times"];
 
+/**
+ * A kind's own Schedule A parts (job-kinds.ts `scheduleAParts`): what its
+ * ceremony and reception are called, the words that mean them in a form's
+ * questions, and which parts it needs. The wedding's are the defaults, so a
+ * kind with parts of its own is a row here (docs/adding-a-job-kind-playbook.md).
+ */
+type KindParts = {
+  ceremony: string;
+  reception: string;
+  ceremonyWords: readonly string[];
+  receptionWords: readonly string[];
+  required: readonly Category[];
+};
+
+const KIND_PARTS: Record<string, KindParts> = {
+  // A mitzvah's: the synagogue is its ceremony, the party its reception.
+  mitzvah: {
+    ceremony: "Service",
+    reception: "Party",
+    ceremonyWords: ["synagogue", "temple", "service", "bimah"],
+    receptionWords: ["party"],
+    required: REQUIRED_MITZVAH_PARTS,
+  },
+};
+
+/** A kind's own parts, or undefined for the wedding's (which has no row) and for none. */
+const kindParts = (parts: string | null | undefined): KindParts | undefined => (parts ? KIND_PARTS[parts] : undefined);
+
 /** Which part of the day a question is about — or null for anything else. */
 export function eventDetailCategory(
   question: string,
   trade?: string | null,
   /** Whose parts (job-kinds.ts `scheduleAParts`): a mitzvah's service and party read as its ceremony and reception. */
-  parts?: "wedding" | "mitzvah" | null,
+  parts?: string | null,
 ): Category | null {
   const n = normalise(question);
   const has = (...words: string[]) => words.some((word) => n.includes(` ${word}`));
@@ -145,9 +173,10 @@ export function eventDetailCategory(
     return "photo_locations";
   if (has("reception")) return "reception";
   if (has("ceremony", "church", "chapel")) return "ceremony";
-  // A mitzvah's: the synagogue is its ceremony, the party its reception.
-  if (parts === "mitzvah" && has("synagogue", "temple", "service", "bimah")) return "ceremony";
-  if (parts === "mitzvah" && has("party") && !has("bridal party", "wedding party")) return "reception";
+  // A kind's own: a mitzvah's synagogue is its ceremony, its party its reception.
+  const own = kindParts(parts);
+  if (own && has(...own.ceremonyWords)) return "ceremony";
+  if (own && has(...own.receptionWords) && !has("bridal party", "wedding party")) return "reception";
   if (has("guest")) return "guests";
   if (has("planner", "coordinator", "day of contact", "call on the day", "venue contact")) return "contacts";
   return null;
@@ -180,7 +209,7 @@ export function eventDetailsFrom(input: {
    * (`vocab(kind).detailsForm`). Omitted: read from `eventKind`, or the
    * type's label, as before.
    */
-  kindDetails?: { parts: "wedding" | "mitzvah" | null; title: string };
+  kindDetails?: { parts: string | null; title: string };
   /** Already formatted for reading: "Saturday, June 12, 2027". */
   date: string | null;
   venue: string | null;
@@ -202,16 +231,17 @@ export function eventDetailsFrom(input: {
   lockPassed?: boolean;
 }): EventDetails {
   const parts = input.kindDetails?.parts;
+  const own = kindParts(parts);
   const wedding = input.kindDetails
     ? parts !== null && parts !== undefined
     : input.eventKind
       ? input.eventKind === "wedding"
       : /wedding/i.test(input.eventType);
   const required =
-    parts === "mitzvah"
+    own
       ? isBeauty(input.trade)
         ? REQUIRED_BEAUTY_WEDDING_PARTS
-        : REQUIRED_MITZVAH_PARTS
+        : own.required
       : input.trade === "dj"
       ? REQUIRED_DJ_WEDDING_PARTS
       : isBeauty(input.trade)
@@ -235,8 +265,8 @@ export function eventDetailsFrom(input: {
   // Away from a wedding there is no ceremony: the venue is the location.
   const label = (category: Category) =>
     // A mitzvah's ceremony is the service, its reception the party.
-    parts === "mitzvah" && (category === "ceremony" || category === "reception")
-      ? category === "ceremony" ? "Service" : "Party"
+    own && (category === "ceremony" || category === "reception")
+      ? category === "ceremony" ? own.ceremony : own.reception
       : !wedding && category === "ceremony"
       ? "Location"
       : // A makeup artist or hair stylist isn't at the ceremony: it's the venue.
@@ -248,10 +278,10 @@ export function eventDetailsFrom(input: {
 
   // A required part, as the studio and the client read it: a mitzvah's service and party.
   const partName = (category: Category) =>
-    parts === "mitzvah" && category === "ceremony"
-      ? "Service"
-      : parts === "mitzvah" && category === "reception"
-        ? "Party"
+    own && category === "ceremony"
+      ? own.ceremony
+      : own && category === "reception"
+        ? own.reception
         : CATEGORY_LABEL[category];
 
   const rows: EventDetailRow[] = [];
@@ -262,7 +292,7 @@ export function eventDetailsFrom(input: {
   const vendor = ["dj", "makeup", "hair", "planner"].includes(String(input.trade ?? "").trim().toLowerCase());
   // A mitzvah's "Service" is the one at the synagogue, so a vendor's row is
   // what was booked (prod walk, 2026-10-14: two "Service" rows).
-  if (input.coverage) rows.push({ label: vendor ? (parts === "mitzvah" ? "Booked" : "Service") : "Coverage", value: input.coverage });
+  if (input.coverage) rows.push({ label: vendor ? (own ? "Booked" : "Service") : "Coverage", value: input.coverage });
   const order: Category[] = ["getting_ready", "ceremony", "reception", "photo_locations", "venue_logistics", "rehearsal", "times", "guests", "contacts"];
   const missing: string[] = [];
   for (const category of order) {
@@ -427,4 +457,19 @@ export function eventDetailsBlocks(details: EventDetails): Block[] {
       })),
     },
   ];
+}
+
+/**
+ * Each kind's Schedule B (job-kinds.ts `agreementTerms`), in the trade's own
+ * words. A kind with terms of its own is a row here
+ * (docs/adding-a-job-kind-playbook.md); none for any other kind.
+ */
+const KIND_TERMS: Record<string, (trade?: string | null) => Block[]> = {
+  mitzvah: mitzvahTermsBlocks,
+};
+
+/** The kind's Schedule B blocks, or null when its agreement has none. */
+export function kindTermsBlocks(terms: string | null | undefined, trade?: string | null): Block[] | null {
+  const write = terms ? KIND_TERMS[terms] : undefined;
+  return write ? write(trade) : null;
 }

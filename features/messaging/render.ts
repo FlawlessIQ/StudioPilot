@@ -39,6 +39,8 @@ export type LifecycleFacts = {
   /** Who a mitzvah celebrates, and which: "Sam's bar mitzvah" (job-kinds.ts vocab(kind, job)). */
   honoreeName?: string | null;
   mitzvahType?: string | null;
+  /** Another kind's variant (job-kinds.ts `KIND_VARIANTS`). */
+  occasionVariant?: string | null;
   /** The studio's trade (trades.ts): a DJ's couple gets a DJ's checklist. */
   trade?: string | null;
   recipientEmail: string | null;

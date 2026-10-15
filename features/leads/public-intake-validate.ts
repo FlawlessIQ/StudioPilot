@@ -102,6 +102,7 @@ export function validatePublicLeadIntake(
   const lastName = required("lastName", 1, 80, PUBLIC_INTAKE_MESSAGES.lastName);
   const partnerName = optional("partnerName", 120);
   const honoreeName = optional("honoreeName", 80);
+  const occasionVariant = optional("occasionVariant", 40);
   const mitzvahRaw = input.mitzvahType;
   if (mitzvahRaw !== undefined && mitzvahRaw !== null && !MITZVAH.has(String(mitzvahRaw))) fail("mitzvahType", "Choose one of the answers.");
   const email = required("email", 0, Infinity, PUBLIC_INTAKE_MESSAGES.email, EMAIL);
@@ -184,6 +185,7 @@ export function validatePublicLeadIntake(
       partnerName,
       honoreeName,
       mitzvahType: (mitzvahRaw ?? null) as PublicLeadIntake["mitzvahType"],
+      occasionVariant,
       email,
       phone,
       eventDate: eventDate as string | null,

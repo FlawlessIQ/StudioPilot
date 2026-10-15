@@ -1,7 +1,7 @@
 "use client";
 
 import { fillMcScript, patchMcScript, type McScript } from "@/features/schedules/mc-script";
-import { djMomentsFor, planNight } from "@/features/schedules/night-plan";
+import { djMomentsFor } from "@/features/schedules/night-plan";
 import { chairDayPlan, planChairs } from "@/features/schedules/chair-plan";
 import { parsePartyList, type BeautyService } from "@/features/schedules/party-list";
 import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
@@ -45,8 +45,7 @@ import {
   titleIsTbd,
   withTbdTitle,
 } from "@/features/schedules/day-plan";
-import { planBuiltDay } from "@/features/schedules/built-day";
-import { planMitzvahNight } from "@/features/schedules/mitzvah-plan";
+import { planBuiltDay, planBuiltNight } from "@/features/schedules/built-day";
 import { TimingRuleEditor } from "@/components/planning/timing-rule-editor";
 import { jobKindOf, journeyProfile, vocab } from "@/features/job-kinds/job-kinds";
 import {
@@ -1008,9 +1007,7 @@ export function AiScheduleGenerator({
     // A mitzvah's night runs from the party (mitzvah-plan.ts), not a ceremony.
     const nightInput = { answers: jobAnswers, coverageMinutes: packageMinutes ?? null, venue: dayPlanInput().venue };
     const plan = mcScript
-      ? dayPlanOf(selectedProject) === "mitzvah"
-        ? planMitzvahNight(nightInput)
-        : planNight(nightInput)
+      ? planBuiltNight(dayPlanOf(selectedProject), nightInput)
       : chairs
         ? chairMorning()
         : planBuiltDay(dayPlanOf(selectedProject), { ...dayPlanInput(), answeredOnly: true });

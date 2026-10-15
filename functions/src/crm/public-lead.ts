@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { dateClashes } from "../job-kinds/job-kinds.js";
+import { dateClashes, isKindVariant } from "../job-kinds/job-kinds.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -62,6 +62,8 @@ const intakeSchema = z.object({
   // any type that doesn't ask (inquiry-form-config.ts `asksHonoree`).
   honoreeName: z.string().trim().max(80).nullable().default(null),
   mitzvahType: z.enum(["bar", "bat", "bnai", "bnot"]).nullable().default(null),
+  // Another kind's variant (job-kinds.ts `KIND_VARIANTS`): kept only when it is one of the chosen kind's.
+  occasionVariant: z.string().trim().max(40).nullable().default(null),
   email: z.string().trim().email(),
   phone: z.string().trim().min(7).max(30),
   // Whether a date or a city is required is the studio's form's to say
@@ -390,6 +392,7 @@ export const publicLeadIntake = onRequest(
       partnerName: input.partnerName,
       honoreeName: input.honoreeName,
       mitzvahType: input.mitzvahType,
+      occasionVariant: isKindVariant(chosenType?.kind, input.occasionVariant) ? input.occasionVariant : null,
       // Stored as matched: inbox capture looks leads up by lower-cased email,
       // and a mixed-case form entry was invisible to it.
       email: normalizedEmail,
@@ -508,6 +511,8 @@ export const publicLeadIntake = onRequest(
             eventTypeLabel,
             honoreeName: input.honoreeName,
             mitzvahType: input.mitzvahType,
+            eventKind: chosenType?.kind ?? null,
+            occasionVariant: input.occasionVariant,
             venue: input.venuePlace?.formatted ?? input.venue,
             city: input.city,
             estimatedGuestCount: input.estimatedGuestCount,

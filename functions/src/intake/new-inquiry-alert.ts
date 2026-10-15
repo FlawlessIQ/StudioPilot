@@ -1,6 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { studioNotificationAddress } from "../communications/notify-address.js";
-import { isMitzvahType, MITZVAH_TYPE_LABELS } from "../job-kinds/job-kinds.js";
+import { isMitzvahType, MITZVAH_TYPE_LABELS, variantLabel } from "../job-kinds/job-kinds.js";
 
 /**
  * Tell the studio a new inquiry arrived, by email.
@@ -98,6 +98,9 @@ export function formInquiryDetails(input: {
   /** Who a mitzvah celebrates, and which (job-kinds.ts): "Sam", "bar". */
   honoreeName?: string | null;
   mitzvahType?: string | null;
+  /** The inquiry's kind and another kind's variant (job-kinds.ts `KIND_VARIANTS`). */
+  eventKind?: string | null;
+  occasionVariant?: string | null;
   venue: string | null;
   city: string | null;
   estimatedGuestCount: number | null;
@@ -119,7 +122,12 @@ export function formInquiryDetails(input: {
     ["Phone", input.phone],
     ["Partner", input.partnerName],
     // Which mitzvah, when they said, rather than the studio's "Bar or bat mitzvah" (prod walk, 2026-10-14).
-    ["Event", isMitzvahType(input.mitzvahType) ? MITZVAH_TYPE_LABELS[input.mitzvahType] : input.eventTypeLabel],
+    [
+      "Event",
+      (isMitzvahType(input.mitzvahType) ? MITZVAH_TYPE_LABELS[input.mitzvahType] : null) ??
+        variantLabel(input.eventKind, input.occasionVariant) ??
+        input.eventTypeLabel,
+    ],
     ["Celebrating", input.honoreeName],
     ["Venue", input.venue],
     ["City", input.venue && input.city && input.venue.includes(input.city) ? null : input.city],

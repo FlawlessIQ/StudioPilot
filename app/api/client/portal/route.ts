@@ -1212,6 +1212,7 @@ async function clientProject(tenantId: string, projectId: string) {
     // walk, 2026-10-14).
     honoreeName: safeString(projectSnapshot.get("honoreeName")),
     mitzvahType: safeString(projectSnapshot.get("mitzvahType")),
+    occasionVariant: safeString(projectSnapshot.get("occasionVariant")),
     paymentShape: projectProfile(projectSnapshot.data()).payment,
     eventDate: safeString(projectSnapshot.get("eventDate")),
     timezone: safeString(projectSnapshot.get("timezone")),

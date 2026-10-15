@@ -522,7 +522,7 @@ export function questionsForType(config: InquiryFormConfig, type: InquiryEventTy
 /**
  * The kinds whose inquiry asks who it celebrates: a mitzvah's child, by first
  * name, and which mitzvah (job-kinds.ts `honoree`, restated here since this
- * file has no imports).
+ * file has no imports; tests/job-kinds.test.ts keeps the two the same).
  */
 export const HONOREE_KINDS: readonly InquiryEventKind[] = ["mitzvah"];
 
@@ -551,6 +551,7 @@ export function prepareInquiryInput(raw: unknown, config: InquiryFormConfig): un
   if (!fields.guests) out.estimatedGuestCount = null;
   if (!asksHonoree(type) || blank(out.honoreeName)) out.honoreeName = null;
   if (!asksHonoree(type) || blank(out.mitzvahType)) out.mitzvahType = null;
+  if (!asksHonoree(type) || blank(out.occasionVariant)) out.occasionVariant = null;
   if (!config.askBudget) out.budgetRange = null;
   if (!config.askReferral) out.referralSource = null;
   if (out.customAnswers === undefined || out.customAnswers === null) out.customAnswers = {};
