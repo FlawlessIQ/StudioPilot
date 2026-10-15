@@ -225,6 +225,25 @@ test("Zoom not connected: the calendar step still runs and the consultation comp
   assert.equal(result.meetingSkipReason, "ZOOM_NOT_CONNECTED");
 });
 
+test("every call gets its calendar event and meeting link, not only the sales consultation", async () => {
+  for (const purpose of ["final_details", "trial", "walkthrough"]) {
+    const db = fakeDb({ "consultations/c1": { ...zoomConsultation, purpose, meetingId: null, calendarEventId: null } });
+    const asked: string[] = [];
+    await createConsultationResourcesWith({ id: "consultation_c1", get: (field: string) => (field === "tenantId" ? "t1" : undefined) } as never, {
+      db: db as never,
+      connect: async (_tenantId, provider) => {
+        asked.push(provider);
+        return { document: { get: () => undefined }, mock: true, credential: null } as never;
+      },
+    });
+    assert.deepEqual(asked, ["zoom", "google_calendar"], purpose);
+    const saved = db.store.get("consultations/c1")!;
+    assert.ok(String(saved.calendarEventId).startsWith("mock_gcal_"), purpose);
+    assert.ok(String(saved.joinUrl).includes("zoom"), purpose);
+    assert.equal(saved.providerState, "completed", purpose);
+  }
+});
+
 test("a Zoom outage still fails the job, so it is retried", async () => {
   assert.ok(!ZOOM_UNAVAILABLE_CODES.has("ZOOM_CREATE_FAILED"));
   const db = fakeDb({ "consultations/c1": { ...zoomConsultation, meetingId: null } });

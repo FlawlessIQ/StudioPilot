@@ -1,5 +1,5 @@
 import { tradeProfile, tradeVocab } from "../trades/trades.js";
-import { consultationPurpose, isSalesConsultation } from "../booking/consultation-purpose.js";
+import { consultationPurpose } from "../booking/consultation-purpose.js";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
@@ -986,10 +986,12 @@ export async function createConsultationResourcesWith(
   const { db, connect } = deps;
   const consultationId = job.id.replace(/^consultation_/, "");
   const consultationReference = db.doc(`consultations/${consultationId}`);
-  // A final details call's summary is not a consultation brief: no analysis,
-  // no "review the brief" (booking/consultation-purpose.ts).
-  // Nor a makeup or hair trial's.
-  if (!isSalesConsultation((await consultationReference.get()).data())) return { consultationId, skipped: "final_details_call" };
+  // Every call gets its calendar event and its meeting link, whatever it is
+  // for. This returned early for anything but a sales consultation, meant for
+  // the call's *summary* (no brief for a final details call or a trial — that
+  // guard lives in operations/ai-pdf.ts). So from 2026-10-08 no final details
+  // call, trial or walkthrough reached Google Calendar or got a Zoom link
+  // (prod test, 2026-10-15).
   let consultation = await consultationReference.get();
   if (!consultation.exists) throw new Error("CONSULTATION_NOT_FOUND");
   const tenantId = String(job.get("tenantId"));
