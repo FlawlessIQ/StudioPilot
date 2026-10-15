@@ -17,7 +17,7 @@ export default defineHowTo({
         { spotlight: { role: "link", name: /Continue setup/ }, holdMs: 2600 },
         { wait: 900 },
         { click: { role: "link", name: /Continue setup/ } },
-        { waitFor: { role: "heading", name: /set up your studio/ } },
+        { waitFor: { role: "heading", name: /show cue how you work/i } },
       ],
     },
     {
@@ -27,7 +27,7 @@ export default defineHowTo({
     },
     {
       chapter: "The questions",
-      say: "The ones with a tick are already done. The first asks what you shoot: weddings, portraits, corporate or sports. It sets the words StudioCue uses with each client, and the types on your inquiry form.",
+      say: "The ones with a tick are already done. The first asks what kinds of work you take: weddings, mitzvahs, quinceañeras, communions, family sessions, corporate events and more. It sets the words StudioCue uses with each client, and the types on your inquiry form.",
       do: [{ scrollTo: { text: "What do you shoot?" } }, { spotlight: { text: "What do you shoot?" }, holdMs: 3400 }],
     },
     {

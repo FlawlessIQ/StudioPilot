@@ -1,6 +1,6 @@
 # Production status
 
-**Current as of October 4, 2026.** The single answer to "what is live, what is
+**Current as of October 15, 2026.** The single answer to "what is live, what is
 held, and what is still open". `production-readiness.md`,
 `integration-production-readiness.md` and `manual-launch-checklist.md` are the
 history that led here; where they disagree with this page, this page is right.
@@ -132,6 +132,16 @@ verified by commit. GitHub Actions runs the same checks on every push
   status `sent`/`delivered`, but the worker writes `succeeded`.
 - Rotate the secrets ever pasted into chat; MFA on every provider console.
 - A SendGrid subuser so StudioCue gets its own Event Webhook.
-- Firestore point-in-time recovery (off).
-- DMARC reporting, then `p=quarantine`.
+- ~~Firestore point-in-time recovery~~ — **on since 2026-10-15** (7 days of versions).
+- DMARC reporting, then `p=quarantine`. The record is `v=DMARC1; p=none;`
+  with nowhere to report: turn on Cloudflare's DMARC Management for
+  studio-cue.com (it adds the reporting address), read two weeks of reports,
+  then set `p=quarantine`.
+- App Check: verified traffic only in the last 7 days, but too little of it
+  to be sure. Enforce Firestore and Storage during a watched prod test, with
+  the rollback ready.
+- **Built 2026-10-15, not yet seen on prod:** Google Calendar changes come
+  back to Today (`calendarDriftSweep`), and approved studio deletions run on
+  their own (`tenantDeletionWorker`). Test steps:
+  `docs/prod-test-2026-10-15.md`.
 - The Dropbox production app.
