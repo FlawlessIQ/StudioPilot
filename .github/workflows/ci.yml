@@ -73,6 +73,8 @@ jobs:
       # The emulators need no login; studiohub-dev only names the project.
       - run: npm run test:rules
       - run: npm run test:storage-rules
+      # The sweeps import functions/src, which needs its own packages.
+      - run: npm ci --prefix functions
       - run: npm run test:purge-sweep
       - run: npm run test:tenant-deletion
 

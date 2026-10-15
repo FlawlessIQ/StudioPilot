@@ -27,7 +27,7 @@ export default defineHowTo({
     },
     {
       chapter: "The questions",
-      say: "The ones with a tick are already done. The first asks what kinds of work you take: weddings, mitzvahs, quinceañeras, communions, family sessions, corporate events and more. It sets the words StudioCue uses with each client, and the types on your inquiry form.",
+      say: "The ones with a tick are already done. The first asks what you shoot: weddings, mitzvahs, quinceañeras, communions, family sessions, corporate events and more. It sets the words StudioCue uses with each client, and the types on your inquiry form.",
       do: [{ scrollTo: { text: "What do you shoot?" } }, { spotlight: { text: "What do you shoot?" }, holdMs: 3400 }],
     },
     {
