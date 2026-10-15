@@ -678,6 +678,37 @@ This is the real work, and it pays off for every kind after this one.
 - Deploy functions first, and **run the freshness script.**
   `operationsTaskWorker` renders every email this changes.
 
+**Walked 2026-10-14.**
+
+- **Emulator**, `scripts/uat/mitzvah-walk.mts` (source `functions/.env.local`
+  first): DJ, makeup, hair and planner, inquiry → booked → form → plans, and
+  the family's portal. 141 checks passed. These failures were fixed in
+  c7b4aa04:
+  - a vendor's mitzvah form never went at booking;
+  - the portal called a bar mitzvah "the bat mitzvah";
+  - the child on a party list sat as a bridesmaid;
+  - the planner's starter said "wedding planning services";
+  - an email subject lowercased "MC".
+- **Prod, Spin Theory DJs**: inquiry → Cue reply → proposal → booking link
+  sent (Dana Levine / Noah, and Miriam Katz / Lily). Fixed in 3fa280c4 and
+  the commit after it:
+  - jobs are named for the child ("Lily Katz's bat mitzvah"); the family
+    was welcomed to "Dana Levine Bar mitzvah";
+  - the journey, Questionnaires and the portal name the DJ's mitzvah form,
+    not the wedding's;
+  - Schedule A had two "Service" rows; the vendor's row is now "Booked";
+  - form names keep their initials ("MC").
+- **Not walked on prod:**
+  - **The family's side.** The invite needs a new account with a password,
+    which the agent can't create. Dana's booking link is waiting to be
+    signed.
+  - **Glow by Ana and Jess Styles Bridal.** Both are behind the
+    card-required trial gate.
+  - **The planner.** No planner test studio exists.
+- **Studio data, not product:** Spin Theory's only package is a wedding
+  package ("Ceremony and reception"), and its agreement repeats section 4 as
+  section 5.
+
 ---
 
 ## Size
