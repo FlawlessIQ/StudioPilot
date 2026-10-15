@@ -702,8 +702,16 @@ This is the real work, and it pays off for every kind after this one.
   - **The family's side.** The invite needs a new account with a password,
     which the agent can't create. Dana's booking link is waiting to be
     signed.
-  - **Glow by Ana and Jess Styles Bridal.** Both are behind the
-    card-required trial gate.
+  - ~~Glow by Ana and Jess Styles Bridal~~: walked later the same night.
+    The trial gate was a misclick onto an unpaid test studio; both are
+    comped and open. Makeup (Rebecca Stern / Ava) and hair (Hannah Gold /
+    Maya) went inquiry → job → reply, and makeup on to its quote and
+    agreement. Fixed:
+    - the reply told the family about "Lay out the morning", the trial
+      card and the crew's brief, and asked how they heard of the studio
+      (ffdcf466: client email prompts drop the how-to facts);
+    - the hair trial card said to wait "once the veil is chosen"
+      (a9a026c3).
   - **The planner.** No planner test studio exists.
 - **Studio data, not product:** Spin Theory's only package is a wedding
   package ("Ceremony and reception"), and its agreement repeats section 4 as
