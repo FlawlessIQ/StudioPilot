@@ -314,14 +314,14 @@ test("F17: the Plan tab names the form and the plan in the trade's words", () =>
   // The Plan tab hands the trade's words over.
   assert.match(
     read("components/client/kit/client-plan.tsx"),
-    /clientAreaItems\(\s*project\?\.navigation,\s*tradeVocab\(workspace\.tenantTrade\)\.proposal,\s*tradeProfile\(workspace\.tenantTrade\)\.delivery,\s*\/\/[^\n]*\n\s*tradeVocab\(workspace\.tenantTrade\),\s*\)/,
+    /clientAreaItems\(\s*project\?\.navigation,\s*tradeVocab\(workspace\.tenantTrade\)\.proposal,\s*tradeProfile\(workspace\.tenantTrade\)\.delivery,\s*(?:\/\/[^\n]*\n\s*)+tradeVocab\(workspace\.tenantTrade, project \? jobKindOf\(project\) : undefined\),\s*\)/,
   );
   // Both pages carry the same words: the plan's title, and the form's.
   const schedule = read("components/client/kit/client-schedule.tsx");
   assert.match(schedule, /const title = readOnlyTrade && tradeWords\.planOfDay \? tradeWords\.planOfDay : "Your timeline";/);
   const form = read("components/client/kit/client-questionnaire.tsx");
   assert.equal(
-    form.match(/const words = clientFormWords\(tradeVocab\(workspace\.tenantTrade\)\.detailsForm\);/g)?.length,
+    form.match(/const words = clientFormWords\(tradeVocab\(workspace\.tenantTrade, project \? jobKindOf\(project\) : undefined\)\.detailsForm\);/g)?.length,
     2,
     "the page and the opened form both take the trade's words",
   );

@@ -43,7 +43,8 @@ import { uploadClientQuestionnaireFile } from "@/lib/client/questionnaire-upload
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
-import { date, text, useProjectRecords } from "@/components/client/live-client-views";
+import { date, text, useProject, useProjectRecords } from "@/components/client/live-client-views";
+import { jobKindOf } from "@/features/job-kinds/job-kinds";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
 import { InfoHint } from "@/components/ui/info-hint";
 import {
@@ -81,7 +82,8 @@ export function ClientQuestionnaire() {
   const workspace = useWorkspace();
   // A vendor's one form by its own name: "Your party list", never "Your
   // questionnaire", and "Your forms" for a list (features/client/form-words.ts).
-  const words = clientFormWords(tradeVocab(workspace.tenantTrade).detailsForm);
+  const project = useProject().value;
+  const words = clientFormWords(tradeVocab(workspace.tenantTrade, project ? jobKindOf(project) : undefined).detailsForm);
   const responses = useProjectRecords("questionnaireResponses");
   const ordered = useMemo(
     () =>
@@ -167,7 +169,8 @@ function QuestionnaireForm({
 }) {
   const workspace = useWorkspace();
   const projectId = text(response.projectId, "");
-  const words = clientFormWords(tradeVocab(workspace.tenantTrade).detailsForm);
+  const project = useProject().value;
+  const words = clientFormWords(tradeVocab(workspace.tenantTrade, project ? jobKindOf(project) : undefined).detailsForm);
   const name = text(response.name ?? response.templateName, words.formName);
   // Its landmark and a message's "About:" (a photographer's: "Questionnaire").
   const landmark = words.formLabel ?? name;

@@ -1,6 +1,6 @@
 import { bookCallHref } from "@/features/consultations/studio-booking";
 import { BEFORE_KINDS, journeyFor, vocab, type JourneyProfile } from "@/features/job-kinds/job-kinds";
-import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { formNameInSentence, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import type { ProjectState } from "@/features/projects/schema";
 import type { FileRef } from "@/features/documents/file-ref";
 import { projectStateLabel } from "@/features/projects/state-label";
@@ -671,7 +671,7 @@ function shapeForLightJourney(steps: JourneyStep[], input: JourneyInput): void {
     // to check it and publish — nothing for the client to approve.
     const plan = find("schedule_form");
     if (plan && plan.status === "current" && plan.detail.startsWith("Ready to lay out from")) {
-      plan.detail = `Drafted from their ${(words.detailsForm ?? "form").toLowerCase()} — check it and publish`;
+      plan.detail = `Drafted from their ${formNameInSentence(words.detailsForm ?? "form")} — check it and publish`;
       if (plan.action?.kind === "link") plan.action = { ...plan.action, label: "Check and publish" };
     }
   }
@@ -1180,8 +1180,8 @@ export function projectJourney(input: JourneyInput): {
           ? "Starts once they book"
           : intake
             ? formWaiting
-              ? `${Who} list the vendors they've booked in their ${detailsFormName.toLowerCase()}`
-              : `Their vendors come in with the ${detailsFormName.toLowerCase()}, eight weeks out`
+              ? `${Who} list the vendors they've booked in their ${formNameInSentence(detailsFormName)}`
+              : `Their vendors come in with the ${formNameInSentence(detailsFormName)}, eight weeks out`
             : !team || team.total === 0
               ? "Add the vendors this wedding needs"
               : `${team.booked} of ${team.total} booked · ${stillToFind} still to find`,

@@ -256,3 +256,14 @@ test("what the DJ's prod walk of 2026-10-14 found stays fixed", async () => {
   assert.ok(Array.isArray(labels) && labels.some((row) => row.label === "Booked"), JSON.stringify(rows));
   assert.ok(!labels.some((row) => row.label === "Service" && /DJ/.test(String((row as { value?: unknown }).value))));
 });
+
+test("a form's name keeps its initials mid-sentence, and the family's portal names their own form", async () => {
+  const { formNameInSentence } = await import("@/features/trades/trades");
+  assert.equal(formNameInSentence("Mitzvah music & MC planner"), "mitzvah music & MC planner");
+  assert.equal(formNameInSentence("Party list"), "party list");
+  const { clientFormWords } = await import("@/features/client/form-words");
+  assert.equal(clientFormWords("Mitzvah music & MC planner").emptyTitle, "Your mitzvah music & MC planner");
+  for (const file of ["components/client/kit/client-plan.tsx", "components/client/kit/client-questionnaire.tsx"]) {
+    assert.match(readFileSync(file, "utf8"), /tradeVocab\(workspace\.tenantTrade, project \? jobKindOf\(project\) : undefined\)/, file);
+  }
+});

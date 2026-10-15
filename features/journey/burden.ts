@@ -1,5 +1,5 @@
 import { journeyFor, journeyProfile, type JobKind } from "@/features/job-kinds/job-kinds";
-import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { formNameInSentence, tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 /**
  * What a job asks of the client, by default, from booking to the day.
@@ -34,7 +34,7 @@ export function clientAsks(kind: JobKind, trade: unknown): ClientAsk[] {
   if (job.payment === "paid_in_full") asks.push({ key: "pay", label: "Pay to book" });
   if (shape.trial) asks.push({ key: "trial", label: `Book the ${words.trial?.toLowerCase() ?? "trial"}` });
   if (job.detailsFormDaysBefore !== null || job.oneForm)
-    asks.push({ key: "form", label: `Fill in the ${(words.detailsForm ?? "details form").toLowerCase()}` });
+    asks.push({ key: "form", label: `Fill in the ${formNameInSentence(words.detailsForm ?? "details form")}` });
   if (job.scheduleApproval) asks.push({ key: "schedule", label: "Approve the day's schedule" });
   // A planner's last meeting is the venue walkthrough with the couple
   // (trades.ts `journey.walkthrough`): it stands in for the final call and

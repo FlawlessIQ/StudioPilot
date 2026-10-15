@@ -50,7 +50,8 @@ export function clientFormWords(detailsForm: string | null | undefined): ClientF
       couldNotOpen: "Your questionnaire couldn’t be opened. Refresh to try again.",
       formLabel: "Questionnaire",
     };
-  const word = detailsForm.toLowerCase();
+  // Initials stay: "your mitzvah music & MC planner".
+  const word = detailsForm.replace(/\b[A-Z][a-z]+\b/g, (part) => part.toLowerCase());
   return {
     page: detailsForm,
     emptyTitle: `Your ${word}`,

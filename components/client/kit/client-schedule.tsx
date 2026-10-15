@@ -8,7 +8,7 @@ import { Actions, Button, ButtonRow, Card, KitRoot, Main, Note, PoweredBy, TextA
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { portalStageIsBehind } from "@/features/client/portal-stage";
-import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { formNameInSentence, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { jobKindOf } from "@/features/job-kinds/job-kinds";
 import {
   displayableScheduleItems,
@@ -77,7 +77,7 @@ export function ClientSchedule() {
           loadingText="Opening your timeline…"
           upcoming={
             readOnlyTrade
-              ? `${studioName === "your studio" ? "Your studio" : studioName} builds this from your ${(tradeWords.detailsForm ?? "form").toLowerCase()} and shares it here. There’s nothing for you to approve.`
+              ? `${studioName === "your studio" ? "Your studio" : studioName} builds this from your ${formNameInSentence(tradeWords.detailsForm ?? "form")} and shares it here. There’s nothing for you to approve.`
               : `${studioName === "your studio" ? "Your studio" : studioName} will share the running order of your day here when it’s ready for you to check.`
           }
         />

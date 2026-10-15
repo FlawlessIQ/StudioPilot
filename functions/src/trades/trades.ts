@@ -398,6 +398,14 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
   },
 };
 
+/**
+ * A form's name mid-sentence: "Mitzvah music & MC planner" reads "mitzvah
+ * music & MC planner" — Title words come down, initials stay.
+ */
+export function formNameInSentence(name: string): string {
+  return name.replace(/\b[A-Z][a-z]+\b/g, (word) => word.toLowerCase());
+}
+
 /** The words for a trade. */
 /**
  * A trade's words for a kind of job, where they differ from its wedding's

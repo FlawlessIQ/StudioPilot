@@ -14,7 +14,7 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
-import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { formNameInSentence, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { JOB_KIND_LABELS } from "@/features/job-kinds/job-kinds";
 
 /**
@@ -161,7 +161,7 @@ export function InquiryEventFormSetting({
         </p>
         {ownForm ? (
           <p>
-            {`Optional: your clients fill in one form, your ${ownForm.toLowerCase()}, when they book. Your inquiry page already asks what you price on, so most studios like yours send nothing here.`}
+            {`Optional: your clients fill in one form, your ${formNameInSentence(ownForm)}, when they book. Your inquiry page already asks what you price on, so most studios like yours send nothing here.`}
           </p>
         ) : null}
       </div>

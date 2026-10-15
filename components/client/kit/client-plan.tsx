@@ -24,6 +24,7 @@ import { clientJobSwitcherItems } from "@/features/client/job-choice";
 import { formatEventDate } from "@/lib/format/event-date";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { useProject } from "@/components/client/live-client-views";
+import { jobKindOf } from "@/features/job-kinds/job-kinds";
 
 const ICONS = {
   Camera,
@@ -57,8 +58,9 @@ export function ClientPlan() {
     project?.navigation,
     tradeVocab(workspace.tenantTrade).proposal,
     tradeProfile(workspace.tenantTrade).delivery,
-    // "Party list" and "Getting-ready schedule" for a hair client.
-    tradeVocab(workspace.tenantTrade),
+    // "Party list" and "Getting-ready schedule" for a hair client; a
+    // mitzvah family's own form by its name.
+    tradeVocab(workspace.tenantTrade, project ? jobKindOf(project) : undefined),
   ).map((item) => ({
     ...item,
     Icon: ICONS[item.icon],
