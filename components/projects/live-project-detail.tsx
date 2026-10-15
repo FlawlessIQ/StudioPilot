@@ -1589,8 +1589,8 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         ) : (
           <>
             {/* A hair trial waits for the veil (trades.ts `trialHint`). */}
-            {tradeVocab(workspace.tenantTrade).trialHint ? (
-              <p className="trial-hint">{`Usually ${tradeVocab(workspace.tenantTrade).trialHint}.`}</p>
+            {tradeVocab(workspace.tenantTrade, jobKindOf(project)).trialHint ? (
+              <p className="trial-hint">{`Usually ${tradeVocab(workspace.tenantTrade, jobKindOf(project)).trialHint}.`}</p>
             ) : null}
             <ConsultationInviteAction
               contactId={project.clientContactIds[0]}

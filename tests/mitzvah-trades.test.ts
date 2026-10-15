@@ -280,3 +280,11 @@ test("a client's email never explains the studio's own screens, or asks how they
   assert.match(prompt, /Never ask the client how they heard about the studio/);
   assert.match(readFileSync("functions/src/ai/communications.ts", "utf8"), /tradeInstruction\(input\.trade, \{ forClient: true \}\)/);
 });
+
+test("a hair trial on a mitzvah never waits for a veil", async () => {
+  const { tradeVocab } = await import("@/features/trades/trades");
+  assert.equal(tradeVocab("hair", "mitzvah").trialHint, null);
+  assert.match(String(tradeVocab("hair").trialHint), /veil/);
+  assert.match(readFileSync("components/projects/live-project-detail.tsx", "utf8"), /tradeVocab\(workspace\.tenantTrade, jobKindOf\(project\)\)\.trialHint/);
+  assert.match(readFileSync("features/today/inbox.ts", "utf8"), /tradeVocab\(input\.tenantTrade, jobKindOf\(job\)\)\.trialHint/);
+});

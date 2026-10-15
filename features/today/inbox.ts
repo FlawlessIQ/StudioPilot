@@ -1624,7 +1624,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
       });
       if (!wanted) continue;
       const invitedDaysAgo = invite ? Math.abs(Math.min(0, elapsedDayDiff(invite.sentAt, now) ?? 0)) : null;
-      const trialHint = tradeVocab(input.tenantTrade).trialHint;
+      // A mitzvah has no veil to wait for (trades.ts KIND_VOCAB).
+      const trialHint = tradeVocab(input.tenantTrade, jobKindOf(job)).trialHint;
       act.push({
         id: `trial-invite-${job.id}`,
         lane: "act",
