@@ -15,7 +15,7 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { formNameInSentence, tradeProfile, tradeVocab } from "@/features/trades/trades";
-import { JOB_KIND_LABELS } from "@/features/job-kinds/job-kinds";
+import { JOB_KIND_LABELS, vocab } from "@/features/job-kinds/job-kinds";
 
 /**
  * "Send this form with every new wedding inquiry" — the studio's event form
@@ -41,6 +41,8 @@ export function InquiryEventFormSetting({
 } = {}) {
   const workspace = useWorkspace();
   const kindWords = kind ? JOB_KIND_LABELS[kind].toLowerCase() : "wedding";
+  // "a bar or bat mitzvah", "a quinceañera": the kind's own, never another's.
+  const oneOfKind = kind ? (vocab(kind).oneOf ?? `a ${vocab(kind).event}`) : "a wedding";
   // A makeup artist or hair stylist has no call: the inquiry page takes the
   // couple's details and the quote follows (functions/src/intake/inquiry-link.ts).
   // A DJ's call is a vibe call (trades.ts).
@@ -127,7 +129,7 @@ export function InquiryEventFormSetting({
         !response.persisted
           ? "Preview: nothing was saved."
           : templateId
-            ? `Saved. ${kind ? "Families" : "Couples"} who write in about a ${kind ? "bar or bat mitzvah" : kindWords} will be asked to fill out ${name ?? "this form"} ${calls ? "before they pick a time to talk" : "on their inquiry page"}.`
+            ? `Saved. ${kind ? "Families" : "Couples"} who write in about ${oneOfKind} will be asked to fill out ${name ?? "this form"} ${calls ? "before they pick a time to talk" : "on their inquiry page"}.`
             : calls
               ? "Saved. The inquiry page goes straight to picking a time again."
               : "Saved. The inquiry page asks just a few details again.",
@@ -184,7 +186,7 @@ export function InquiryEventFormSetting({
               {choices.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
-                  {forThisKind(item) ? "" : ` (not a ${kind ? "mitzvah" : "wedding"} form)`}
+                  {forThisKind(item) ? "" : ` (not ${oneOfKind} form)`}
                 </option>
               ))}
             </select>

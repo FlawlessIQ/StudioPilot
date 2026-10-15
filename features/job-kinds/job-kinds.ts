@@ -170,6 +170,8 @@ export type JobVocabulary = {
   inquiryDayTitle: string;
   /** A vendor's timeline names the occasion by the client: "Emma & James's wedding". */
   occasionByName: boolean;
+  /** One of the kind, mid-sentence, where its own word won't do: "a bar or bat mitzvah". Else "a <event>". */
+  oneOf?: string;
 };
 
 /** The words every kind but a wedding shares. */
@@ -268,6 +270,7 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
     Clients: "Families",
     typicalDay: "mitzvah day",
     inquiryDayTitle: "Tell us about the celebration",
+    oneOf: "a bar or bat mitzvah",
   },
   // docs/new-job-kinds-execution-plan-2026-10-15.md, Phase 1. The parents
   // (often with padrinos) are the client; the honoree is their daughter,

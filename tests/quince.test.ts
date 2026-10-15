@@ -220,3 +220,11 @@ test("the form request names the form once, initials kept, without naming the jo
   });
   assert.match(wedding.body, /your music & moments planner for Smith Wedding/);
 });
+
+test("the quinceañera's inquiry-form picker speaks of a quinceañera, never a mitzvah", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("components/planning/inquiry-event-form-setting.tsx", "utf8");
+  assert.doesNotMatch(source, /"bar or bat mitzvah"|"mitzvah" : "wedding"/);
+  assert.equal(vocab("quince").oneOf ?? `a ${vocab("quince").event}`, "a quinceañera");
+  assert.equal(vocab("mitzvah").oneOf, "a bar or bat mitzvah");
+});
