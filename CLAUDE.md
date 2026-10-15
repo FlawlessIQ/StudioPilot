@@ -257,4 +257,4 @@ shared `main` is worse than a wrong commit message.
 
 ## Where to read more
 
-`docs/architecture.md` is the authoritative overview. Domain-specific docs: `data-model.md`, `workflow-engine.md`, `readiness-engine.md`, `booking-gate.md`, `booking-integrations.md`, `proposals.md`, `communications.md`, `webhooks.md`, `crew-operations.md`, `post-event-operations.md`, `saas-operations.md`, `console.md` (the platform admin), `feedback.md`, `security.md`, `deployment.md`, and ADRs in `docs/adr/`.
+`docs/architecture.md` is the authoritative overview. Adding a job kind (a new event type)? Follow `docs/adding-a-job-kind-playbook.md`. Domain-specific docs: `data-model.md`, `workflow-engine.md`, `readiness-engine.md`, `booking-gate.md`, `booking-integrations.md`, `proposals.md`, `communications.md`, `webhooks.md`, `crew-operations.md`, `post-event-operations.md`, `saas-operations.md`, `console.md` (the platform admin), `feedback.md`, `security.md`, `deployment.md`, and ADRs in `docs/adr/`.
