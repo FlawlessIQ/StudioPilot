@@ -4008,6 +4008,16 @@ textarea:focus-visible {
   justify-items: start;
 }
 
+/* The chip wraps inside its column rather than running on into the next
+   one: at 1024 the column is ~94px and "Ready for the day" drew under the
+   value cell's dash (2026-10-15). */
+.state-cell > .status-badge {
+  border-radius: 12px;
+  line-height: 1.2;
+  max-width: 100%;
+  white-space: normal;
+}
+
 .phase-track {
   display: flex;
   gap: 3px;
@@ -8040,19 +8050,26 @@ textarea:focus-visible {
   align-items: center;
 }
 
+/* Wraps by its own width. Four fixed grid columns let the job-kind select
+   take its longest option's width ("Vow renewal & anniversary party"), and
+   at 1280px it pushed Insights wider than the window (2026-10-15). */
 .report-filters {
+  align-items: flex-end;
   background: rgb(255 255 255 / 88%);
   border-color: var(--workspace-line);
   border-radius: 18px;
   box-shadow: var(--workspace-shadow);
+  display: flex;
+  flex-wrap: wrap;
   gap: 17px;
-  grid-template-columns: minmax(190px, 1.15fr) repeat(2, minmax(150px, .9fr)) minmax(180px, 1fr);
   padding: 21px 23px;
 }
 
 .report-filter-heading {
   align-items: center;
+  align-self: center;
   display: flex;
+  flex: 2 1 15rem;
   gap: 12px;
 }
 
@@ -8092,12 +8109,16 @@ textarea:focus-visible {
 
 .report-filters label {
   color: #445048;
+  flex: 1 1 10rem;
   font-size: 12px;
   gap: 8px;
+  min-width: 0;
 }
 
 .report-filters input,
 .report-filters select {
+  min-width: 0;
+  width: 100%;
   background: #fbfcfa;
   border-color: #d8ded8;
   border-radius: 11px;
@@ -8973,14 +8994,6 @@ textarea:focus-visible {
 }
 
 @media (max-width: 1100px) {
-  .report-filters {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .report-filter-heading {
-    grid-column: 1 / -1;
-  }
-
   .report-layout {
     grid-template-columns: 1fr;
   }
@@ -9049,12 +9062,7 @@ textarea:focus-visible {
   }
 
   .report-filters {
-    grid-template-columns: 1fr;
     padding: 19px;
-  }
-
-  .report-filter-heading {
-    grid-column: auto;
   }
 
   .report-metrics .report-metric-card {
@@ -16225,11 +16233,13 @@ form:has(> .address-field) > .address-field,
 .schedule-ai-inputs>summary{cursor:pointer;font-size:12.5px;font-weight:650;color:var(--muted)}
 .schedule-ai-inputs.is-plain{border:0;padding:0}
 .schedule-ai-inputs.is-plain>summary{display:none}
-.schedule-ai-inputs-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin-top:12px}
+/* As many columns as the panel's own width holds at 15rem, the width a
+   date-and-time field needs. Three fixed columns put a 209px datetime-local
+   in a 198px column at 1024, over "How long that is" (2026-10-15). */
+.schedule-ai-inputs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,15rem),1fr));gap:13px;margin-top:12px}
 .schedule-ai-inputs.is-plain .schedule-ai-inputs-grid{margin-top:0}
 .schedule-ai-inputs-grid .form-span{grid-column:1/-1}
-@media(max-width:850px){.schedule-ai-inputs-grid{grid-template-columns:1fr 1fr}}
-@media(max-width:560px){.schedule-line{grid-template-columns:8.75rem minmax(0,1fr)}.schedule-line .schedule-line-what{order:-1;grid-column:1/-1}.schedule-ai-inputs-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.schedule-line{grid-template-columns:8.75rem minmax(0,1fr)}.schedule-line .schedule-line-what{order:-1;grid-column:1/-1}}
 
 /* Said instead of the portal button when there is no Stripe customer to open a
    portal for. See components/saas/live-subscription.tsx. */
