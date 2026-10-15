@@ -5,6 +5,7 @@ import type {
   QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { loadMembershipDocuments } from "@/lib/firebase/membership-cache";
+import { preferredTenantId as tabTenantId } from "./tab-tenant";
 
 export async function activeMembership(
   firestore: Firestore,
@@ -12,9 +13,7 @@ export async function activeMembership(
 ): Promise<QueryDocumentSnapshot> {
   const documents = await loadMembershipDocuments(firestore, userId);
   const preferredTenantId =
-    typeof window === "undefined"
-      ? null
-      : window.localStorage.getItem("studiohub.activeTenantId");
+    tabTenantId();
   const membership =
     documents.find(
       (document) => document.data().tenantId === preferredTenantId,

@@ -11,6 +11,7 @@ import {
 import { authIsLive } from "@/lib/runtime-mode";
 import { withTimeout } from "@/lib/async/with-timeout";
 import { getWorkspaceBootstrap } from "@/lib/firebase/workspace-bootstrap";
+import { preferredTenantId as tabTenantId } from "@/lib/firebase/tab-tenant";
 type Area = "studio" | "client" | "crew" | "platform";
 const allowed: Record<Exclude<Area, "platform">, string[]> = {
   studio: [
@@ -86,9 +87,7 @@ export function AuthBoundary({
             // 2026-09-29).
             if (!roles.length) throw new Error("MEMBERSHIPS_UNCONFIRMED");
           } catch {
-            const preferredTenantId = window.localStorage.getItem(
-              "studiohub.activeTenantId",
-            );
+            const preferredTenantId = tabTenantId();
             try {
               const bootstrap = await getWorkspaceBootstrap(
                 area,

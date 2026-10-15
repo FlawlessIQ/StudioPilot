@@ -11,6 +11,7 @@ import {
   destinationAfterSignIn,
   type SignInMembership,
 } from "@/features/auth/workspace-routing";
+import { preferredTenantId, rememberTenantId } from "@/lib/firebase/tab-tenant";
 
 /**
  * Where a user who has just signed in goes, by the memberships they hold.
@@ -32,14 +33,12 @@ export async function destinationForSignedInUser(
       limit(20),
     ),
   );
-  const preferred = window.localStorage.getItem("studiohub.activeTenantId");
+  const preferred = preferredTenantId();
   const membership =
     memberships.docs.find((item) => item.data().tenantId === preferred) ??
     memberships.docs[0];
   if (membership)
-    window.localStorage.setItem(
-      "studiohub.activeTenantId",
-      String(membership.data().tenantId),
+    rememberTenantId(String(membership.data().tenantId),
     );
   const activeMemberships = memberships.docs
     .map((item) => ({

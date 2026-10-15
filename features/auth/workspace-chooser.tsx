@@ -19,6 +19,7 @@ import {
   type SignInMembership,
 } from "@/features/auth/workspace-routing";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { rememberTenantId } from "@/lib/firebase/tab-tenant";
 
 type WorkspaceOption = SignInMembership & {
   membershipId: string;
@@ -96,10 +97,7 @@ export function WorkspaceChooser() {
   }, [router]);
 
   function openStudio(workspace: WorkspaceOption) {
-    window.localStorage.setItem(
-      "studiohub.activeTenantId",
-      workspace.tenantId,
-    );
+    rememberTenantId(workspace.tenantId);
     router.push("/studio");
   }
 

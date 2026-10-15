@@ -185,9 +185,9 @@ export function DataControls() {
       <section className="panel data-control-card">
         <span className="data-control-icon"><Download /></span>
         <div>
-          <h2>Tenant export</h2>
+          <h2>{context?.businessName ? `Export ${context.businessName}` : "Tenant export"}</h2>
           <p>
-            Create a compressed archive of your studio data. Download links expire
+            Create a compressed archive of this studio&apos;s data. Download links expire
             after 15 minutes.
           </p>
         </div>
@@ -218,7 +218,7 @@ export function DataControls() {
       <section className="panel deletion-control data-control-card data-control-danger">
         <span className="data-control-icon"><ShieldAlert /></span>
         <div>
-          <h2>Request account deletion</h2>
+          <h2>{context?.businessName ? `Delete ${context.businessName}` : "Request account deletion"}</h2>
           <p>
             This begins a 30-day cooling-off period. It does not immediately
             erase records and can be canceled before approval.

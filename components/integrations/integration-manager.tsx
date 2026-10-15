@@ -48,6 +48,7 @@ import {
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { tradeProfile } from "@/features/trades/trades";
 import { busyTimesLine, callWords } from "@/components/studio/trade-words";
+import { preferredTenantId as tabTenantId } from "@/lib/firebase/tab-tenant";
 
 // The connect/disconnect UI below only has cards for the providers a studio
 // can currently OAuth-connect (definitions, further down). The capability
@@ -124,9 +125,7 @@ type IntegrationStatus = {
 async function fetchIntegrationStatus(
   user: { getIdToken(): Promise<string> },
 ): Promise<IntegrationStatus> {
-  const preferredTenantId = window.localStorage.getItem(
-    "studiohub.activeTenantId",
-  );
+  const preferredTenantId = tabTenantId();
   const parameters = preferredTenantId
     ? `?tenantId=${encodeURIComponent(preferredTenantId)}`
     : "";

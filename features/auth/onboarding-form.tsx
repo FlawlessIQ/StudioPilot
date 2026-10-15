@@ -13,6 +13,7 @@ import { chosenTrade } from "@/features/trades/chosen-trade";
 import { LIVE_TRADES, TRADE_OPTIONS, type Trade } from "@/features/trades/trades";
 import { AddressField } from "@/components/forms/address-field";
 import type { CapturedPlace } from "@/features/places/schema";
+import { rememberTenantId } from "@/lib/firebase/tab-tenant";
 
 /** What each kind of invitation lets the person do, in a sentence. */
 const INVITED_TO: Record<PendingInvitation["kind"], string> = {
@@ -262,10 +263,7 @@ function OnboardingFlow() {
       };
       if (!response.ok) throw new Error(result.error ?? "INTERNAL");
       if (result.tenantId)
-        window.localStorage.setItem(
-          "studiohub.activeTenantId",
-          result.tenantId,
-        );
+        rememberTenantId(result.tenantId);
       // P7: terminal success, form stays disabled so a bounce can't invite a
       // second submit.
       setCheckoutNext(result.checkoutRequired !== false);

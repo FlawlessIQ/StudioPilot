@@ -49,6 +49,7 @@ import {
   searchWithoutProject,
   unavailableJobNotice,
 } from "@/features/client/job-choice";
+import { preferredTenantId, rememberTenantId } from "@/lib/firebase/tab-tenant";
 
 type WorkspaceArea = "studio" | "client" | "crew";
 
@@ -306,9 +307,7 @@ export function WorkspaceProvider({
       }
       void (async () => {
         try {
-          const storedTenantId = window.localStorage.getItem(
-            "studiohub.activeTenantId",
-          );
+          const storedTenantId = preferredTenantId();
           let bootstrap: WorkspaceBootstrap | null = null;
           let memberships: WorkspaceMembership[];
           try {
@@ -353,7 +352,7 @@ export function WorkspaceProvider({
           if (!membership) {
             throw new Error("No active workspace membership was found.");
           }
-          writeStored("studiohub.activeTenantId", membership.tenantId);
+          rememberTenantId(membership.tenantId);
 
           const clientProjects =
             area === "client"

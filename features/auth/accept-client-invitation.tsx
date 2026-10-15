@@ -35,6 +35,7 @@ import {
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { authIsLive } from "@/lib/runtime-mode";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { rememberTenantId } from "@/lib/firebase/tab-tenant";
 
 type ActivationState =
   | "idle"
@@ -216,7 +217,7 @@ export function AcceptClientInvitation({
     const projectId =
       typeof result.projectId === "string" ? result.projectId : null;
     if (tenantId) {
-      window.localStorage.setItem("studiohub.activeTenantId", tenantId);
+      rememberTenantId(tenantId);
     }
     /**
      * Open the job this invitation was for.

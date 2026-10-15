@@ -12,6 +12,7 @@ import type {
 } from "@/features/integrations/routing";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { zoomIsConnected } from "@/features/consultations/meeting-mode";
+import { preferredTenantId } from "@/lib/firebase/tab-tenant";
 
 type StatusPayload = {
   connections: RoutableConnection[];
@@ -35,7 +36,7 @@ function loadStatus(): Promise<StatusPayload> {
     const { auth } = getFirebaseClient();
     const user = auth.currentUser;
     if (!user) throw new Error("NOT_SIGNED_IN");
-    const preferred = window.localStorage.getItem("studiohub.activeTenantId");
+    const preferred = preferredTenantId();
     const query = preferred
       ? `?tenantId=${encodeURIComponent(preferred)}`
       : "";

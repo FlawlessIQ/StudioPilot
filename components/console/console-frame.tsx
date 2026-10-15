@@ -23,6 +23,7 @@ import { ConsoleProvider, useConsole } from "./console-context";
 import { CommandPalette } from "./command-palette";
 import { Avatar } from "./ui";
 import { CONSOLE_NAV } from "./nav";
+import { rememberTenantId } from "@/lib/firebase/tab-tenant";
 
 /**
  * The StudioCue Console's frame (docs/console.md): the rail, the counts on it,
@@ -94,7 +95,7 @@ function StudioShortcut() {
   const open = () => {
     if (memberships.length === 1) {
       try {
-        window.localStorage.setItem("studiohub.activeTenantId", memberships[0]!);
+        rememberTenantId(memberships[0]!);
       } catch {
         // The workspace chooser covers a refused write.
       }
@@ -107,7 +108,7 @@ function StudioShortcut() {
     if (!recoverable) return;
     try {
       await runConsoleCommand("repairOwnerMembership", { tenantId: recoverable });
-      window.localStorage.setItem("studiohub.activeTenantId", recoverable);
+      rememberTenantId(recoverable);
       router.push("/studio");
     } catch (caught) {
       setNotice(friendlyError(caught, "Owner access couldn't be restored."));
