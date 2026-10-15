@@ -69,6 +69,8 @@ dances: new vendor type, or "entertainment"?
 **Sacraments:** does a photographer's communion booking have an agreement
 (portraits don't) or is it paid in full with no agreement? Is a whole
 class's First Communion offered as a group event (each family pays)?
+**Answered (Conor, 2026-10-15):** no agreement, paid in full; a whole class's
+First Communion is offered as a group event.
 
 **Prom:** two shapes. Which ship first?
 - **A family books getting ready**: one student (or a group of friends) for
@@ -223,6 +225,19 @@ light.
 `BY_KIND.sacrament` to `features/group-events/words.ts` (child / parent),
 mini-session times for portraits after the Mass, a QuickBooks invoice per
 family (already built for group events).
+
+**Built 2026-10-15.** Kind `sacrament` with variants first_communion,
+confirmation, baptism — the first stored as `occasionVariant`; no agreement,
+paid in full (Conor); photographer details + shot list, hair party list;
+standard moments for the day; the class's First Communion signs up in its own
+words (child, parent, class). Emulator walk: sacrament (hair) 39/39, mitzvah
+154, quince 156, sweet16 154. Fixed from the walk and tests, for every kind:
+a no-agreement booking's bill is paid in full by the kind's own shape (was
+portraits only); the booking email and the portal's booking step say only what
+the job takes (no "signed agreement and deposit" to a paid-in-full family); an
+honoree kind's own form goes at booking; the group invite and payment lines no
+longer say "athletes" to everyone. Not done: a day plan of its own (moments
+only), DJ/makeup/planner forms.
 
 **Done when:** emulator walk for photographer and hair; prod walk on
 FlawlessIQ as a single family and as a class group event.

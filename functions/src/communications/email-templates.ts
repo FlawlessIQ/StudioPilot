@@ -1572,7 +1572,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Your date is officially booked",
         paragraphs: [
           greeting,
-          `Your signed agreement and ${deposit} are both in${project} — your date is secured.`,
+          // Only what this job took: a communion has no agreement and is paid in full.
+          `${bookedWith(values, deposit)}${project} — your date is secured.`,
           "Your portal keeps the next steps, planning details, documents, and schedule together in one place.",
         ],
         action: portalUrl
@@ -2914,6 +2915,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const times = stringValue(values, "slotSpan");
       const sessions = stringValue(values, "eventKind") === "portraits";
       const act = sessions ? "Book" : "Sign up";
+      // Who signs up, in the event's words (features/group-events/words.ts):
+      // a class's First Communion signs up children, not athletes.
+      const persons = ({ sports: "athletes", sacrament: "children" } as Record<string, string>)[stringValue(values, "eventKind")] ?? "people";
       return {
         subject: `${act} ${sessions ? "your session at" : "for"} ${event} with ${brand.studioName}`,
         preheader: `Pick a package${from ? ` from ${from}` : ""}${times ? ", a time" : ""} and how you'll pay. It takes a minute.`,
@@ -2924,7 +2928,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           `${brand.studioName} is at ${event}${day ? ` on ${day}` : ""}. ${act} ahead of time: pick ${count > 1 ? `one of ${COUNT_WORDS[count] ?? count} packages` : "your package"}${from ? ` (from ${from})` : ""}${times ? `, a time between ${times.replace(" – ", " and ")}` : ""} and choose how you'll pay.`,
           sessions
             ? "You'll get a confirmation number to show on the day. Booking for two families? Book once for each."
-            : "You'll get a confirmation number to show on the day. Signing up two athletes? Sign up once for each.",
+            : `You'll get a confirmation number to show on the day. Signing up two ${persons}? Sign up once for each.`,
         ],
         action: actionUrl ? { label: act, url: actionUrl } : undefined,
       };
@@ -3554,6 +3558,17 @@ export function withJobInPortalLinks(copy: EmailCopy, input: RenderEmailInput): 
     ...(copy.secondaryAction ? { secondaryAction: { ...copy.secondaryAction, url: link(copy.secondaryAction.url) } } : {}),
     ...(copy.note ? { note: inText(copy.note) } : {}),
   };
+}
+
+/** What booked the date, by what the job's kind takes (job-kinds.ts `bookingGateNeeds`). */
+function bookedWith(values: Record<string, unknown>, deposit: string): string {
+  const profile = journeyProfile(jobKindOf({ eventKind: values.eventKind }));
+  const needs = bookingGateNeeds(profile);
+  const paid = profile.payment === "paid_in_full" ? "payment" : deposit;
+  if (needs.agreement && needs.payment) return `Your signed agreement and ${deposit} are both in`;
+  if (needs.agreement) return "Your signed agreement is in";
+  if (needs.payment) return `Your ${paid} is in`;
+  return "You're booked in";
 }
 
 export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {

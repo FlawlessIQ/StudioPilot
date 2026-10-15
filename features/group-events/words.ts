@@ -68,6 +68,29 @@ const PORTRAITS: GroupEventWords = {
     "Each family books a time and pays for their own session. Share a link or a QR code, take payments on the day, and email each family their receipt.",
 };
 
+/**
+ * A class's First Communion (Conor, 2026-10-15; new-job-kinds plan, Phase 3):
+ * the parish or school organizes, and each family signs their child up and
+ * pays for their own photos.
+ */
+const SACRAMENT: GroupEventWords = {
+  person: "child",
+  persons: "children",
+  payer: "parent",
+  payers: "parents",
+  personLabel: "Child’s name",
+  personHint: null,
+  payerLabel: "Your name",
+  studioPayerLabel: "Parent’s name",
+  teamLabel: "Class",
+  personSection: "Your child",
+  consentLead: "I’m the child’s parent or guardian",
+  act: "Sign up",
+  rosterPrompt: "A class First Communion?",
+  rosterLead:
+    "List every child in the class with a parent, take each family's payment before or on the day, and email each parent their own receipt. The parish or school stays the job's contact.",
+};
+
 const OTHER: GroupEventWords = {
   person: "person",
   persons: "people",
@@ -86,7 +109,7 @@ const OTHER: GroupEventWords = {
     "List everyone who's paying for their own photos, take each payment on the day or before, and email each one their receipt.",
 };
 
-const BY_KIND: Partial<Record<JobKind, GroupEventWords>> = { sports: SPORTS, portraits: PORTRAITS };
+const BY_KIND: Partial<Record<JobKind, GroupEventWords>> = { sports: SPORTS, portraits: PORTRAITS, sacrament: SACRAMENT };
 
 /** The words for a job (or a kind already worked out). */
 export function groupEventWords(source: unknown): GroupEventWords {

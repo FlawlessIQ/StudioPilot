@@ -107,6 +107,9 @@ export const crewStarterFieldIds: ReadonlySet<string> = new Set([
   "reception-start-time",
   "court-names",
   "padrinos",
+  // a First Communion, Confirmation or Baptism (Phase 3)
+  "godparents",
+  "church-photo-rules",
 ]);
 
 /** The answers a photographer must have read before lifting a camera. */
@@ -115,6 +118,7 @@ const beforeYouShootIds: ReadonlySet<string> = new Set([
   // parish that keeps them out of the Mass (a quinceañera's).
   "service-photo-rules",
   "mass-photo-rules",
+  "church-photo-rules",
   "no-photo-list",
   "minors-present",
   "consent-on-file",

@@ -96,6 +96,25 @@ export const EXAMPLE_PACKAGES: Record<JobKind, readonly ExamplePackage[]> = {
       deliverables: "Online gallery, High-resolution downloads",
     },
   ],
+  // Phase 3: a family session's shape, at the church and after.
+  sacrament: [
+    {
+      name: "Church and family portraits",
+      description: "Portraits at the church before or after the service, with the godparents and family.",
+      coverageHours: 1.5,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Online gallery, High-resolution downloads",
+    },
+    {
+      name: "Church and celebration",
+      description: "The church portraits, then the celebration after: the family, the cake and the guests.",
+      coverageHours: 3,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Online gallery, High-resolution downloads",
+    },
+  ],
   portraits: [
     {
       name: "Mini session",

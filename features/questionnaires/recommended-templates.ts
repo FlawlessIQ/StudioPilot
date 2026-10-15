@@ -1432,6 +1432,87 @@ const SWEET16_PLANNER_FINAL_DETAILS: RecommendedSection[] = [
   ...PLANNER_FINAL_DETAILS.filter((section) => section.id === "vendors"),
 ];
 
+/**
+ * A First Communion's, Confirmation's or Baptism's details
+ * (docs/new-job-kinds-execution-plan-2026-10-15.md, Phase 3). The parents
+ * fill it in about their child. The church in the morning, its photo rules,
+ * the godparents, and a celebration after if there is one. No agreement
+ * (Conor): what they give goes to the crew's brief, not a Schedule A.
+ */
+const SACRAMENT_DETAILS: RecommendedSection[] = [
+  {
+    id: "family",
+    title: "Your family",
+    fields: [
+      field("event-date", "Date", "date", true),
+      field("parent-names", "Parents' names", "text", true),
+      field("parent-email", "Parent's email", "email", true),
+      field("parent-phone", "Parent's phone", "phone", true),
+      field("honoree-name", "Your child's first name", "text", true),
+      field("godparents", "Godparents' or sponsor's names", "text", false, {
+        help: "For the family pictures. A Confirmation's sponsor goes here too.",
+      }),
+    ],
+  },
+  {
+    id: "church",
+    title: "The church",
+    fields: [
+      field("church", "Church", "address", true, { help: "Name and address." }),
+      field("service-time", "Service start time", "time", true),
+      {
+        ...field("church-photo-rules", "The church's photography rules", "radio", true, {
+          help: "Many churches allow photos only before or after the service, or from the back without flash. Ask the parish office if you're not sure.",
+        }),
+        options: ["No photography during the service", "Before or after the service only", "From the back, no flash", "Photography allowed", "Not sure yet"],
+      },
+    ],
+  },
+  {
+    id: "after",
+    title: "After the church",
+    fields: [
+      field("party-location", "Where you're celebrating after, if anywhere", "address", false),
+      field("party-start-time", "When it starts", "time", false),
+    ],
+  },
+];
+
+/** The pictures that matter, for a First Communion, Confirmation or Baptism. */
+const SACRAMENT_SHOT_LIST: RecommendedSection[] = [
+  {
+    id: "groups",
+    title: "Family and group pictures",
+    fields: [
+      field("must-have-groups", "Family and group pictures, in the order to call them", "long_text", false, {
+        help: "One group per line. For example: \"Lily with her parents\", \"Lily with her godparents\", \"The whole family\".",
+      }),
+    ],
+  },
+  {
+    id: "must-take",
+    title: "Must-take pictures",
+    fields: [
+      field("must-have-shots", "Pictures you don't want us to miss", "long_text", false, {
+        help: "With the priest, the candle, the certificate, with grandparents — anything that matters most to you.",
+      }),
+      field("details-to-capture", "Details to capture", "long_text", false, {
+        help: "The outfit, the rosary, the candle, the cake.",
+      }),
+    ],
+  },
+  {
+    id: "care",
+    title: "Good to know",
+    fields: [
+      field("no-photo-list", "Anyone who must not be photographed or filmed", "long_text", false),
+      field("sensitivities", "Anything we should handle carefully", "long_text", false, {
+        help: "Separated parents, someone unwell, a recent loss. Only your crew see this.",
+      }),
+    ],
+  },
+];
+
 export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
   return [
     {
@@ -1767,6 +1848,62 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
       reminderDaysBeforeDue: [14, 3],
       sections: SWEET16_PLANNER_FINAL_DETAILS,
     },
+    // Communions, Confirmations and Baptisms (new-job-kinds plan, Phase 3).
+    {
+      id: "sacrament-details",
+      name: "Celebration details",
+      summary: "Your child, the church and its photo rules, the godparents, and the celebration after.",
+      useIt: "Send it with new communion, confirmation and baptism inquiries.",
+      eventTypeId: "sacrament",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 7,
+      reminderDaysBeforeDue: [7, 2],
+      sections: SACRAMENT_DETAILS,
+    },
+    {
+      id: "sacrament-shot-list",
+      name: "Shot list",
+      summary: "Family groups in the order to call them, must-take pictures and anyone to avoid. Your crew see it on their day sheet.",
+      useIt: "It goes out with the celebration details.",
+      eventTypeId: "sacrament",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 5,
+      reminderDaysBeforeDue: [7, 2],
+      sections: SACRAMENT_SHOT_LIST,
+    },
+    {
+      id: "sacrament-hair-party-list",
+      name: "Party list",
+      summary: "When everyone needs to be ready, where, and who's getting their hair done.",
+      useIt: "Your planning form for a communion or confirmation: it goes out when they book.",
+      eventTypeId: "sacrament",
+      trades: ["hair"],
+      dueDaysBeforeEvent: 10,
+      reminderDaysBeforeDue: [7, 2],
+      sections: [
+        {
+          ...PARTY_LIST[0]!,
+          fields: PARTY_LIST[0]!.fields.map((entry) =>
+            entry.id === "day-of-contact"
+              ? { ...entry, help: "Who we call on the morning if it isn't you: a godparent, a grandparent or a friend." }
+              : entry.id === "ready-by-time"
+                ? { ...entry, help: "Usually an hour before you leave for the church." }
+                : entry,
+          ),
+        },
+        {
+          id: "your-party",
+          title: "Your family",
+          fields: [
+            field("party-list", "Everyone getting ready with us, one person per line", "repeating_group", true, {
+              help: "Name — who they are — anything we should know. For example: \"Lily — first communion — curls, with her veil\", \"Maria Lopez — mom — blowout\".",
+            }),
+          ],
+        },
+        HAIR_DETAILS,
+        PARTY_LIST[2]!,
+      ],
+    },
     {
       id: "dj-music-planner",
       name: "Music & moments planner",
@@ -1898,7 +2035,7 @@ const SIGNUP_KINDS: readonly string[] = ["wedding"];
  * the kind on its inquiry form: a mitzvah's details, final schedule and shot
  * list.
  */
-export const OFFERED_KIND_FORMS: readonly string[] = ["mitzvah", "quince", "sweet16"];
+export const OFFERED_KIND_FORMS: readonly string[] = ["mitzvah", "quince", "sweet16", "sacrament"];
 
 /** How many questions a form asks. */
 export function recommendedFieldCount(template: RecommendedQuestionnaire): number {

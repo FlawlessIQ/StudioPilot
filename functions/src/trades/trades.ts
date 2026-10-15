@@ -517,6 +517,21 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
         ],
       },
     },
+    // A First Communion has a veil of its own; a Confirmation and a Baptism don't wait on one.
+    sacrament: {
+      trialHint: null,
+      kitChecklist: {
+        title: "Kit checklist",
+        items: [
+          "the address and parking, and when the family leaves for the church",
+          "the getting-ready schedule: your client's child last",
+          "irons, dryer and brushes",
+          "pins, elastics and hairspray — extra pins for a veil or a headpiece",
+          "the look from the trial, if there was one",
+          "a power strip and an extension cord",
+        ],
+      },
+    },
     sweet16: {
       detailsForm: "Sweet 16 party list",
       kitChecklist: {

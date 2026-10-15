@@ -283,7 +283,7 @@ test("the confirmation leads with Venmo when that's how they'll pay, and always 
     packageName: "Gold",
     amountText: "$45",
     confirmationCode: "K7QX2M",
-    howToPay: "Pay @GR on Venmo. Put the athlete's name in the note.",
+    howToPay: "Pay @GR on Venmo. Put the name you signed up in the note.",
     actionUrl: "https://studio-cue.com/e/order/abc",
   };
   const venmo = renderEmailTemplate({

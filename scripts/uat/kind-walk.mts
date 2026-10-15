@@ -151,6 +151,10 @@ const FORBIDDEN = F.forbidden;
 const COUPLE_WORD = F.coupleWord;
 const EVENT = new RegExp(F.eventPhrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
 const KIND_WORD = new RegExp(F.word, "i");
+/** Whether the kind books on a signed agreement (journeyProfile(kind).agreement); a family session's does not. */
+const HAS_AGREEMENT = journeyProfile(KIND).agreement;
+/** What a family whose kind has no agreement must never be asked for. */
+const AGREEMENT_ASK = /\b(agreements?|contracts?|deposits?|retainers?|e-?sign\w*)\b/i;
 /** An email's words without its links. */
 const words = (text: string) => text.replace(/https?:\/\/\S+/g, "");
 const hit = (pattern: RegExp, text: string) => {
@@ -382,6 +386,7 @@ async function walk(trade: Trade) {
   const aiJob = await data(`aiJobs/lead_intake_${leadId}`);
   record("2. Cue's first reply has no wedding words", Boolean(reply) && !FORBIDDEN.test(words(replyBody)), reply ? `${hit(FORBIDDEN, words(replyBody))} | subject "${reply?.structuredOutput?.subject ?? ""}"` : `no draft (aiJob ${aiJob?.status ?? "missing"} ${String(aiJob?.lastError ?? aiJob?.error ?? "").slice(0, 120)})`);
   if (reply) note("2. Cue's reply", replyBody.replace(/\s+/g, " ").slice(0, 300));
+  if (reply && !HAS_AGREEMENT) record("2. Cue's first reply asks for no agreement or deposit", !AGREEMENT_ASK.test(words(replyBody)), hit(AGREEMENT_ASK, words(replyBody)));
 
   // ── 3. To booked ──
   // A trade whose call is required (a planner's discovery call) books it from the studio's link first.
@@ -399,7 +404,10 @@ async function walk(trade: Trade) {
     project = await data(`projects/${projectId}`);
     note("3. after the call", `state ${project?.state}`);
   }
-  const booked = await attempt("3. proposal/quote → accepted → agreement signed → retainer → booked", async () => {
+  const bookingStep = HAS_AGREEMENT
+    ? "3. proposal/quote → accepted → agreement signed → retainer → booked"
+    : `3. quote → accepted → paid (${journeyProfile(KIND).payment}) → booked, no agreement`;
+  const booked = await attempt(bookingStep, async () => {
     const locked = await command("crmCommand", "selectPackage", tenantId, { projectId, packageId: String(pkg.packageId), selectedAddOns: [], mode: "replace", confirmReplace: false, discount: { type: "none" } }, owner);
     const draft = await command("proposalCommand", "create_draft", tenantId, {
       projectId, expiresAt: new Date(Date.now() + 14 * 86_400_000).toISOString(), notes: null, termsSummary: "Subject to the signed agreement.", retainerDueDate: null, balanceDueDate: null,
@@ -413,6 +421,17 @@ async function walk(trade: Trade) {
     await account(clientEmail, `${F.client.firstName} ${F.client.lastName}`);
     await post("clientInvitationCommand", { type: "accept", idempotencyKey: randomUUID(), input: { token: tokenFrom(sent?.job?.actionUrl ?? sent?.job?.values?.actionUrl) } }, clientEmail);
     await portal("decide_proposal", { tenantId, projectId, proposalId, decision: "accepted", reason: null }, clientEmail);
+    if (!HAS_AGREEMENT) {
+      // bookWithoutAgreement (functions/src/booking/orchestration.ts): accepted → RETAINER_PENDING with the bill raised.
+      const pending = await waitFor(() => data(`projects/${projectId}`), (value) => value?.state === "RETAINER_PENDING", 20000);
+      const invoice = await waitFor(async () => (await query("invoiceReferences", tenantId, { projectId })).find((row) => row.kind === "retainer"), Boolean);
+      await drainAll("providerJobs", tenantId);
+      const proposal = await data(`proposals/${proposalId}`);
+      await command("bookingCommand", "recordRetainerPayment", tenantId, { projectId, packageSnapshotId: String(locked.packageSnapshotId), paidAt: day(0), method: "card", reference: null, attestation: true }, owner);
+      const bookedProject = await waitFor(() => data(`projects/${projectId}`), (value) => value?.state === "BOOKED", 30000);
+      await drainAll("providerJobs", tenantId);
+      return { proposalId, contract: null, prepared: null, booked: bookedProject, sent, pending, invoice, proposal };
+    }
     await waitFor(() => data(`contractDrafts/${projectId}`), (value) => Boolean(value?.documentHash));
     await command("bookingCommand", "prepareContract", tenantId, { projectId, proposalId, overrides: {} }, owner).catch(() => undefined);
     const prepared = await data(`contractDrafts/${projectId}`);
@@ -431,6 +450,22 @@ async function walk(trade: Trade) {
   });
   if (!booked) return;
   record("3. booked", booked.booked?.state === "BOOKED", `state ${booked.booked?.state}`);
+  if (!HAS_AGREEMENT) {
+    record("3. accepting moved the job straight to payment (RETAINER_PENDING), not CONTRACT_PENDING", booked.pending?.state === "RETAINER_PENDING", `state after accepting: ${booked.pending?.state}, nextAction "${booked.pending?.nextAction ?? ""}"`);
+    const schedule = (booked.proposal?.paymentSchedule ?? []).map((line) => `${line.label} ${line.amountCents}`).join(" + ");
+    const paidInFull = journeyProfile(KIND).payment === "paid_in_full";
+    if (paidInFull) {
+      record("3. the quote's schedule is one 'Payment in full' line", (booked.proposal?.paymentSchedule ?? []).length === 1 && booked.proposal.paymentSchedule[0]?.label === "Payment in full", schedule || "no schedule");
+      const price = Number(booked.proposal?.paymentSchedule?.[0]?.amountCents ?? 0);
+      record("3. the bill raised on accepting is the whole price (paidInFull)", booked.invoice?.paidInFull === true && Number(booked.invoice?.amountCents) === price && price > 0,
+        `invoice paidInFull ${booked.invoice?.paidInFull}, amount ${booked.invoice?.amountCents}, schedule ${schedule}, project paymentShape ${booked.pending?.paymentShape ?? "(unset)"}`);
+    }
+    const drafts = await data(`contractDrafts/${projectId}`);
+    const contracts = await query("contracts", tenantId, { projectId });
+    record("3. no agreement was prepared or sent", !drafts && contracts.length === 0, `contractDrafts ${drafts ? "exists" : "none"}, contracts ${contracts.length}`);
+    record("3. the quote email has no wedding words", booked.sent !== null && !FORBIDDEN.test(words(`${booked.sent?.subject} ${booked.sent?.text}`)), booked.sent ? `${booked.sent.subject} | ${hit(FORBIDDEN, words(booked.sent.text))}` : "no email");
+    record("3. the quote email asks for no agreement or deposit", booked.sent !== null && !AGREEMENT_ASK.test(words(`${booked.sent?.subject} ${booked.sent?.text}`)), booked.sent ? hit(AGREEMENT_ASK, words(`${booked.sent.subject} ${booked.sent.text}`)) : "no email");
+  } else {
   const blocks = booked.contract?.document?.blocks ?? [];
   const headings = blocks.filter((block) => block?.type === "heading").map((block) => textOf(block).join(" "));
   const scheduleA = blockText(blocks, /^Schedule A/, /^Schedule B/);
@@ -445,6 +480,7 @@ async function walk(trade: Trade) {
   record("3. no wedding words anywhere in the agreement the family signs", !FORBIDDEN.test(body), hit(FORBIDDEN, body));
   record(`3. the agreement names the ${F.eventPhrase}`, EVENT.test(body), EVENT.test(body) ? `says ${F.eventPhrase}` : `event type reads: ${hit(KIND_WORD, body)}`);
   record("3. the proposal/quote email has no wedding words", booked.sent !== null && !FORBIDDEN.test(words(`${booked.sent?.subject} ${booked.sent?.text}`)), booked.sent ? `${booked.sent.subject} | ${hit(FORBIDDEN, words(booked.sent.text))}` : "no email");
+  }
 
   // ── 4. The planning form ──
   const formsOf = async () => {
@@ -467,7 +503,13 @@ async function walk(trade: Trade) {
   await planningFormScheduler.run({});
   const afterSweep = await formsOf();
   const mine = afterSweep.find((row) => row.recommendedId === FORM);
-  record(`4. by the form date (${F.formDueDaysOut} days out) the job has its ${FORM}`, Boolean(mine), `${describe(afterSweep)}; timeline formSend ${tenant?.planningTimeline?.formSend ?? "(default)"}`);
+  // A studio on "remind" (the default, planning-timeline.ts) is reminded, not auto-sent: by design the form
+  // has then either gone at booking or waits for the studio's "Send the form".
+  const formSend = tenant?.planningTimeline?.formSend === "auto" ? "auto" : "remind";
+  const sentAtBooking = atBooking.some((row) => row.recommendedId === FORM);
+  record(`4. by the form date (${F.formDueDaysOut} days out) the job has its ${FORM} (or it went at booking, or the studio is on "remind")`,
+    Boolean(mine) || sentAtBooking || formSend === "remind",
+    `${describe(afterSweep)}; timeline formSend ${tenant?.planningTimeline?.formSend ?? "(default remind)"}; sent at booking ${sentAtBooking}`);
   let response = mine;
   if (!response) {
     // What the studio would do by hand: "Send the form" with its form for the kind.
@@ -519,6 +561,9 @@ async function walk(trade: Trade) {
     record(`6. portal payload carries the honoree so the page can say "${F.yourEvent}"`, words6.yourEvent === F.yourEvent,
       `vocab(eventKind, portal payload).yourEvent = "${words6.yourEvent}" (payload honoreeName ${JSON.stringify(view.honoreeName)}, ${F.honoree?.variantField ?? "variant"} ${JSON.stringify(F.honoree?.variantField ? view[F.honoree.variantField] : null)})`);
     const portalText = strings(view).join("\n");
+    // A kind whose variant is the generic occasionVariant (mitzvahType reaches the page through yourEvent above).
+    if (F.honoree?.variantField === "occasionVariant") record(`6. portal payload carries ${F.honoree.variantField}`, view[F.honoree.variantField] === F.honoree.variant, `${F.honoree.variantField} ${JSON.stringify(view[F.honoree.variantField])}`);
+    if (!HAS_AGREEMENT) note("6. portal agreement/deposit words", hit(AGREEMENT_ASK, portalText));
     record("6. portal payload has no wedding words", !FORBIDDEN.test(portalText), hit(FORBIDDEN, portalText));
     note("6. portal next step", JSON.stringify({ planningForm: view.planningForm ?? null, nextAction: view.nextAction ?? view.next ?? null }).slice(0, 300));
   }
@@ -541,6 +586,7 @@ async function walk(trade: Trade) {
   for (const row of toFamily) {
     record(`6. email ${row.type} has no wedding words`, !FORBIDDEN.test(row.text), `"${row.subject}" | ${hit(FORBIDDEN, row.text)}`);
     if (COUPLE_WORD.test(row.text)) note(`6. email ${row.type} says couple`, hit(COUPLE_WORD, row.text));
+    if (!HAS_AGREEMENT) record(`6. email ${row.type} asks for no agreement or deposit`, !AGREEMENT_ASK.test(row.text), `"${row.subject}" | ${hit(AGREEMENT_ASK, row.text)}`);
   }
   const named = toFamily.filter((row) => EVENT.test(row.text));
   note(`6. emails that name the ${F.eventPhrase}`, named.map((row) => row.type).join(", ") || "none");

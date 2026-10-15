@@ -7,7 +7,7 @@
 // ── mirrored below ──
 
 /** The kinds of job the product understands. `general` (an inquiry-only kind) is not one. */
-export const JOB_KINDS = ["wedding", "mitzvah", "quince", "sweet16", "portraits", "corporate", "sports", "other"] as const;
+export const JOB_KINDS = ["wedding", "mitzvah", "quince", "sweet16", "sacrament", "portraits", "corporate", "sports", "other"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 /**
@@ -24,6 +24,7 @@ export const JOB_KIND_LABELS: Record<JobKind, string> = {
   mitzvah: "Bar & bat mitzvah",
   quince: "Quinceañera",
   sweet16: "Sweet 16",
+  sacrament: "Communion, confirmation & baptism",
   portraits: "Family & portraits",
   corporate: "Corporate & events",
   sports: "Sports",
@@ -49,6 +50,7 @@ export function jobKindFromLabel(label: unknown): JobKind | null {
   // Before the wedding words too: a quinceañera has a Mass and a "court".
   if (/quince|quincea[ñn]er|\bxv\b|xv a[ñn]os/.test(value)) return "quince";
   if (/sweet\s*(16|sixteen)/.test(value)) return "sweet16";
+  if (/communion|confirmation|baptism|baptiz|christening/.test(value)) return "sacrament";
   if (/wedding|elop|marriage|ceremony|engagement|bridal/.test(value)) return "wedding";
   if (/headshot|corporate|conference|company|business|gala|summit|brand|commercial|staff/.test(value)) return "corporate";
   if (/sport|cheer|game|team|tournament|league|athlet|match|meet\b|race/.test(value)) return "sports";
@@ -336,6 +338,39 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
     typicalDay: "Sweet 16 party",
     inquiryDayTitle: "Tell us about the party",
   },
+  // docs/new-job-kinds-execution-plan-2026-10-15.md, Phase 3: a First
+  // Communion, a Confirmation or a Baptism (KIND_VARIANTS), booked by the
+  // parents for their child, a family session's weight (Conor: no agreement,
+  // paid in full). vocab(kind, job) names it: "Lily's first communion".
+  sacrament: {
+    event: "celebration",
+    Event: "Celebration",
+    yourEvent: "your celebration",
+    YourEvent: "Your celebration",
+    theDay: "the day",
+    Day: "The day",
+    clientFallback: "the family",
+    detailsForm: "Celebration details",
+    schedule: "Day plan",
+    brief: "Brief",
+    scheduleA: "Details (Schedule A)",
+    afterwards: "After the celebration",
+    dayBeforeChecklist: [
+      "the outfit pressed, and anything for the photos: the rosary, the candle, the certificate",
+      "the church's photo rules, if the parish has any, checked",
+      "the godparents' names for the family pictures",
+    ],
+    ...PLAIN_WORDS,
+    dayBeforeLine: "The outfit pressed, and anything for the photos",
+    aboutYours: "your celebration",
+    whenQuestion: "when’s the celebration?",
+    dateAsk: "The date",
+    newClient: "A new family",
+    othersLikeYou: "other families",
+    Clients: "Families",
+    typicalDay: "celebration",
+    inquiryDayTitle: "Tell us about the day",
+  },
   portraits: {
     event: "session",
     Event: "Session",
@@ -464,7 +499,28 @@ export const MITZVAH_TYPE_LABELS: Record<MitzvahType, string> = {
   bnot: "B'not mitzvah",
 };
 
+/** Which sacrament a job is (Phase 3), stored as `occasionVariant`. */
+const SACRAMENT_VARIANTS: readonly KindVariant[] = [
+  { id: "first_communion", label: "First Communion" },
+  { id: "confirmation", label: "Confirmation" },
+  { id: "baptism", label: "Baptism" },
+];
+
 const KIND_VARIANTS: Partial<Record<JobKind, KindVariantSpec>> = {
+  sacrament: {
+    field: "occasionVariant",
+    question: "Which one",
+    variants: SACRAMENT_VARIANTS,
+    // "Communion, confirmation & baptism" names all three: it says none.
+    fromLabel: (value) => {
+      const named = [
+        /communion/.test(value) ? "first_communion" : null,
+        /confirmation/.test(value) ? "confirmation" : null,
+        /baptism|baptiz|christening/.test(value) ? "baptism" : null,
+      ].filter(Boolean);
+      return named.length === 1 ? named[0]! : null;
+    },
+  },
   mitzvah: {
     field: "mitzvahType",
     question: "Which mitzvah",
@@ -839,6 +895,25 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
     scheduleAParts: "sweet16",
     honoree: true,
     agreementTerms: "sweet16",
+  },
+  // A family session's weight (Conor, 2026-10-15): no agreement, paid in
+  // full, the details form two weeks out. Several in a weekend, so not an
+  // exclusive day. The photographer's shot list goes with the form.
+  sacrament: {
+    consultation: false,
+    agreement: false,
+    payment: "paid_in_full",
+    detailsFormDaysBefore: 14,
+    finalDetailsLock: false,
+    runOfShow: false,
+    crew: false,
+    coi: false,
+    billingAddressRequest: false,
+    album: true,
+    exclusiveDay: false,
+    ...PLAIN_STEPS,
+    shotList: true,
+    honoree: true,
   },
   // Gabe, 2026-10-02: no agreement ("that's overkill"), paid in full.
   portraits: {

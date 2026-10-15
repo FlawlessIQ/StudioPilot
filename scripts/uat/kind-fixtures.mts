@@ -34,8 +34,8 @@ export type TradeFixture = {
   studioName: string;
   /** The recommended form this trade's studio gets for the kind (its `recommendedId`). */
   form: string;
-  /** Schedule B's wording for this trade (features/contracts/event-details.ts). */
-  scheduleB: RegExp[];
+  /** Schedule B's wording for this trade (features/contracts/event-details.ts); null for a kind with no agreement. */
+  scheduleB: RegExp[] | null;
   /** What the client writes on the trade's form; required fields left out are filled generically. */
   answers: Record<string, unknown>;
   /** The trade's own plan from the form. */
@@ -59,8 +59,9 @@ export type KindFixture = {
   eventPhrase: string;
   inquiry: { message: string; city: string; venue: string; guests: number };
   package: { name: string; description: string; deliverables: string[] };
-  scheduleA: string;
-  scheduleB: string;
+  /** The agreement's schedule headings; null for a kind with no agreement (journeyProfile(kind).agreement false). */
+  scheduleA: string | null;
+  scheduleB: string | null;
   /** Recommended-form ids that must never reach a job of this kind. */
   foreignForms: RegExp;
   /** Days out the job is moved to so the form date has passed (the profile's `detailsFormDaysBefore` less a few). */
@@ -262,6 +263,26 @@ async function sweet16Checklist({ record, hit, checklist, fixture }: PlanContext
 
 const SWEET16_BEFORE_ANSWERS = { "ready-by-time": "17:30", "earliest-start-time": "12:00", "getting-ready": "The Carter home, 8 Maple Ave, Summit NJ" };
 
+/**
+ * The words a First Communion / Confirmation / Baptism family must never
+ * read: a wedding's (not "veil" or "ceremony" — a communion has both),
+ * "couple" other than "a couple of", and the other honoree kinds'.
+ */
+const SACRAMENT_WORDS = /\b(weddings?|brides?|bridal|grooms?|bridesmaids?|fianc[ée]e?s?|officiants?|marriage|(?<!\ba )couples?(?! of\b)|(?:bar|bat|b'?nai) mitzvahs?|mitzvahs?|synagogue|quincea[ñn]eras?|sweet 16|athletes?)\b/i;
+
+/** A hair party list and its chairs for a first communion. */
+function sacramentChairs({ trade, stored, record }: PlanContext) {
+  const service = trade as "makeup" | "hair";
+  const people = parsePartyList(stored["party-list"], service);
+  const role = (name: string) => people.find((person) => person.name === name)?.role;
+  record("5. party list read: Lily (first communion) is the honoree, Maria a mother",
+    role("Lily") === "bride" && role("Maria Lopez") === "mother",
+    people.map((person) => `${person.name}: ${person.role} ${person.services.join("+")} ${person.notes ?? ""}`).join(", "));
+  const plan = planChairs({ people, service, readyBy: "09:00", earliestStart: "07:00", artists: 1 });
+  const slots = plan.slots.map((slot) => `${slot.start}-${slot.end} ${slot.name} (${slot.role})`).join(", ") || "no slots";
+  record(`5. planChairs lays out the ${service} chairs`, plan.slots.length === 2 && plan.fits, `${slots} ${plan.notes.join(" ")}`);
+}
+
 export const KIND_FIXTURES: Record<string, KindFixture> = {
   mitzvah: {
     kind: "mitzvah",
@@ -458,6 +479,41 @@ export const KIND_FIXTURES: Record<string, KindFixture> = {
           "guest-count": "100",
         },
         plan: sweet16Checklist,
+      },
+    },
+  },
+  // Phase 3: the first kind whose variant is the generic `occasionVariant`, and
+  // the first walked with no agreement (paid in full to book). Hair only here;
+  // the photographer's walk is separate.
+  sacrament: {
+    kind: "sacrament",
+    word: "sacrament",
+    eventType: { id: "sacrament", label: "First Communion" },
+    client: { firstName: "Maria", lastName: "Lopez" },
+    honoree: { name: "Lily", variantField: "occasionVariant", variant: "first_communion" },
+    jobName: "Lily Lopez's first communion",
+    yourEvent: "Lily's first communion",
+    eventPhrase: "first communion",
+    inquiry: { message: "Lily's first communion at St. Joseph's, then lunch at home.", city: "Paterson, NJ", venue: "St. Joseph's Church", guests: 40 },
+    package: { name: "First Communion hair", description: "Hair for the morning of the Mass.", deliverables: ["Hair for the morning"] },
+    scheduleA: null,
+    scheduleB: null,
+    foreignForms: /^(wedding|mitzvah|quince|sweet16|dj-|makeup-|hair-|planner-)/,
+    // journeyProfile("sacrament").detailsFormDaysBefore is 14.
+    formDueDaysOut: 10,
+    fillerText: "St. Joseph's Church, 40 Grand St, Paterson NJ",
+    forbidden: SACRAMENT_WORDS,
+    coupleWord: COUPLE_WORD,
+    trades: {
+      hair: {
+        studioName: "Little Blessings Hair",
+        form: "sacrament-hair-party-list",
+        scheduleB: null,
+        answers: {
+          "ready-by-time": "09:00", "earliest-start-time": "07:00", "getting-ready": "The Lopez home, 12 Oak St, Paterson NJ",
+          "party-list": "Lily — first communion — curls, with her veil\nMaria Lopez — mom — blowout",
+        },
+        plan: sacramentChairs,
       },
     },
   },

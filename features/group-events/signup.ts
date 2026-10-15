@@ -294,9 +294,9 @@ export function howToPay(method: EventPaymentMethod, config: Pick<EventSignupCon
     case "check":
       return `Bring a check to the event${config.checkPayableTo ? `, payable to ${config.checkPayableTo}` : ""}.`;
     case "venmo":
-      return `Pay @${config.venmoHandle ?? ""} on Venmo. Put the athlete's name in the note.`;
+      return `Pay @${config.venmoHandle ?? ""} on Venmo. Put the name you signed up in the note.`;
     case "zelle":
-      return `Send it by Zelle to ${config.zelleTo ?? studioName}. Put the athlete's name in the memo.`;
+      return `Send it by Zelle to ${config.zelleTo ?? studioName}. Put the name you signed up in the memo.`;
     case "pay_link":
       return `Pay online with ${studioName}'s secure payment page.`;
     case "quickbooks":

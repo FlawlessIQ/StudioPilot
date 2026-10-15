@@ -14,7 +14,7 @@ import { agreedRetainerCents, agreedRetainerDue, retainerDueFromSchedule } from 
 import { isStandingInvoice } from "./invoice-standing.js";
 import { jobCalledOff, refundOrKeepTask } from "./stopped-billing.js";
 import { bookingGateRequirements } from "./gate-requirements.js";
-import { dateClashes, jobKindOf, projectGateNeeds } from "../job-kinds/job-kinds.js";
+import { dateClashes, jobKindOf, journeyProfile, projectGateNeeds } from "../job-kinds/job-kinds.js";
 import {
   requireProviderForTenant,
   resolveProviderForTenant,
@@ -1061,8 +1061,10 @@ async function bookWithoutAgreement(
         logger.error("bookWithoutAgreementNoPackage", { tenantId, projectId });
         return;
       }
+      // The package's shape, else the kind's: a family session and a
+      // communion are paid in full (job-kinds.ts; emulator walk, 2026-10-15).
       const paidInFull = project.get("paymentShape") === "paid_in_full" ||
-        (!project.get("paymentShape") && kind === "portraits");
+        (!project.get("paymentShape") && journeyProfile(kind).payment === "paid_in_full");
       const amountCents = paidInFull
         ? fullAmountFromSchedule(
             proposal.get("paymentSchedule"),

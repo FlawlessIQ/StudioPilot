@@ -81,6 +81,14 @@ export const KIND_STANDARD_MOMENTS: Readonly<Partial<Record<string, ReadonlyArra
     { title: "Surprise dance", minutes: 10 },
     { title: "Last dance", minutes: 5 },
   ],
+  sacrament: [
+    { title: "Photo and video arrive at the church", minutes: 15 },
+    { title: "Portraits before the service", minutes: 20 },
+    { title: "Service", minutes: 60 },
+    { title: "Portraits with the godparents and family", minutes: 30 },
+    { title: "The celebration", minutes: 90 },
+    { title: "Cake", minutes: 10 },
+  ],
   sweet16: [
     { title: "Portraits with family and friends", minutes: 30 },
     { title: "Grand entrance", minutes: 5 },

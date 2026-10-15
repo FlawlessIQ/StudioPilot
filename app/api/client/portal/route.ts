@@ -4,7 +4,7 @@ import {
   type CoverageRole,
 } from "@/features/packages/coverage";
 import { pendingAmendmentFor, signAmendment } from "@/server/contracts/amendment-signing";
-import { jobKindOf, projectProfile } from "@/features/job-kinds/job-kinds";
+import { bookingGateNeeds, jobKindOf, projectProfile } from "@/features/job-kinds/job-kinds";
 import { TRADE_LABELS, tradeOf, tradeProfile, tradeVocab, type Trade } from "@/features/trades/trades";
 import { billedCrewCount } from "@/features/packages/create-snapshot";
 import { jobPackageSnapshotIds } from "@/features/packages/job-packages";
@@ -1172,6 +1172,11 @@ async function clientProject(tenantId: string, projectId: string) {
     planningFormIn,
     trade: tenantSnapshot.get("trade"),
     consultation: projectProfile(projectSnapshot.data()).consultation,
+    // What booking takes: no agreement and paid in full, for a family session.
+    bookingNeeds: {
+      ...bookingGateNeeds(projectProfile(projectSnapshot.data())),
+      paidInFull: projectProfile(projectSnapshot.data()).payment === "paid_in_full",
+    },
     shotList: await (async () => {
       // Their own must-take photos, once asked for or sent (server/planning/shot-list.ts).
       const stored = await adminFirestore.doc(`clientShotLists/${projectId}`).get();

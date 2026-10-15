@@ -216,6 +216,15 @@ export const KIND_STANDARD_MOMENTS: Readonly<Partial<Record<string, readonly Kin
     { label: "Surprise dance", title: "Surprise dance", minutes: 10 },
     { label: "Last dance", title: "Last dance", minutes: 5 },
   ],
+  // A First Communion, Confirmation or Baptism (Phase 3): the church, then the family.
+  sacrament: [
+    { label: "Arrive at the church", title: "Photo and video arrive at the church", minutes: 15 },
+    { label: "Before the service", title: "Portraits before the service", minutes: 20 },
+    { label: "Service", title: "Service", minutes: 60 },
+    { label: "After the service", title: "Portraits with the godparents and family", minutes: 30 },
+    { label: "Celebration", title: "The celebration", minutes: 90 },
+    { label: "Cake", title: "Cake", minutes: 10 },
+  ],
   // A Sweet 16's party (sweet16-plan.ts lays it out from the form).
   sweet16: [
     { label: "Portraits", title: "Portraits with family and friends", minutes: 30 },

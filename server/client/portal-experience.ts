@@ -107,6 +107,17 @@ function stageLabel(state: string, trade: unknown): string {
 }
 
 /** Mid-sentence, keeping the rest as written: "run of show & MC script", never "mc". */
+/** "a, b, and c"; "a and b"; "a". */
+function listed(items: ReadonlyArray<string | null>): string {
+  const kept = items.filter((item): item is string => Boolean(item));
+  if (kept.length <= 2) return kept.join(" and ");
+  return `${kept.slice(0, -1).join(", ")}, and ${kept.at(-1)}`;
+}
+
+function capitalizeFirst(value: string): string {
+  return value ? `${value.charAt(0).toUpperCase()}${value.slice(1)}` : value;
+}
+
 function lowerFirst(value: string): string {
   return `${value.charAt(0).toLowerCase()}${value.slice(1)}`;
 }
@@ -399,6 +410,12 @@ export function buildClientMilestones(
     trade?: unknown;
     /** The job kind's profile says a consultation is offered (job-kinds.ts). */
     consultation?: boolean;
+    /**
+     * What booking takes for this job (job-kinds.ts `bookingGateNeeds`): a
+     * family session has no agreement and is paid in full. Omitted: an
+     * agreement and a deposit, as it always read.
+     */
+    bookingNeeds?: { agreement: boolean; payment: boolean; paidInFull?: boolean };
     /** Their planning form is sent back and none is still open (`planningFormIn` below). */
     planningFormIn?: boolean;
     /** A vendor's plan of the day is published for them to read (`planSharedToRead`). */
@@ -415,6 +432,7 @@ export function buildClientMilestones(
    * a "Delivery — receive and access your finished photographs" of a face.
    */
   const words = tradeVocab(options.trade);
+  const needs = options.bookingNeeds ?? { agreement: true, payment: true, paidInFull: false };
   const call = hasSalesCall(options.trade, options.consultation);
   const delivers = tradeProfile(options.trade).delivery;
   const photo = tradeProfile(options.trade).family === "photo";
@@ -483,9 +501,11 @@ export function buildClientMilestones(
       // One link for a vendor's client: accept, sign and pay the deposit
       // (simpler vendor journeys; trades.ts `journey.oneLinkBooking`).
       label: light ? "Book your date" : "Booking",
+      // Only what this job takes: a communion paid in full has nothing to
+      // sign and no deposit (emulator walk, 2026-10-15).
       description: light
-        ? `Accept your ${words.proposal.toLowerCase()}, sign, and pay the ${words.deposit} to book your date.`
-        : `Review your offer, agreement, and ${words.deposit}.`,
+        ? `${capitalizeFirst(listed([`accept your ${words.proposal.toLowerCase()}`, needs.agreement ? "sign" : null, needs.payment ? (needs.paidInFull ? "pay" : `pay the ${words.deposit}`) : null]))} to book your date.`
+        : `Review your ${listed(["offer", needs.agreement ? "agreement" : null, needs.payment ? (needs.paidInFull ? "payment" : words.deposit) : null])}.`,
       // With no call, booking is where an inquiry goes next.
       current: () => (call ? index >= 2 : !formOwed) && index <= 4,
       complete: () => index >= 5,
@@ -554,6 +574,7 @@ export function buildClientPortalExperience({
   inquiryForm = null,
   trade = null,
   consultation,
+  bookingNeeds,
   shotList = null,
   vendorTeam = null,
 }: {
@@ -615,6 +636,8 @@ export function buildClientPortalExperience({
   trade?: unknown;
   /** The job kind offers a consultation (job-kinds.ts `projectProfile`). */
   consultation?: boolean;
+  /** What booking takes for this job (buildClientMilestones). */
+  bookingNeeds?: { agreement: boolean; payment: boolean; paidInFull?: boolean };
   /**
    * What the client still owes, if anything. Optional so existing callers keep
    * working, but supplying it changes the priority: money that is past its date
@@ -983,7 +1006,7 @@ export function buildClientPortalExperience({
           actionLabel: "View payments",
         }
       : null;
-  const milestones = buildClientMilestones(state, { inquiryForm, trade, consultation, planningFormIn, planShared });
+  const milestones = buildClientMilestones(state, { inquiryForm, trade, consultation, bookingNeeds, planningFormIn, planShared });
   const completedMilestones = milestones.filter(
     (milestone) => milestone.status === "complete",
   ).length;
