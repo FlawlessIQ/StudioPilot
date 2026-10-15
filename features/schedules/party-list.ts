@@ -30,7 +30,7 @@ export type PartyMember = {
 const ROLE_WORDS: ReadonlyArray<[RegExp, PartyRole]> = [
   // The child a mitzvah celebrates sits where a bride does: the middle
   // chair, done last ("Lily — the bat mitzvah", emulator walk 2026-10-14).
-  [/\bbride\b(?!['’]s)|\bto be wed\b|\b(?:bar|bat|b'?nai|b'?not)[\s-]*mitzvah\b|\bhonou?ree\b|\bquincea[ñn]era\b|\bthe quince\b|\bbirthday (?:girl|boy)\b|\bsweet (?:16|sixteen)\b|\bfirst communion\b|\bcommunicant\b|\bconfirmand\b|\bthe student\b/i, "bride"],
+  [/\bbride\b(?!['’]s)|\bto be wed\b|\b(?:bar|bat|b'?nai|b'?not)[\s-]*mitzvah\b|\bhonou?ree\b|\bquincea[ñn]era\b|\bthe quince\b|\bbirthday (?:girl|boy)\b|\bsweet (?:16|sixteen)\b|\bfirst communion\b|\bcommunicant\b|\bconfirmand\b|\bthe student\b|\bcelebrating\b/i, "bride"],
   [/\bmother\b|\bmom\b|\bmum\b|\bmob\b|\bmog\b|\bgrandmother\b|\bgrandma\b/i, "mother"],
   [/flower ?girl|junior|\bjr\.? bridesmaid\b|\bchild\b|\bkid\b|\bdaughter\b|\bniece\b/i, "child"],
   [/bridesmaid|maid of honou?r|\bmoh\b|matron|\bparty\b|\bfriend\b|\bsister\b|\bguest\b|\bdamas?\b/i, "party"],

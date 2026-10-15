@@ -216,6 +216,17 @@ export const KIND_STANDARD_MOMENTS: Readonly<Partial<Record<string, readonly Kin
     { label: "Surprise dance", title: "Surprise dance", minutes: 10 },
     { label: "Last dance", title: "Last dance", minutes: 5 },
   ],
+  // A vow renewal or an anniversary party (Phase 5).
+  vow_renewal: [
+    { label: "Getting ready", title: "Getting ready", minutes: 30 },
+    { label: "Vows", title: "Vow renewal", minutes: 20 },
+    { label: "Portraits", title: "Portraits of the two of you", minutes: 20 },
+    { label: "Family photos", title: "Family photos", minutes: 20 },
+    { label: "Entrance", title: "Grand entrance", minutes: 5 },
+    { label: "Toasts", title: "Toasts", minutes: 15 },
+    { label: "Anniversary dance", title: "Anniversary dance", minutes: 5 },
+    { label: "Cake", title: "Cake", minutes: 10 },
+  ],
   // Pre-prom photos (Phase 4): before they leave.
   prom: [
     { label: "Arrive", title: "Photo and video arrive", minutes: 10 },

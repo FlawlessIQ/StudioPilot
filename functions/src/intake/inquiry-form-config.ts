@@ -7,7 +7,7 @@
 // ── mirrored below ──
 
 /** What kind of event a studio's type is. "wedding" keeps the wedding-only behaviour (the event form). */
-export const INQUIRY_EVENT_KINDS = ["wedding", "mitzvah", "quince", "sweet16", "sacrament", "prom", "portraits", "sports", "corporate", "other", "general"] as const;
+export const INQUIRY_EVENT_KINDS = ["wedding", "mitzvah", "quince", "sweet16", "sacrament", "prom", "vow_renewal", "portraits", "sports", "corporate", "other", "general"] as const;
 export type InquiryEventKind = (typeof INQUIRY_EVENT_KINDS)[number];
 
 export const INQUIRY_FIELD_MODES = ["required", "optional", "hidden"] as const;
@@ -82,6 +82,7 @@ export const INQUIRY_CONFIG_MESSAGES = {
 export function dayFieldsForKind(kind: InquiryEventKind): InquiryDayFields {
   switch (kind) {
     case "wedding":
+    case "vow_renewal":
     case "mitzvah":
     case "quince":
     case "sweet16":

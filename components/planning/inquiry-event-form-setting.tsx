@@ -37,7 +37,7 @@ export function InquiryEventFormSetting({
    * INQUIRY_FORM_KINDS): a mitzvah's details form, saved beside the wedding
    * one. Shown only while the studio's inquiry form offers the kind.
    */
-  kind?: "mitzvah" | "quince" | "sweet16" | "sacrament" | "prom";
+  kind?: "mitzvah" | "quince" | "sweet16" | "sacrament" | "prom" | "vow_renewal";
 } = {}) {
   const workspace = useWorkspace();
   const kindWords = kind ? JOB_KIND_LABELS[kind].toLowerCase() : "wedding";

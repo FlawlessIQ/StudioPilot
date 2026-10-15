@@ -212,8 +212,17 @@ export const SWEET16_PLANNING_CHECKLISTS: Readonly<Record<ChecklistScope, readon
   ],
 };
 
+/**
+ * A vow renewal's planning (Phase 5): the wedding's list, with no marriage
+ * license to remind anyone of.
+ */
+export const VOW_RENEWAL_PLANNING_CHECKLISTS: Readonly<Record<ChecklistScope, readonly ChecklistItem[]>> = {
+  full: STARTER_PLANNING_CHECKLISTS.full.filter((entry) => entry.key !== "marriage_license"),
+  partial: STARTER_PLANNING_CHECKLISTS.partial.filter((entry) => entry.key !== "marriage_license"),
+};
+
 /** Kinds with lists of their own, saved and edited apart from the wedding's. */
-export const CHECKLIST_KINDS = ["mitzvah", "quince", "sweet16"] as const;
+export const CHECKLIST_KINDS = ["mitzvah", "quince", "sweet16", "vow_renewal"] as const;
 export type ChecklistKind = (typeof CHECKLIST_KINDS)[number];
 
 /** Where a list is saved on the tenant: "full", or a kind's "mitzvah:full". */
@@ -226,6 +235,7 @@ const KIND_CHECKLISTS: Readonly<Record<string, Readonly<Record<ChecklistScope, r
   mitzvah: MITZVAH_PLANNING_CHECKLISTS,
   quince: QUINCE_PLANNING_CHECKLISTS,
   sweet16: SWEET16_PLANNING_CHECKLISTS,
+  vow_renewal: VOW_RENEWAL_PLANNING_CHECKLISTS,
 };
 
 export function isChecklistScope(value: unknown): value is ChecklistScope {

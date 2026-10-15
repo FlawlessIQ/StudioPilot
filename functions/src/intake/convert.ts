@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { plausiblePersonName } from "./form-email.js";
 import { moveLeadThreadsToProject } from "./lead-thread.js";
-import { honoreeOf, jobKindOf, journeyProfile, variantFieldFor, variantLabel, vocab } from "../job-kinds/job-kinds.js";
+import { honoreeOf, jobKindOf, journeyProfile, kindVariants, variantFieldFor, variantFromLabel, variantLabel, vocab } from "../job-kinds/job-kinds.js";
 import { budgetPrefillCents } from "../planning/vendor-team.js";
 
 /**
@@ -179,9 +179,24 @@ export async function convertInquiryToJob(
     // mitzvah". "Dana Levine Bar mitzvah" welcomed the family to a mitzvah
     // that read as the parent's (prod walk, 2026-10-14).
     const familyName = namedAs(text(lead.get("lastName")));
+    // A couple's kind with variants is theirs: "Linda & Tom Reyes's vow
+    // renewal", not "Linda Reyes Vow renewal" (vow renewal walk, 2026-10-15).
+    const coupleVariant = !honoree && kindVariants(leadKind).length ? variantLabel(leadKind, variantFromLabel(leadKind, eventTypeLabel)) : null;
+    const partner = namedAs(text(lead.get("partnerName")));
+    const couple = (() => {
+      const first = namedAs(text(lead.get("firstName")));
+      if (!partner || !first) return displayName;
+      const [partnerFirst, ...partnerRest] = partner.split(/\s+/);
+      const partnerLast = partnerRest.join(" ");
+      return familyName && (!partnerLast || partnerLast === familyName)
+        ? `${first} & ${partnerFirst} ${familyName}`
+        : `${displayName} & ${partner}`;
+    })();
     const jobName = honoree?.name
       ? `${[honoree.name, familyName].filter(Boolean).join(" ")}'s ${variantName ? variantName.toLowerCase() : vocab(leadKind).event}`
-      : `${displayName} ${jobWord}`;
+      : coupleVariant
+        ? `${couple}'s ${coupleVariant.toLowerCase()}`
+        : `${displayName} ${jobWord}`;
 
     if (!existingProject.exists) {
       transaction.create(projectReference, {

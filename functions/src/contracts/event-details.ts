@@ -149,6 +149,15 @@ const KIND_PARTS: Record<string, KindParts> = {
     receptionWords: ["reception", "party"],
     required: REQUIRED_MITZVAH_PARTS,
   },
+  // A vow renewal's: the vows if any, then the reception (an anniversary
+  // party has no ceremony, so it isn't required).
+  vow_renewal: {
+    ceremony: "Vows",
+    reception: "Reception",
+    ceremonyWords: ["vows", "renewal"],
+    receptionWords: ["reception", "celebrating", "party"],
+    required: ["reception", "times"],
+  },
   // A Sweet 16's: the party, with no service before it.
   sweet16: {
     ceremony: "Location",

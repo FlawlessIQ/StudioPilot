@@ -421,6 +421,7 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
     mitzvah: { detailsForm: "Mitzvah music & MC planner" },
     quince: { detailsForm: "Quinceañera music & MC planner" },
     sweet16: { detailsForm: "Sweet 16 music & MC planner" },
+    vow_renewal: { detailsForm: "Anniversary music & MC planner" },
   },
   makeup: {
     mitzvah: {
@@ -448,6 +449,20 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
           "lashes and adhesive for everyone who wanted them",
           "the quinceañera's shades and products from her trial",
           "a touch-up kit for the quinceañera and her mom",
+          "a light, a power strip and an extension cord",
+        ],
+      },
+    },
+    vow_renewal: {
+      kitChecklist: {
+        title: "Kit checklist",
+        items: [
+          "the address, room number and parking",
+          "the getting-ready schedule, with the couple in the middle, never last",
+          "brushes and sponges cleaned",
+          "lashes and adhesive for everyone who wanted them",
+          "each person's shades and products, from the trial if there was one",
+          "a touch-up kit for the couple",
           "a light, a power strip and an extension cord",
         ],
       },
@@ -563,6 +578,27 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
         ],
       },
     },
+    vow_renewal: {
+      trialHint: null,
+      kitChecklist: {
+        title: "Kit checklist",
+        items: [
+          "the address, room number and parking",
+          "the getting-ready schedule, with the couple in the middle, never last",
+          "irons, dryer and brushes",
+          "pins, elastics and hairspray",
+          "a power strip and an extension cord",
+        ],
+      },
+      prepGuide: {
+        lead: "So your hair holds all day",
+        items: [
+          "come with clean, completely dry hair — washed the night before, with no oils or products — or there's a blow-dry fee",
+          "wear a button-up or zip-front top, so nothing goes over your head",
+          "have your hair accessories with you",
+        ],
+      },
+    },
     sacrament: {
       trialHint: null,
       kitChecklist: {
@@ -616,6 +652,22 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
         ],
         summary: "The candle list, the tip envelopes, the décor",
         sent: "Sent — the candle list and what to bring",
+      },
+    },
+    // A vow renewal (Phase 5): the rings and the vows, never a license.
+    vow_renewal: {
+      dayName: "The celebration",
+      dayBefore: {
+        lead: "For the big day",
+        ask: "A few things so tomorrow runs to time — please have ready:",
+        items: [
+          "the rings and your vows, if you're renewing them",
+          "the toasts in order, and anyone speaking told when",
+          "the vendor tips and final payments in labeled envelopes, if we're handing them out",
+          "your décor, the guest book and the favors boxed and labeled for setup",
+        ],
+        summary: "The rings, the toasts, the tip envelopes",
+        sent: "Sent — the rings, the toasts and what to bring",
       },
     },
     quince: {

@@ -148,5 +148,5 @@ test("what the emulator walk found: paid in full is paid in full, and nothing as
   assert.equal(booking({ agreement: false, payment: true, paidInFull: true }), "Accept your quote and pay to book your date.");
   assert.equal(booking(), "Accept your quote, sign, and pay the deposit to book your date.");
   // A communion's own form goes at booking, like a mitzvah's.
-  assert.match(readFileSync("functions/src/planning/planning-form-scheduler.ts", "utf8"), /!journeyProfile\(kind\)\.honoree\) return "not_wedding"/);
+  assert.match(readFileSync("functions/src/planning/planning-form-scheduler.ts", "utf8"), /!journeyProfile\(kind\)\.honoree && !journeyProfile\(kind\)\.scheduleAParts\) return "not_wedding"/);
 });

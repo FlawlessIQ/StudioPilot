@@ -19,7 +19,7 @@
 // ── mirrored below ──
 
 /** The kinds of job the product understands. `general` (an inquiry-only kind) is not one. */
-export const JOB_KINDS = ["wedding", "mitzvah", "quince", "sweet16", "sacrament", "prom", "portraits", "corporate", "sports", "other"] as const;
+export const JOB_KINDS = ["wedding", "mitzvah", "quince", "sweet16", "sacrament", "prom", "vow_renewal", "portraits", "corporate", "sports", "other"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 /**
@@ -38,6 +38,7 @@ export const JOB_KIND_LABELS: Record<JobKind, string> = {
   sweet16: "Sweet 16",
   sacrament: "Communion, confirmation & baptism",
   prom: "Prom",
+  vow_renewal: "Vow renewal & anniversary",
   portraits: "Family & portraits",
   corporate: "Corporate & events",
   sports: "Sports",
@@ -64,6 +65,8 @@ export function jobKindFromLabel(label: unknown): JobKind | null {
   if (/quince|quincea[ñn]er|\bxv\b|xv a[ñn]os/.test(value)) return "quince";
   if (/sweet\s*(16|sixteen)/.test(value)) return "sweet16";
   if (/communion|confirmation|baptism|baptiz|christening/.test(value)) return "sacrament";
+  // Before the wedding words: a vow renewal has a ceremony and a couple.
+  if (/vow renewal|renewal of vows|renew(?:ing)? (?:our|their)? ?vows|anniversary/.test(value)) return "vow_renewal";
   if (/\bprom\b|homecoming|\bformal dance\b/.test(value)) return "prom";
   if (/wedding|elop|marriage|ceremony|engagement|bridal/.test(value)) return "wedding";
   if (/headshot|corporate|conference|company|business|gala|summit|brand|commercial|staff/.test(value)) return "corporate";
@@ -424,6 +427,43 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
     inquiryDateLabel: "Prom date",
     honoreeQuestion: "Who's going to prom?",
   },
+  // docs/new-job-kinds-execution-plan-2026-10-15.md, Phase 5: a couple
+  // renewing their vows, or an anniversary party with no ceremony (a
+  // variant, read from the type they picked). The couple is right here;
+  // the marriage license is not.
+  vow_renewal: {
+    event: "celebration",
+    Event: "Celebration",
+    yourEvent: "your celebration",
+    YourEvent: "Your celebration",
+    theDay: "the day",
+    Day: "The day",
+    clientFallback: "the couple",
+    detailsForm: "Celebration details",
+    schedule: "Run of show",
+    brief: "Brief",
+    scheduleA: "Celebration details (Schedule A)",
+    afterwards: "After the celebration",
+    dayBeforeChecklist: [
+      "the order of the day, final, and anyone giving a toast told when",
+      "the rings, the vows and anything for the photos ready, if you're renewing your vows",
+      "your anniversary-dance song sent to the DJ",
+    ],
+    ...PLAIN_WORDS,
+    dayBeforeLine: "The order of the day, final",
+    formAsks: "The celebration, the vows if you're renewing them, and who's speaking",
+    timesChanged: "If the vows, celebration, or portrait times have changed at all, just reply and we'll update the plan.",
+    finalDetailsHolds: "the celebration and the timeline",
+    musicOccasion: "celebration",
+    aboutYours: "your celebration",
+    whenQuestion: "when’s the celebration?",
+    dateAsk: "The date",
+    newClient: "A new couple",
+    othersLikeYou: "other couples",
+    Clients: "Couples",
+    typicalDay: "celebration",
+    inquiryDayTitle: "Tell us about the celebration",
+  },
   portraits: {
     event: "session",
     Event: "Session",
@@ -560,6 +600,17 @@ const SACRAMENT_VARIANTS: readonly KindVariant[] = [
 ];
 
 const KIND_VARIANTS: Partial<Record<JobKind, KindVariantSpec>> = {
+  // A vow renewal or an anniversary party with no ceremony (Conor,
+  // 2026-10-15), read from the type the couple picked ("Anniversary party").
+  vow_renewal: {
+    field: "occasionVariant",
+    question: "Which one",
+    variants: [
+      { id: "vow_renewal", label: "Vow renewal" },
+      { id: "anniversary", label: "Anniversary party" },
+    ],
+    fromLabel: (value) => (/vow|renew/.test(value) ? (/anniversary/.test(value) && /&|\band\b/.test(value) ? null : "vow_renewal") : /anniversary/.test(value) ? "anniversary" : null),
+  },
   sacrament: {
     field: "occasionVariant",
     question: "Which one",
@@ -716,7 +767,8 @@ function honoreeWords(kind: JobKind, base: JobVocabulary, job: unknown): JobVoca
   const label = variantLabel(kind, variant);
   if (kindVariants(kind).length ? !label : !name) return base;
   const event = label ? label.toLowerCase() : base.event;
-  const yours = name ? `${name}'s ${event}` : `the ${event}`;
+  // A couple's own: "your vow renewal". Someone else's: "Sam's bar mitzvah".
+  const yours = name ? `${name}'s ${event}` : PROFILES[kind].honoree ? `the ${event}` : `your ${event}`;
   return {
     ...base,
     event,
@@ -733,7 +785,9 @@ function honoreeWords(kind: JobKind, base: JobVocabulary, job: unknown): JobVoca
  */
 export function vocab(kind: unknown, job?: unknown): JobVocabulary {
   const known = asKind(kind);
-  if (job !== undefined && known && PROFILES[known].honoree) return honoreeWords(known, vocabFor(known), job);
+  // A kind that celebrates someone names them; a kind with variants (a vow
+  // renewal or an anniversary party) says which.
+  if (job !== undefined && known && (PROFILES[known].honoree || kindVariants(known).length)) return honoreeWords(known, vocabFor(known), job);
   return vocabFor(kind);
 }
 
@@ -833,7 +887,7 @@ export type JourneyProfile = {
    * wedding's getting ready, ceremony, reception and times; a mitzvah's
    * service, party and times. Null: none required.
    */
-  scheduleAParts: "wedding" | "mitzvah" | "quince" | "sweet16" | null;
+  scheduleAParts: "wedding" | "mitzvah" | "quince" | "sweet16" | "vow_renewal" | null;
   /**
    * The job celebrates someone who isn't the client: a mitzvah's child. It
    * carries their first name (`honoreeName`) and which mitzvah it is
@@ -967,6 +1021,26 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
     ...PLAIN_STEPS,
     shotList: true,
     honoree: true,
+  },
+  // A wedding's weight with its own timing (Phase 5): the couple books, a
+  // call and an agreement, a deposit and a balance; the details form 90
+  // days out; the ceremony optional on Schedule A (an anniversary party has none).
+  vow_renewal: {
+    consultation: true,
+    agreement: true,
+    payment: "deposit_and_balance",
+    detailsFormDaysBefore: 90,
+    finalDetailsLock: true,
+    runOfShow: true,
+    crew: true,
+    coi: true,
+    billingAddressRequest: true,
+    album: true,
+    exclusiveDay: true,
+    ...PLAIN_STEPS,
+    shotList: true,
+    partner: true,
+    scheduleAParts: "vow_renewal",
   },
   // Getting ready for prom (Phase 4): a family session's weight — no
   // agreement, paid in full by default (a studio's package can change how it

@@ -289,6 +289,18 @@ marriage license or officiant paperwork in the planner checklist, Schedule A
 wedding parts (ceremony only for the vow-renewal variant). Copy: "your vow
 renewal", "your anniversary celebration"; the couple is right here.
 
+**Built 2026-10-15.** Kind `vow_renewal` (a couple: partner, no honoree),
+variants vow_renewal / anniversary read from the type the couple picked
+(Conor: an anniversary party is a variant); agreement, deposit and balance;
+forms for every trade with no wedding's words; Schedule A "Vows" (optional)
+and "Reception"; the planner's list is the wedding's without the marriage
+license; DJ moments and MC rules for the vows and the anniversary dance.
+Emulator walk: 138/143 → fixed. Fixed: the job is named for the couple
+("Linda & Tom Reyes's vow renewal"); a kind with its own Schedule A parts
+gets its form at booking; "celebrating" on a party list is the person
+celebrated; kit and day-before lists say rings and vows, never a license or a
+veil.
+
 **Done when:** emulator walk for all trades; prod walk on one trade.
 
 ---

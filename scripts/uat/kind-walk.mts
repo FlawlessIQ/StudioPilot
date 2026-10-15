@@ -354,7 +354,7 @@ async function walk(trade: Trade) {
       headers: { "content-type": "application/json", "x-studiohub-client-ip": `10.4.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}` },
       body: JSON.stringify({
         tenantSlug: tenant?.publicSlug, firstName: F.client.firstName, lastName: F.client.lastName, email: clientEmail, phone: "201-555-0142",
-        eventType: F.eventType.label, eventTypeKey: F.eventType.id, ...honoreePayload,
+        eventType: F.eventType.label, eventTypeKey: F.eventType.id, ...honoreePayload, ...(F.partnerName ? { partnerName: F.partnerName } : {}),
         servicesRequested: ["other"], message: F.inquiry.message, consent: true,
         eventDate, city: F.inquiry.city, venue: F.inquiry.venue, estimatedGuestCount: F.inquiry.guests, customAnswers, honeypot: "",
       }),
@@ -471,11 +471,17 @@ async function walk(trade: Trade) {
   const scheduleA = blockText(blocks, /^Schedule A/, /^Schedule B/);
   const scheduleB = blockText(blocks, /^Schedule B/);
   record(`3. ${F.scheduleA}`, headings.includes(F.scheduleA), `headings: ${headings.slice(-4).join(" | ")}`);
-  record(`3. ${F.scheduleB}`, headings.includes(F.scheduleB), scheduleB.slice(0, 160).replace(/\n/g, " / ") || "no Schedule B");
-  const missingWording = T.scheduleB.filter((pattern) => !pattern.test(scheduleB));
-  record(`3. Schedule B in the ${trade}'s own words`, scheduleB.length > 0 && missingWording.length === 0, missingWording.length ? `missing ${missingWording.join(", ")}` : "both terms in the trade's wording");
+  if (F.scheduleB) {
+    record(`3. ${F.scheduleB}`, headings.includes(F.scheduleB), scheduleB.slice(0, 160).replace(/\n/g, " / ") || "no Schedule B");
+    const missingWording = (T.scheduleB ?? []).filter((pattern) => !pattern.test(scheduleB));
+    record(`3. Schedule B in the ${trade}'s own words`, scheduleB.length > 0 && missingWording.length === 0, missingWording.length ? `missing ${missingWording.join(", ")}` : "both terms in the trade's wording");
+    record("3. no wedding words in Schedule B", Boolean(scheduleB) && !FORBIDDEN.test(scheduleB), hit(FORBIDDEN, scheduleB));
+  } else {
+    // A kind with an agreement but no terms of its own (job-kinds.ts: no Schedule B).
+    record("3. no Schedule B", !scheduleB, scheduleB ? scheduleB.slice(0, 160).replace(/\n/g, " / ") : "none");
+  }
   record("3. no wedding words in Schedule A", Boolean(scheduleA) && !FORBIDDEN.test(scheduleA), scheduleA ? `${hit(FORBIDDEN, scheduleA)} | A: ${scheduleA.slice(0, 220).replace(/\n/g, " / ")}` : "no Schedule A");
-  record("3. no wedding words in Schedule B", Boolean(scheduleB) && !FORBIDDEN.test(scheduleB), hit(FORBIDDEN, scheduleB));
+  for (const [step, pattern] of F.scheduleAChecks ?? []) record(`3. Schedule A: ${step}`, pattern.test(scheduleA), scheduleA.slice(0, 400).replace(/\n/g, " / ") || "no Schedule A");
   const body = blocks.map((block) => textOf(block).join(" ")).join("\n");
   record("3. no wedding words anywhere in the agreement the family signs", !FORBIDDEN.test(body), hit(FORBIDDEN, body));
   record(`3. the agreement names the ${F.eventPhrase}`, EVENT.test(body), EVENT.test(body) ? `says ${F.eventPhrase}` : `event type reads: ${hit(KIND_WORD, body)}`);

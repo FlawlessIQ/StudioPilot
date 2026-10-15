@@ -134,6 +134,25 @@ export const EXAMPLE_PACKAGES: Record<JobKind, readonly ExamplePackage[]> = {
       deliverables: "Online gallery, High-resolution downloads",
     },
   ],
+  // Phase 5: a vow renewal, or an anniversary party with no ceremony.
+  vow_renewal: [
+    {
+      name: "Vow renewal and celebration",
+      description: "The vows, portraits of the two of you and the family, then the celebration.",
+      coverageHours: 5,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Online gallery, High-resolution downloads",
+    },
+    {
+      name: "Anniversary party",
+      description: "The party: the toasts, the anniversary dance, the family and the guests.",
+      coverageHours: 3,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Online gallery, High-resolution downloads",
+    },
+  ],
   portraits: [
     {
       name: "Mini session",
@@ -269,6 +288,16 @@ const DJ_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       photographers: 1,
       videographers: 0,
       deliverables: "Party sound, Dance floor lighting, MC, Candle-lighting songs, Online music planner",
+    },
+  ],
+  vow_renewal: [
+    {
+      name: "Anniversary celebration with MC",
+      description: "Music for the vows if there are any, the toasts, the anniversary dance and the dance floor.",
+      coverageHours: 5,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Ceremony sound, Reception sound, MC, Online music planner",
     },
   ],
   corporate: [
@@ -540,6 +569,17 @@ const PLANNER_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       videographers: 0,
       deliverables: "Planning meeting, Vendor confirmations, Event timeline, 6 hours on the day",
       planningScope: "coordination",
+    },
+  ],
+  vow_renewal: [
+    {
+      name: "Vow renewal planning",
+      description: "From the venue to the last dance: vendors, the vows, the guest list and the day's timeline.",
+      coverageHours: 6,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Planning meetings, Vendor sourcing and booking, Budget, Event timeline, 6 hours on the day",
+      planningScope: "full",
     },
   ],
   other: [

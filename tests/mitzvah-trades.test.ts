@@ -227,7 +227,7 @@ test("what the emulator walk of 2026-10-14 found stays fixed", async () => {
 
   // A DJ, makeup artist or hair stylist booked for a mitzvah gets their form at booking.
   const scheduler = readFileSync("functions/src/planning/planning-form-scheduler.ts", "utf8");
-  assert.match(scheduler, /if \(!onTimeline && !journeyProfile\(kind\)\.dayPlan && !journeyProfile\(kind\)\.honoree\) return "not_wedding";/);
+  assert.match(scheduler, /if \(!onTimeline && !journeyProfile\(kind\)\.dayPlan && !journeyProfile\(kind\)\.honoree && !journeyProfile\(kind\)\.scheduleAParts\) return "not_wedding";/);
 
   // A planner's agreement is for planning services, not wedding planning services.
   const { starterAgreementFor } = await import("@/features/contracts/sample");

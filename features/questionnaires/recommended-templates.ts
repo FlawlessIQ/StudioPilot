@@ -1595,6 +1595,156 @@ const promPartyList = (example: string): RecommendedSection[] => [
   },
 ];
 
+/**
+ * A vow renewal's, or an anniversary party's, details
+ * (docs/new-job-kinds-execution-plan-2026-10-15.md, Phase 5). The couple
+ * fills it in. The vows are there only when they're renewing them: an
+ * anniversary party has none. Schedule A reads the ceremony and reception ids.
+ */
+function vowDetailSections(tbd: boolean): RecommendedSection[] {
+  const when = (id: string, label: string, required = true, help?: string) =>
+    field(id, label, "time", required, { allowTbd: tbd, ...(help ? { help } : {}) });
+  return [
+    {
+      id: "couple",
+      title: "The two of you",
+      fields: [
+        field("event-date", "Date", "date", true),
+        field("couple-names", "Your names", "text", true),
+        field("couple-email", "Your email", "email", true),
+        field("couple-phone", "Your phone", "phone", true),
+        field("years-together", "How many years you're celebrating", "text", false),
+      ],
+    },
+    {
+      id: "vows",
+      title: "The vows (if you're renewing them)",
+      fields: [
+        field("ceremony-location", "Where you're renewing your vows", "address", false, { allowTbd: tbd, help: "Leave it blank for an anniversary party with no vows." }),
+        when("ceremony-start-time", "When the vows start", false),
+        field("officiant-name", "Who's leading the vows", "text", false),
+      ],
+    },
+    {
+      id: "celebration",
+      title: "The celebration",
+      fields: [
+        field("reception-location", "Where you're celebrating", "address", true, { allowTbd: tbd }),
+        when("reception-start-time", "When it starts"),
+        when("reception-end-time", "When it ends"),
+        field("guest-count", "Number of invited guests", "text", false, { allowTbd: tbd }),
+      ],
+    },
+  ];
+}
+
+const VOW_SHOT_LIST: RecommendedSection[] = [
+  {
+    id: "groups",
+    title: "Family and group pictures",
+    fields: [
+      field("must-have-groups", "Family and group pictures, in the order to call them", "long_text", false, {
+        help: "One group per line. For example: \"The two of you with your children\", \"With the grandchildren\", \"Everyone\".",
+      }),
+    ],
+  },
+  {
+    id: "must-take",
+    title: "Must-take pictures",
+    fields: [
+      field("must-have-shots", "Pictures you don't want us to miss", "long_text", false, {
+        help: "The vows, the anniversary dance, the toasts, a favorite old photo recreated — anything that matters most to you.",
+      }),
+      field("no-photo-list", "Anyone who must not be photographed or filmed", "long_text", false),
+    ],
+  },
+];
+
+/** A DJ's anniversary: the entrance, the vows' music if any, the anniversary dance, the toasts, the dance floor. */
+const VOW_MUSIC_PLANNER: RecommendedSection[] = [
+  {
+    id: "where-and-when",
+    title: "Where and when",
+    fields: [
+      field("reception-location", "Where you're celebrating", "address", true),
+      field("reception-start-time", "When it starts", "time", true),
+      field("reception-end-time", "When the music stops", "time", true),
+    ],
+  },
+  {
+    id: "moments",
+    title: "The moments",
+    fields: [
+      field("entrance-names", "Who we introduce, and how to say each name", "long_text", true, {
+        help: "As you'd like them said. For example: \"Celebrating 25 years, Linda and Tom Reyes!\".",
+      }),
+      field("grand-entrance-song", "Your entrance song", "text", false),
+      field("entrance-song", "Music for the vows, if you're renewing them", "text", false),
+      field("first-dance-song", "Your anniversary dance — song", "text", false),
+      field("toast-order", "Toasts, in order", "long_text", false),
+    ],
+  },
+  {
+    id: "dance-floor",
+    title: "The dance floor",
+    fields: [
+      field("cake-cutting-song", "Cake", "text", false, { help: "A song for the cake, if you'd like one." }),
+      field("last-dance-song", "Last dance", "text", false),
+      field("must-play", "Must-play songs", "long_text", false),
+      field("do-not-play", "Do-not-play songs", "long_text", false),
+      choice("guest-requests", "Guest requests", ["Yes, take requests", "Only if they fit the night", "No requests"]),
+    ],
+  },
+];
+
+const vowPartyList = (help: string): RecommendedSection[] => [
+  {
+    ...PARTY_LIST[0]!,
+    fields: PARTY_LIST[0]!.fields.map((entry) =>
+      entry.id === "day-of-contact"
+        ? { ...entry, help: "Who we call on the morning if it isn't you: one of your children or a friend." }
+        : entry.id === "ready-by-time"
+          ? { ...entry, help: "Usually when the photos start, or when you leave." }
+          : entry,
+    ),
+  },
+  {
+    id: "your-party",
+    title: "Who's getting ready",
+    fields: [field("party-list", "Everyone getting ready with us, one person per line", "repeating_group", true, { help })],
+  },
+];
+
+const VOW_PLANNER_FINAL_DETAILS: RecommendedSection[] = [
+  {
+    id: "the-day",
+    title: "The day",
+    fields: [
+      field("ceremony-location", "Where you're renewing your vows, if you are", "address", false),
+      field("ceremony-start-time", "When the vows start", "time", false),
+      field("reception-location", "Where you're celebrating", "address", true),
+      field("reception-start-time", "When it starts", "time", true),
+      field("reception-end-time", "When it ends", "time", false),
+    ],
+  },
+  {
+    id: "key-people",
+    title: "Key people",
+    fields: [
+      field("key-people", "The people we should know on the day", "long_text", true, {
+        help: "Your children, whoever's leading the vows, anyone giving a toast, and who we call if we can't reach you.",
+      }),
+    ],
+  },
+  ...PLANNER_FINAL_DETAILS.filter((section) => section.id === "decor-and-venue"),
+  {
+    id: "guests",
+    title: "Guests",
+    fields: [field("guest-count", "Final guest count", "text", true)],
+  },
+  ...PLANNER_FINAL_DETAILS.filter((section) => section.id === "vendors"),
+];
+
 export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
   return [
     {
@@ -2039,6 +2189,81 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
         PARTY_LIST[2]!,
       ],
     },
+    // Vow renewals and anniversary parties (new-job-kinds plan, Phase 5).
+    {
+      id: "vow_renewal-details",
+      name: "Celebration details",
+      summary: "The two of you, the vows if you're renewing them, the celebration and the guest count, with a TBD option. What they give goes into Schedule A.",
+      useIt: "Send it with new vow renewal and anniversary inquiries.",
+      eventTypeId: "vow_renewal",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 90,
+      reminderDaysBeforeDue: [14, 3],
+      sections: vowDetailSections(true),
+    },
+    {
+      id: "vow_renewal-shot-list",
+      name: "Shot list",
+      summary: "Family groups in the order to call them, must-take moments and anyone to avoid. Your crew see it on their day sheet.",
+      useIt: "It goes out with the celebration details.",
+      eventTypeId: "vow_renewal",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 7,
+      reminderDaysBeforeDue: [14, 3],
+      sections: VOW_SHOT_LIST,
+    },
+    {
+      id: "vow_renewal-music-planner",
+      name: "Anniversary music & MC planner",
+      summary: "Where and when, your entrance, the vows' music if any, your anniversary dance, the toasts and the dance floor.",
+      useIt: "Your planning form for a vow renewal or anniversary: it goes out when they book.",
+      eventTypeId: "vow_renewal",
+      trades: ["dj"],
+      dueDaysBeforeEvent: 14,
+      reminderDaysBeforeDue: [14, 3],
+      sections: VOW_MUSIC_PLANNER,
+    },
+    {
+      id: "vow_renewal-makeup-party-list",
+      name: "Party list",
+      summary: "When everyone needs to be ready, where, and who's getting makeup.",
+      useIt: "Your planning form for a vow renewal or anniversary: it goes out when they book.",
+      eventTypeId: "vow_renewal",
+      trades: ["makeup"],
+      dueDaysBeforeEvent: 21,
+      reminderDaysBeforeDue: [14, 3],
+      sections: [
+        ...vowPartyList("Name — who they are — hair, makeup or both — anything we should know. For example: \"Linda Reyes — celebrating — makeup — lashes\", \"Sophie — daughter — makeup\"."),
+        MAKEUP_SKIN,
+        PARTY_LIST[2]!,
+      ],
+    },
+    {
+      id: "vow_renewal-hair-party-list",
+      name: "Party list",
+      summary: "When everyone needs to be ready, where, and who's getting their hair done.",
+      useIt: "Your planning form for a vow renewal or anniversary: it goes out when they book.",
+      eventTypeId: "vow_renewal",
+      trades: ["hair"],
+      dueDaysBeforeEvent: 21,
+      reminderDaysBeforeDue: [14, 3],
+      sections: [
+        ...vowPartyList("Name — who they are — anything we should know. For example: \"Linda Reyes — celebrating — soft waves\", \"Sophie — daughter — blowout\"."),
+        { ...HAIR_DETAILS, fields: HAIR_DETAILS.fields.filter((entry) => entry.id !== "veil") },
+        PARTY_LIST[2]!,
+      ],
+    },
+    {
+      id: "vow_renewal-planner-final-details",
+      name: "Final details",
+      summary: "The vows if any and the celebration, the people to know, the venue's rules, the final count, and every vendor.",
+      useIt: "Your planning form for a vow renewal or anniversary.",
+      eventTypeId: "vow_renewal",
+      trades: ["planner"],
+      dueDaysBeforeEvent: 28,
+      reminderDaysBeforeDue: [14, 3],
+      sections: VOW_PLANNER_FINAL_DETAILS,
+    },
     {
       id: "dj-music-planner",
       name: "Music & moments planner",
@@ -2170,7 +2395,7 @@ const SIGNUP_KINDS: readonly string[] = ["wedding"];
  * the kind on its inquiry form: a mitzvah's details, final schedule and shot
  * list.
  */
-export const OFFERED_KIND_FORMS: readonly string[] = ["mitzvah", "quince", "sweet16", "sacrament", "prom"];
+export const OFFERED_KIND_FORMS: readonly string[] = ["mitzvah", "quince", "sweet16", "sacrament", "prom", "vow_renewal"];
 
 /** How many questions a form asks. */
 export function recommendedFieldCount(template: RecommendedQuestionnaire): number {

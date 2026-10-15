@@ -70,6 +70,9 @@ const RULES: ReadonlyArray<{ title: RegExp; song?: string; announcement?: string
   { title: /court['’]?s? waltz/i, song: "court-waltz-song" },
   { title: /\bwaltz\b/i, song: "waltz-song" },
   { title: /surprise dance/i, announcement: "surprise-dance" },
+  // A vow renewal's (the anniversary music planner): the vows' music, the couple's dance.
+  { title: /vow renewal|\bvows\b/i, song: "entrance-song" },
+  { title: /anniversary dance/i, song: "first-dance-song" },
   { title: /parent|father|mother/i, song: "parent-dance-songs" },
   { title: /first dance/i, song: "first-dance-song" },
   { title: /toast|speech/i, announcement: "toast-order" },

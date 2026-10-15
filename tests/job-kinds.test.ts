@@ -131,7 +131,13 @@ test("the wedding-only steps are switches, and only a wedding has them on (mitzv
   // Getting ready for prom: the shot list only, as a communion (Phase 4).
   const prom = journeyProfile("prom");
   assert.deepEqual([prom.shotList, prom.dayPlan, prom.scheduleAParts, prom.honoree], [true, null, null, true]);
-  for (const kind of JOB_KINDS.filter((kind) => !["wedding", "mitzvah", "quince", "sweet16", "sacrament", "prom"].includes(kind))) {
+  // A vow renewal: a couple (partner), the shot list, its own Schedule A parts (Phase 5).
+  const vows = journeyProfile("vow_renewal");
+  assert.deepEqual(
+    [vows.planningTimeline, vows.shotList, vows.vendorTeam, vows.dayPlan, vows.partner, vows.scheduleAParts],
+    [false, true, false, null, true, "vow_renewal"],
+  );
+  for (const kind of JOB_KINDS.filter((kind) => !["wedding", "mitzvah", "quince", "sweet16", "sacrament", "prom", "vow_renewal"].includes(kind))) {
     const profile = journeyProfile(kind);
     assert.deepEqual(
       [profile.planningTimeline, profile.shotList, profile.vendorTeam, profile.dayPlan, profile.partner, profile.scheduleAParts],
@@ -196,7 +202,9 @@ test("every kind has every word, and a family is never 'the couple'", () => {
     assert.ok(JOB_KIND_LABELS[kind]);
     if (kind !== "wedding") {
       const text = JSON.stringify(words).toLowerCase();
-      for (const word of ["wedding", "couple", "bride", "groom", "ceremony", "dress"]) {
+      // A couple's kind (a vow renewal: journeyProfile().partner) is a couple, and may have a ceremony.
+      const couples = journeyProfile(kind).partner;
+      for (const word of ["wedding", "couple", "bride", "groom", "ceremony", "dress"].filter((word) => !(couples && (word === "couple" || word === "ceremony")))) {
         assert.ok(!text.includes(word), `${kind} says "${word}"`);
       }
     }

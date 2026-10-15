@@ -187,6 +187,15 @@ const DJ_MOMENTS_BY_KIND: Readonly<Partial<Record<JobKind, typeof DJ_MOMENTS>>> 
     { label: "Cake", title: "Cake", minutes: 10 },
     { label: "Last dance", title: "Last dance", minutes: 5 },
   ],
+  // A vow renewal or an anniversary party (Phase 5), titled for the MC script.
+  vow_renewal: [
+    { label: "Grand entrance", title: "Grand entrance", minutes: 5 },
+    { label: "Vows", title: "Vow renewal", minutes: 20 },
+    { label: "Toasts", title: "Toasts", minutes: 15 },
+    { label: "Anniversary dance", title: "Anniversary dance", minutes: 5 },
+    { label: "Cake", title: "Cake", minutes: 10 },
+    { label: "Last dance", title: "Last dance", minutes: 5 },
+  ],
   // A Sweet 16's party (Phase 2), titled for the MC script.
   sweet16: [
     { label: "Grand entrance", title: "Grand entrance", minutes: 5 },

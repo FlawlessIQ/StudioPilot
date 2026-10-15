@@ -311,7 +311,8 @@ export async function sendPlanningFormAtBooking(db: Firestore, project: Document
   const onTimeline = journeyProfile(kind).planningTimeline;
   // A kind with its own forms — a day of its own, or someone it celebrates
   // (a communion's hair party list; emulator walk, 2026-10-15).
-  if (!onTimeline && !journeyProfile(kind).dayPlan && !journeyProfile(kind).honoree) return "not_wedding";
+  // ...or a celebration of its own on Schedule A (a vow renewal's; walk, 2026-10-15).
+  if (!onTimeline && !journeyProfile(kind).dayPlan && !journeyProfile(kind).honoree && !journeyProfile(kind).scheduleAParts) return "not_wedding";
   if (data.importedAt || clientOutreachStop(data) !== null) return "quiet";
   const eventDate = text(data.eventDate).slice(0, 10);
   if (!eventDate || eventDate <= now.slice(0, 10)) return "no_date";

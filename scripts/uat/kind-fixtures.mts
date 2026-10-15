@@ -12,6 +12,7 @@ import { planBuiltNight } from "../../features/schedules/built-day.ts";
 import { fillMcScript, mcScriptLine } from "../../features/schedules/mc-script.ts";
 import { planChairs } from "../../features/schedules/chair-plan.ts";
 import { parsePartyList } from "../../features/schedules/party-list.ts";
+import { djMomentsFor } from "../../features/schedules/night-plan.ts";
 
 export type Trade = "dj" | "makeup" | "hair" | "planner";
 
@@ -51,6 +52,8 @@ export type KindFixture = {
   client: { firstName: string; lastName: string };
   /** The honoree, for a kind with `journeyProfile(kind).honoree`. */
   honoree: { name: string; variantField: "mitzvahType" | "occasionVariant" | null; variant: string | null } | null;
+  /** The partner's name on the inquiry, for a kind with `journeyProfile(kind).partner`. */
+  partnerName?: string;
   /** The job's name after the inquiry (functions/src/intake/convert.ts). */
   jobName: string;
   /** `vocab(kind, job).yourEvent`. */
@@ -63,6 +66,8 @@ export type KindFixture = {
   /** The agreement's schedule headings; null for a kind with no agreement (journeyProfile(kind).agreement false). */
   scheduleA: string | null;
   scheduleB: string | null;
+  /** What Schedule A must say, as [step, pattern] pairs (a kind's own parts). */
+  scheduleAChecks?: Array<[string, RegExp]>;
   /** Recommended-form ids that must never reach a job of this kind. */
   foreignForms: RegExp;
   /** Days out the job is moved to so the form date has passed (the profile's `detailsFormDaysBefore` less a few). */
@@ -307,6 +312,53 @@ function promChairs({ trade, stored, record }: PlanContext) {
 }
 
 const PROM_BEFORE_ANSWERS = { "ready-by-time": "17:00", "earliest-start-time": "13:00", "getting-ready": "The Park home, 5 Birch Ln, Ridgewood NJ" };
+
+/**
+ * The words a renewing couple must never read: a wedding's (with its
+ * fiancé(e), veil and marriage license) and the other kinds'. "Couple" and
+ * "ceremony" are theirs: a renewing couple may have one.
+ */
+const VOW_WORDS = /\b(weddings?|brides?|bridal|grooms?|bridesmaids?|fianc[ée]e?s?|marriage licen[cs]es?|veils?|(?:bar|bat|b'?nai) mitzvahs?|mitzvahs?|quincea[ñn]eras?|sweet 16|proms?)\b/i;
+
+/** The DJ's MC script for a vow renewal, over its own moments (night-plan.ts DJ_MOMENTS_BY_KIND.vow_renewal). */
+function vowNight({ stored, record, note }: PlanContext) {
+  const moments = djMomentsFor("vow_renewal");
+  const { items, filled } = fillMcScript(moments.map((moment) => ({ title: moment.title, mc: null })), stored);
+  const line = (title: RegExp) => mcScriptLine(items.find((item) => title.test(item.title))?.mc) ?? "";
+  record("5. djMomentsFor(vow_renewal) is its own night (entrance, vows, toasts, anniversary dance)",
+    ["Grand entrance", "Vow renewal", "Toasts", "Anniversary dance"].every((title) => moments.some((moment) => moment.title === title)) && !moments.some((moment) => /bouquet|garter|first dance/i.test(moment.title)),
+    moments.map((moment) => moment.title).join(" · "));
+  record("5. MC script: the entrance names and song", /Linda and Tom Reyes/.test(line(/grand entrance/i)) && /September/.test(line(/grand entrance/i)), line(/grand entrance/i) || "empty");
+  record("5. MC script: the vows' song", /At Last/.test(line(/vow renewal/i)), line(/vow renewal/i) || "empty");
+  record("5. MC script: the toasts", /Sophie, then Tom's brother Mark/.test(line(/toasts/i)), line(/toasts/i) || "empty");
+  record("5. MC script: the anniversary dance", /Can't Help Falling in Love/.test(line(/anniversary dance/i)), line(/anniversary dance/i) || "empty");
+  note("5. MC script filled", `${filled} lines: ${items.filter((item) => item.mc).map((item) => `${item.title} [${mcScriptLine(item.mc)}]`).join(", ")}`);
+}
+
+/** A makeup or hair party list and its chairs for a vow renewal. */
+function vowChairs({ trade, stored, record }: PlanContext) {
+  const service = trade as "makeup" | "hair";
+  const people = parsePartyList(stored["party-list"], service);
+  const role = (name: string) => people.find((person) => person.name === name)?.role;
+  const read = people.map((person) => `${person.name}: ${person.role} ${person.services.join("+")} ${person.notes ?? ""}`).join(", ");
+  record("5. party list read: Linda and Sophie both there", Boolean(role("Linda Reyes")) && Boolean(role("Sophie")), read);
+  record("5. party list read: Linda (celebrating) is the one celebrated, not 'party'", role("Linda Reyes") === "bride", read);
+  record("5. party list read: Sophie (daughter) is a child", role("Sophie") === "child", read);
+  const plan = planChairs({ people, service, readyBy: "16:00", earliestStart: "12:00", artists: 1 });
+  const slots = plan.slots.map((slot) => `${slot.start}-${slot.end} ${slot.name} (${slot.role})`).join(", ") || "no slots";
+  record(`5. planChairs lays out the ${service} chairs`, plan.slots.length === 2 && plan.fits, `${slots} ${plan.notes.join(" ")}`);
+}
+
+/** The planner's checklist for a full-planning vow renewal: the wedding's, less the marriage license. */
+async function vowChecklist({ record, hit, checklist, fixture }: PlanContext) {
+  const { keys, tasks } = await checklist();
+  record("5. planner: a full-planning vow renewal gets its checklist", tasks.length > 0, `${tasks.length} tasks: ${keys.join(", ")}`);
+  record("5. planner: no marriage license", !keys.includes("marriage_license"), keys.includes("marriage_license") ? "marriage_license" : "none");
+  const titles = tasks.map((task) => task.title).join(" | ");
+  record("5. planner: no wedding words in the task titles", !fixture.forbidden.test(titles), hit(fixture.forbidden, titles));
+}
+
+const VOW_BEFORE_ANSWERS = { "ready-by-time": "16:00", "earliest-start-time": "12:00", "getting-ready": "The Reyes home, 8 Shore Rd, Cape May NJ" };
 
 export const KIND_FIXTURES: Record<string, KindFixture> = {
   mitzvah: {
@@ -578,6 +630,77 @@ export const KIND_FIXTURES: Record<string, KindFixture> = {
         scheduleB: null,
         answers: { ...PROM_BEFORE_ANSWERS, "party-list": "Ava — the student — loose curls\nMia — friend — sleek updo" },
         plan: promChairs,
+      },
+    },
+  },
+  // Phase 5: a couple renewing their vows (or an anniversary party, the
+  // other variant, read from the type's label). An agreement and a deposit,
+  // the details form 90 days out, Schedule A with optional vows and a
+  // required reception, and no Schedule B. The photographer's walk is separate.
+  vow_renewal: {
+    kind: "vow_renewal",
+    word: "vow_renewal",
+    eventType: { id: "vow_renewal", label: "Vow renewal" },
+    client: { firstName: "Linda", lastName: "Reyes" },
+    honoree: null,
+    partnerName: "Tom Reyes",
+    // convert.ts names a non-honoree job "<displayName> <eventTypeLabel>".
+    jobName: "Linda Reyes Vow renewal",
+    yourEvent: "your vow renewal",
+    eventPhrase: "vow renewal",
+    inquiry: { message: "Renewing our vows for our 25th anniversary, then dinner and dancing.", city: "Cape May, NJ", venue: "The Willow Inn", guests: 80 },
+    package: { name: "Vow renewal package", description: "The vows and the celebration after.", deliverables: ["The celebration"] },
+    scheduleA: "Schedule A — Celebration details",
+    scheduleB: null,
+    scheduleAChecks: [["the venue is under Reception", /Reception[^\n]*\n?[^\n]*The Willow Inn/]],
+    foreignForms: /^(wedding|mitzvah|quince|sweet16|sacrament|prom|dj-|makeup-|hair-|planner-)/,
+    // journeyProfile("vow_renewal").detailsFormDaysBefore is 90.
+    formDueDaysOut: 85,
+    fillerText: "The Willow Inn, 20 Beach Ave, Cape May NJ",
+    forbidden: VOW_WORDS,
+    coupleWord: COUPLE_WORD,
+    trades: {
+      dj: {
+        studioName: "Silver Song DJs",
+        form: "vow_renewal-music-planner",
+        scheduleB: null,
+        answers: {
+          "reception-location": "The Willow Inn, 20 Beach Ave, Cape May NJ",
+          "reception-start-time": "18:00",
+          "reception-end-time": "23:00",
+          "entrance-names": "Celebrating 25 years, Linda and Tom Reyes!",
+          "grand-entrance-song": "September",
+          "entrance-song": "At Last",
+          "first-dance-song": "Can't Help Falling in Love",
+          "toast-order": "Sophie, then Tom's brother Mark",
+        },
+        plan: vowNight,
+      },
+      makeup: {
+        studioName: "Silver Glow Makeup",
+        form: "vow_renewal-makeup-party-list",
+        scheduleB: null,
+        answers: { ...VOW_BEFORE_ANSWERS, "party-list": "Linda Reyes — celebrating — makeup — lashes\nSophie — daughter — makeup" },
+        plan: vowChairs,
+      },
+      hair: {
+        studioName: "Second Vows Hair",
+        form: "vow_renewal-hair-party-list",
+        scheduleB: null,
+        answers: { ...VOW_BEFORE_ANSWERS, "party-list": "Linda Reyes — celebrating — soft waves\nSophie — daughter — blowout" },
+        plan: vowChairs,
+      },
+      planner: {
+        studioName: "Anniversary Affairs Events",
+        form: "vow_renewal-planner-final-details",
+        scheduleB: null,
+        answers: {
+          "ceremony-location": "The Willow Inn garden, Cape May NJ", "ceremony-start-time": "17:00",
+          "reception-location": "The Willow Inn, 20 Beach Ave, Cape May NJ", "reception-start-time": "18:00", "reception-end-time": "23:00",
+          "key-people": "Our daughter Sophie; Pastor Ellis leads the vows; Mark gives a toast",
+          "guest-count": "80",
+        },
+        plan: vowChecklist,
       },
     },
   },

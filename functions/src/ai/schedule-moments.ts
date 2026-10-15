@@ -81,6 +81,16 @@ export const KIND_STANDARD_MOMENTS: Readonly<Partial<Record<string, ReadonlyArra
     { title: "Surprise dance", minutes: 10 },
     { title: "Last dance", minutes: 5 },
   ],
+  vow_renewal: [
+    { title: "Getting ready", minutes: 30 },
+    { title: "Vow renewal", minutes: 20 },
+    { title: "Portraits of the two of you", minutes: 20 },
+    { title: "Family photos", minutes: 20 },
+    { title: "Grand entrance", minutes: 5 },
+    { title: "Toasts", minutes: 15 },
+    { title: "Anniversary dance", minutes: 5 },
+    { title: "Cake", minutes: 10 },
+  ],
   prom: [
     { title: "Photo and video arrive", minutes: 10 },
     { title: "Portraits of the student", minutes: 15 },
