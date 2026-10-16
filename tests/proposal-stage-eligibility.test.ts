@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { projectCitationCandidates } from "../functions/src/ai/project-citations";
 import {
   canCreateProposalForProject,
   proposalStageNotice,
@@ -11,6 +12,25 @@ import {
   projectJourney,
   type JourneyInput,
 } from "../features/journey/steps";
+
+test("Cue can link an eligible inquiry straight to its proposal composer", () => {
+  const targets = projectCitationCandidates([
+    { id: "access-party", name: "Access Self Storage 50th Anniversary Party", state: "CONSULTATION" },
+  ]);
+  assert.ok(targets.some((target) => target.href === "/studio/proposals/new?project=access-party"));
+});
+
+test("Cue's proposal links respect the stage, archive, job and trade", () => {
+  for (const state of ["LEAD", "BOOKED", "POSTPONED", "CANCELLED", "ARCHIVED"]) {
+    assert.equal(projectCitationCandidates([{ id: "p1", state }]).length, 1, state);
+  }
+  assert.equal(projectCitationCandidates([{ id: "p1", state: "CONSULTATION", archivedAt: "2026-10-16" }]).length, 1);
+  const sent = projectCitationCandidates([{ id: "p1", state: "PROPOSAL" }]);
+  assert.equal(sent[1]?.href, "/studio/proposals?project=p1");
+  const quote = projectCitationCandidates([{ id: "p1", state: "CONSULTATION" }], "makeup");
+  assert.match(quote[1]?.label ?? "", /^Prepare quote/);
+  assert.deepEqual(projectCitationCandidates([]), []);
+});
 
 /**
  * A link into the proposal composer only exists where a proposal can be made,

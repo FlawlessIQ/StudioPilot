@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { projectJourney, type JourneyInput } from "@/features/journey/steps";
+import { projectProfile } from "@/features/job-kinds/job-kinds";
 
 const base: JourneyInput = {
   projectId: "project-1",
@@ -39,6 +40,50 @@ test("a replied lead moves the journey to the consultation", () => {
     lead: { id: "lead-1", status: "contacted" },
   });
   assert.equal(current?.key, "consultation");
+});
+
+test("recording an outside consultation exposes the proposal without an email reply", () => {
+  // The live hook supplies an explicit false when an imported inquiry has
+  // no outbound thread. Unlike an omitted flag, that used to override the
+  // stage and leave First reply blocking the proposal indefinitely.
+  const lead = { id: "lead-1", status: "converted", replied: false };
+  const imported = { ...base, lead, profile: projectProfile({ eventKind: "corporate" }) };
+  const before = projectJourney(imported);
+  assert.equal(before.current?.key, "first_reply");
+
+  const after = projectJourney({ ...imported, state: "CONSULTATION" });
+  const reply = after.steps.find((step) => step.key === "first_reply");
+  assert.equal(reply?.status, "complete");
+  assert.equal(reply?.action, null);
+  assert.match(reply?.detail ?? "", /no first reply recorded here/i);
+  assert.equal(after.current?.key, "proposal");
+  assert.deepEqual(after.current?.action, {
+    kind: "link",
+    label: "Prepare proposal",
+    href: "/studio/proposals/new?project=project-1",
+  });
+  assert.equal(after.steps.filter((step) => step.status === "current").length, 1);
+});
+
+test("an absent first email does not displace a sent proposal's waiting status", () => {
+  const journey = projectJourney({
+    ...base,
+    state: "PROPOSAL",
+    lead: { id: "lead-1", status: "converted", replied: false },
+    proposalStatus: "sent",
+  });
+  assert.notEqual(journey.current?.key, "first_reply");
+  assert.equal(journey.steps.find((step) => step.key === "proposal")?.status, "waiting_client");
+});
+
+test("a recorded first reply keeps its evidence-based wording after consultation", () => {
+  const journey = projectJourney({
+    ...base,
+    state: "CONSULTATION",
+    lead: { id: "lead-1", status: "converted", replied: true },
+  });
+  assert.equal(journey.steps.find((step) => step.key === "first_reply")?.detail, "The client heard back from you");
+  assert.equal(journey.current?.key, "proposal");
 });
 
 test("a step whose input has not arrived does not become the next move", () => {

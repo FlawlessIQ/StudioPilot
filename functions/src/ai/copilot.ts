@@ -34,6 +34,7 @@ import {
   type CopilotDiagnostics,
 } from "./diagnostics.js";
 import { screenAnswer } from "./answer-safety.js";
+import { projectCitationCandidates } from "./project-citations.js";
 import { rosterByTrade } from "../crew/roster-trade.js";
 import { coverageTradeNamed, jobPackageSnapshotIds } from "../crew/staffing-plan.js";
 import {
@@ -2936,10 +2937,7 @@ export const aiCopilotCommand = onRequest(
         .filter((member) => member.active)
         .map((member) => member.name)
         .filter((name) => name.length > 0);
-      const citationCandidates = projects.map((project) => ({
-        label: String(project.name ?? project.id),
-        href: `/studio/projects/${String(project.id)}`,
-      }));
+      const citationCandidates = projectCitationCandidates(projects, tenantDoc.get("trade"));
       const projectNames = new Map(
         projects.map((project) => [String(project.id), String(project.name ?? project.id)]),
       );

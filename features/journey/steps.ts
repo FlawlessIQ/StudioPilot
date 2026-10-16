@@ -844,15 +844,22 @@ export function projectJourney(input: JourneyInput): {
 
   // First reply only exists when the project came from a lead.
   if (input.lead) {
-    const replied = input.lead.replied ?? (input.lead.status !== "new" || stateRank >= 1);
+    const replied = input.lead.replied ?? (input.lead.status !== "new");
+    // A consultation recorded outside StudioCue moves the conversation on
+    // without creating an outbound email. The live hook explicitly supplies
+    // replied:false in that case; it must not hide the proposal action just
+    // because there is no message here. Keep that distinction in the copy.
+    const replyDone = replied || stateRank >= 1;
     push({
       key: "first_reply",
       title: "First reply",
       detail: replied
         ? "The client heard back from you"
-        : "A personalized reply is one approval away",
-      status: replied ? "complete" : "current",
-      action: replied
+        : replyDone
+          ? "Conversation moved on — no first reply recorded here"
+          : "A personalized reply is one approval away",
+      status: replyDone ? "complete" : "current",
+      action: replyDone
         ? null
         : // The drafted reply waits in the job's prepared tray. The inquiry's
           // own page now hands straight back to the job, so linking there went
