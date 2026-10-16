@@ -262,6 +262,9 @@ function parseAddress(value: string): { email: string | null; name: string | nul
   return { email: bare ? bare[1]!.toLowerCase() : null, name: null };
 }
 
+/** One level or more of "> " at the start of a quoted line. */
+const QUOTE_MARKS = /^[ \t]*(?:>[ \t]?)+/;
+
 /** A manually forwarded message: take the original's headers and body. */
 export function unwrapForward(text: string): Unwrapped {
   const marker = FORWARD_MARKERS.map((pattern) => pattern.exec(text)).find(Boolean);
@@ -275,8 +278,15 @@ export function unwrapForward(text: string): Unwrapped {
   let subject: string | null = null;
   let index = 0;
   let sawHeader = false;
+  // Apple Mail quotes what it forwards: "> From: …", "> Subject: …", then the
+  // body, every line behind "> ". Read through the quote marks, or the
+  // headers stop at the first line and the couple's address is lost (an
+  // iPhone forward on production, 2026-10-16).
+  let quoted = false;
   for (; index < Math.min(lines.length, 14); index += 1) {
-    const line = lines[index]!.trim();
+    const raw = lines[index]!;
+    if (/^\s*>/.test(raw)) quoted = true;
+    const line = raw.replace(QUOTE_MARKS, "").trim();
     if (!line) {
       if (sawHeader) {
         index += 1;
@@ -304,7 +314,7 @@ export function unwrapForward(text: string): Unwrapped {
     fromName,
     replyTo,
     subject,
-    body: lines.slice(index).join("\n"),
+    body: (quoted ? lines.slice(index).map((line) => line.replace(QUOTE_MARKS, "")) : lines.slice(index)).join("\n"),
   };
 }
 

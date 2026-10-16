@@ -66,6 +66,7 @@ import { dateHeldByAnother } from "@/features/inquiries/pipeline";
 import { preBookingStates } from "@/features/inquiries/stages";
 import { trialInvite, trialState, trialWanted } from "@/features/consultations/trial";
 import { callWhen } from "@/features/consultations/upcoming";
+import { packagesCountingNobody } from "@/features/packages/retainer-check";
 import { jobPackageSnapshotIds } from "@/features/crew/staffing-plan";
 import { clientOutreachStop } from "@/features/post-event/client-outreach";
 import { bookingBlockerLabel } from "@/features/booking/gate-requirements";
@@ -466,6 +467,8 @@ export type TodayInput = {
    */
   consultations?: TodayRecord[] | null;
   packageSnapshots?: TodayRecord[] | null;
+  /** The studio's packages (owners and admins): a per-crew retainer that counts no one is flagged. */
+  packages?: TodayRecord[] | null;
   /**
    * Run-of-show versions, so the couple's answer to the day plan reaches
    * Today: a card when they ask for changes, a line when they approve it.
@@ -2149,6 +2152,22 @@ export function todayInbox(input: TodayInput): TodayInbox {
       eventDate: eventFor(cascade.projectId),
       updatedAt: changedAt(cascade),
       label: "Find crew",
+    });
+  }
+
+  // ── Act · a package asking for the wrong retainer ─────────────────
+  // features/packages/retainer-check.ts: a per-crew rule that counts no one
+  // charges for one person on every proposal, and only the Library said so.
+  for (const wrong of packagesCountingNobody(rows(input.packages))) {
+    if (!wrong.id) continue;
+    exception({
+      id: `package-retainer-${wrong.id}`,
+      kind: "package",
+      title: `${wrong.name} asks for the wrong ${tradeVocab(input.tenantTrade).deposit.toLowerCase()}`,
+      detail: wrong.problem,
+      href: `/studio/packages/${wrong.id}`,
+      label: "Fix the package",
+      evidence: "Every proposal with this package asks for less than you meant",
     });
   }
 

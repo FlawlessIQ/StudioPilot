@@ -1,0 +1,16 @@
+{
+  "note": "Real shape, fake details: a couple's email forwarded from an iPhone (production, 2026-10-16). Apple Mail's plain text writes the marker, then quotes the original's headers and body with '> '. The quoted headers stopped the reader at the first line, so the couple's address was lost and '> Date' was read as the wedding date's field.",
+  "from": "studio@hartlight.example",
+  "fromName": "Hart Light Photography",
+  "replyTo": null,
+  "subject": "Fwd: Wedding Photography Inquiry",
+  "text": "Sent from my iPhone\n\nBegin forwarded message:\n\n> From: Riley & Morgan <riley.morgan@example.com>\n> Date: October 15, 2026 at 7:25:15 PM EDT\n> To: studio@hartlight.example\n> Subject: Wedding Photography Inquiry\n> \n> ﻿\n> Hello,\n> I hope you're well!\n> \n> My name is Morgan and I am looking for a photographer for my wedding on Sunday June 20th, 2027 in Tarrytown, NY.\n> \n> Please let me know if you would be available on this date, and if so, what pricing looks like.\n> \n> Best regards,\n> Morgan Avery\n>\n",
+  "html": null,
+  "expect": {
+    "forwarded": true,
+    "contactSource": "forwarded_from",
+    "email": "riley.morgan@example.com",
+    "eventDate": "2027-06-20",
+    "messageIncludes": "^Hello,[\\s\\S]*looking for a photographer[\\s\\S]*Morgan Avery$"
+  }
+}

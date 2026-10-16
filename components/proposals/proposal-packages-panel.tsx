@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LoaderCircle, Plus, X } from "lucide-react";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
+import { packagesCountingNobody } from "@/features/packages/retainer-check";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { runProposalCommand } from "@/lib/proposals/command-client";
@@ -391,6 +393,20 @@ export function ProposalPackagesPanel({
                   ? ` · ${discountLabel(discountRuleOf(snapshot), text(snapshot?.currency, "USD"))}`
                   : ""}
               </small>
+              {(() => {
+                // A per-crew retainer that counts no one asks this couple for
+                // one person's (features/packages/retainer-check.ts) — said
+                // here, before the proposal goes, not only in the Library.
+                const wrong = packagesCountingNobody(
+                  (packages.records ?? []).filter((record) => record.id === text(snapshot?.packageId)),
+                )[0];
+                return wrong ? (
+                  <small className="form-error">
+                    {wrong.problem}{" "}
+                    <Link href={`/studio/packages/${wrong.id}`}>Fix the package</Link>, then add it again here to reprice.
+                  </small>
+                ) : null;
+              })()}
             </span>
             {oneOffPackage && !agreementOut ? (
               <button

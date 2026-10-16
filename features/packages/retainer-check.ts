@@ -1,4 +1,5 @@
-import { coverageCount, type CoverageItem, type CoverageRole } from "./coverage";
+import { coverageCount, resolveCoverage, type CoverageItem, type CoverageRole } from "./coverage";
+import { isCataloguePackage } from "./one-off";
 
 /**
  * A "per crew member" retainer that counts nobody on its own package.
@@ -41,4 +42,24 @@ export function perCrewRetainerProblem(input: {
 /** The roles a new per-crew rule should charge for: everyone the package sends. */
 export function rolesThePackageSends(coverage: readonly CoverageItem[]): CoverageRole[] {
   return coverage.filter((item) => item.count > 0).map((item) => item.role);
+}
+
+/**
+ * The studio's live packages whose per-crew retainer counts no one. The rule
+ * is refused when written, but one written before that (GR's Gold Cinematic,
+ * two videographers, "$1,000 per photographer") still asks every couple for
+ * one person's retainer — flagged only on the Library row until a person
+ * opened it. Today names each one (features/today/inbox.ts).
+ */
+export function packagesCountingNobody(packages: readonly unknown[]): Array<{ id: string; name: string; problem: string }> {
+  return packages.flatMap((record) => {
+    if (!record || typeof record !== "object") return [];
+    const row = record as Record<string, unknown>;
+    if (row.archivedAt || row.active === false || !isCataloguePackage(row)) return [];
+    const rule = row.retainerRule as Record<string, unknown> | undefined;
+    if (!rule || rule.type !== "per_crew_member") return [];
+    const billedRoles = Array.isArray(rule.billedRoles) ? (rule.billedRoles as CoverageRole[]) : undefined;
+    const problem = perCrewRetainerProblem({ coverage: resolveCoverage(row), billedRoles });
+    return problem ? [{ id: String(row.id ?? ""), name: String(row.name ?? "A package"), problem }] : [];
+  });
 }

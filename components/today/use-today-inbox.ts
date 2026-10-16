@@ -205,6 +205,8 @@ export function useTodayInbox(): {
   const bookingOrchestrations = useTenantDocuments("bookingOrchestrations");
   // How the studio's clients pay it (own invoicing): whether to nudge for payment details.
   const billingSettings = useTenantDocuments("billingSettings", { enabled: ownerOperations });
+  // A package whose per-crew retainer counts no one (features/packages/retainer-check.ts).
+  const packages = useTenantDocuments("packages", { enabled: ownerOperations });
   const crewCascades = useTenantDocuments("crewCascades");
   const invoiceReferences = useTenantDocuments("invoiceReferences");
   // Journey inputs.
@@ -454,6 +456,7 @@ export function useTodayInbox(): {
     // booked job's own snapshot, not just the hundred the sample holds.
     consultations: consultations.records,
     packageSnapshots: jobSnapshots,
+    packages: packages.records,
     detailChangeRequests: detailChangeRequests.records,
     clientShotLists: clientShotLists.records,
     clientVendorTeams: clientVendorTeams.records,
