@@ -12,7 +12,9 @@ export function TenantInquiryLink() {
   return (
     // Secondary: looking at the form is not the page's main act, and a big
     // green "Preview" was the loudest thing on Inquiries (UI audit, 2026-10-02).
-    <Link className="button button-light" href={href}>
+    // The public form reads studio settings on the server. Load that only
+    // when Preview is opened, not as background work on the Inquiries page.
+    <Link className="button button-light" href={href} prefetch={false}>
       <ExternalLink size={16} />
       {workspace.tenantSlug ? "Preview inquiry form" : "Finish inquiry setup"}
     </Link>

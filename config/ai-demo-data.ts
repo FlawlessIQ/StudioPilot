@@ -47,7 +47,7 @@ export type DemoAiAction = {
 export const demoAiActions: DemoAiAction[] = [
   {
     id: "AIA-4101",
-    project: "Maya & Theo Johnson",
+    project: "Lena & Chris",
     capability: "inquiry_reply_draft",
     title: "Reply to Lena & Chris about August availability",
     status: "review_required",
@@ -58,7 +58,7 @@ export const demoAiActions: DemoAiAction[] = [
       {
         type: "project_fact",
         entityType: "lead",
-        entityId: "LEAD-3001",
+        entityId: "LD-1087",
         label: "Inquiry from Lena & Chris",
         locator: "received 2 days ago",
       },

@@ -90,6 +90,7 @@ export type TodayLane = "act" | "approve" | "fyi";
 export type TodayAction =
   /** Navigate to the surface that completes the moment. */
   | { kind: "link"; label: string; href: string }
+  | { kind: "quickbooks_check"; label: string; jobId: string; connected: boolean }
   /**
    * A workflow step waiting for approval, decided in a sheet on Today. It
    * used to link to the AI review page — the only thing that page still did
@@ -2234,7 +2235,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
   }
 
   const failed = (record: TodayRecord) =>
-    ["failed", "dead_letter"].includes(text(record.status));
+    ["failed", "dead_letter"].includes(text(record.status)) && !record.dismissedAt;
   for (const run of rows(input.automationRuns).filter(failed))
     exception({
       id: `automation-${run.id}`,
@@ -2257,6 +2258,11 @@ export function todayInbox(input: TodayInput): TodayInbox {
     // A parent's invoice: each failed row is another parent, not another try,
     // and what to do is on the job's roster ("Send invoice again").
     const forParents = /participant_invoice/.test(text(job.type));
+    const moneyCheck = text(job.type) === "reconcile_quickbooks_money_event";
+    const connected = rows(input.integrationConnections).some((connection) =>
+      connection.provider === "quickbooks" && connection.status === "connected" &&
+      !connection.archivedAt && connection.providerAccountId === job.realmId,
+    );
     exception({
       id: `provider-${job.id}`,
       // Every card carries a glyph, so every title starts on the same line;
@@ -2269,7 +2275,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
       detail: [
         // Phrased with the provider last so it reads correctly whether the
         // name is "QuickBooks" or "your email provider".
-        failure.provider ? `Couldn't be completed by ${failure.provider}` : null,
+        moneyCheck
+          ? connected ? "QuickBooks is connected. Retry the check to clear this older failure." : "Reconnect QuickBooks, then retry this check."
+          : failure.provider ? `Couldn't be completed by ${failure.provider}` : null,
         attempts > 1 ? (forParents ? `${attempts} parents` : `tried ${attempts} times`) : null,
       ]
         .filter(Boolean)
@@ -2278,6 +2286,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectId: text(job.projectId) || null,
       projectName: nameFor(job.projectId),
       updatedAt: changedAt(job),
+      ...(moneyCheck ? { action: { kind: "quickbooks_check" as const, label: connected ? "Retry check" : "Reconnect QuickBooks", jobId: job.id, connected } } : {}),
     });
   }
   // Failed sends and bounces alike: who it was for, what it was, and why —

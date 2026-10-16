@@ -187,7 +187,11 @@ export function groupProviderFailures<T extends Record<string, unknown>>(
 ): Array<{ job: T; attempts: number }> {
   const groups = new Map<string, { job: T; attempts: number }>();
   for (const job of jobs) {
-    const key = `${String(job.projectId ?? "")}|${String(job.type ?? "")}`;
+    // Different payment events are different checks; retrying one cannot
+    // resolve another, even though both have no project yet.
+    const key = job.type === "reconcile_quickbooks_money_event"
+      ? `money|${String(job.idempotencyKey ?? job.id)}`
+      : `${String(job.projectId ?? "")}|${String(job.type ?? "")}`;
     const existing = groups.get(key);
     if (!existing) {
       groups.set(key, { job, attempts: 1 });

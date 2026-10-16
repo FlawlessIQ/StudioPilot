@@ -445,6 +445,9 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "Only a studio owner or admin can waive a retainer, because it goes on record as their decision.",
   RETAINER_EXCEPTION_NOT_READY:
     "A retainer can only be waived once the contract is signed and the booking is waiting on the retainer.",
+  QUICKBOOKS_COMPANY_MISMATCH: "This check belongs to a different QuickBooks company. Reconnect the original company in Connected tools, or contact StudioCue support.",
+  PROVIDER_JOB_NOT_FOUND: "This check is no longer available. Refresh Today to see the latest work.",
+  PROVIDER_JOB_NOT_RETRYABLE: "This check has already moved on. Refresh Today to see its latest status.",
   QUICKBOOKS_NOT_CONNECTED:
     "QuickBooks isn't connected. Connect it in Integrations to fill payments from it, or enter them yourself.",
   QUICKBOOKS_REALM_MISSING:

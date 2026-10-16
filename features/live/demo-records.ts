@@ -245,7 +245,8 @@ export function demoTenantDocuments(collectionName: string): TenantDocument[] {
     case "aiActions":
       return demoAiActions.map((action) => ({
         id: action.id,
-        projectId: demoProjectId(action.project),
+        // This lead has no job yet; never attach its reply to another couple.
+        projectId: action.capability === "inquiry_reply_draft" ? null : demoProjectId(action.project),
         projectName: action.project,
         capability: action.capability,
         title: action.title,

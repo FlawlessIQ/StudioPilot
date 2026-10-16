@@ -65,6 +65,8 @@ import { StudioInvoiceActions } from "@/components/booking/studio-invoice-action
 import { InstallmentCardActions } from "@/components/booking/installment-actions";
 import { useFinalBillCheckedFirst } from "@/components/booking/use-final-bill-checked-first";
 import { heldSendFrom, UndoSend, type HeldSend } from "@/components/communications/undo-send";
+import { reportClientError } from "@/components/observability/error-reporter";
+import { retryQuickBooksCheck } from "@/lib/integrations/command-client";
 import { TodayGroupEvents } from "@/components/today/today-group-events";
 
 const DATE_LABEL = new Intl.DateTimeFormat("en-US", {
@@ -149,7 +151,13 @@ export function TodayInbox() {
   const [showAllPrepared, setShowAllPrepared] = useState(false);
   // The AI action being reviewed in the sheet — the whole point of the rethink:
   // review this exact prepared task in context, without leaving Today.
-  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [review, setReview] = useState<{
+    id: string;
+    tenantId: string | null;
+    editing: boolean;
+    action: (typeof aiActions)[number] | null;
+    href: string;
+  } | null>(null);
   // A couple's request on a signed booking, being written up as a change.
   // Held here, not in the card: Today unmounts its cards while it refreshes,
   // and the draft the sheet writes is exactly such a refresh.
@@ -158,13 +166,19 @@ export function TodayInbox() {
   // reason as the booking change — a refresh unmounts the card it came from.
   const [settling, setSettling] = useState<FinalBalanceAction | null>(null);
   const [settledNotice, setSettledNotice] = useState<string | null>(null);
-  // Opened from an inquiry card's "Edit": the review sheet starts in the editor.
-  const [reviewEditing, setReviewEditing] = useState(false);
   const isPhone = useIsPhone();
-  const reviewingAction =
-    reviewingId != null
-      ? (aiActions ?? []).find((record) => record.id === reviewingId) ?? null
-      : null;
+  const currentReview = review?.tenantId === workspace.tenantId ? review : null;
+  // Keep the clicked draft, including typed edits, through background refreshes.
+  const reviewingAction = currentReview?.action ?? null;
+  const reviewEditing = currentReview?.editing ?? false;
+
+  function openReview(actionId: string, editing = false) {
+    const action = aiActions.find((record) => record.id === actionId) ?? null;
+    const inquiry = inbox.act.find((item) => item.action.kind === "inquiry" && item.action.reply?.actionId === actionId);
+    const href = inquiry?.action.kind === "inquiry" ? inquiry.action.href : "/studio";
+    setReview({ id: actionId, tenantId: workspace.tenantId, editing, action, href });
+    if (!action) reportClientError(new Error("TODAY_DRAFT_NOT_AVAILABLE"));
+  }
 
   const visible = (items: TodayItem[]) =>
     items.filter((item) => !cleared.has(item.id));
@@ -432,8 +446,7 @@ export function TodayInbox() {
                   onCleared={() => clear(lead.id)}
                   onHeld={hold(lead.id)}
                   onEdit={(actionId) => {
-                    setReviewEditing(true);
-                    setReviewingId(actionId);
+                    openReview(actionId, true);
                   }}
                   variant="hero"
                 />
@@ -457,6 +470,10 @@ export function TodayInbox() {
               ) : !loading && lead?.action.kind === "close_inquiry" ? (
                 <span className="today-inquiry-buttons">
                   <CloseInquiryActions action={lead.action} onCleared={() => clear(lead.id)} />
+                </span>
+              ) : !loading && lead?.action.kind === "quickbooks_check" ? (
+                <span className="today-inquiry-buttons">
+                  <QuickBooksCheckActions action={lead.action} />
                 </span>
               ) : !loading && lead?.action.kind === "email_problem" ? (
                 <span className="today-inquiry-buttons">
@@ -651,7 +668,7 @@ export function TodayInbox() {
                         key={item.id}
                         onCleared={() => clear(item.id)}
                         onHeld={hold(item.id)}
-                        onReview={setReviewingId}
+                        onReview={(actionId) => openReview(actionId)}
                         onReviewApproval={setApprovalId}
                         tone="approve"
                       />
@@ -709,8 +726,7 @@ export function TodayInbox() {
                         onChangeBooking={setChanging}
                         onSettleBalance={setSettling}
                         onEdit={(actionId) => {
-                          setReviewEditing(true);
-                          setReviewingId(actionId);
+                          openReview(actionId, true);
                         }}
                         showEvidence={index === 0}
                         tone="act"
@@ -808,10 +824,9 @@ export function TodayInbox() {
       <SheetDialog
         label="Review prepared action"
         onClose={() => {
-          setReviewingId(null);
-          setReviewEditing(false);
+          setReview(null);
         }}
-        open={reviewingAction != null}
+        open={currentReview != null}
         width="wide"
       >
         {reviewingAction ? (
@@ -836,11 +851,16 @@ export function TodayInbox() {
                 (item) => item.action.kind === "inquiry" && item.action.reply?.actionId === id,
               );
               if (inquiry) clear(inquiry.id);
-              setReviewingId(null);
-              setReviewEditing(false);
+              setReview(null);
             }}
             startEditing={reviewEditing}
           />
+        ) : currentReview ? (
+          <div className="record-sheet" role="status">
+            <h3>This draft couldn’t be opened</h3>
+            <p>Open the inquiry to review the latest reply.</p>
+            <Link className="button" href={currentReview.href} onClick={() => setReview(null)}>Open inquiry <ArrowRight size={14} /></Link>
+          </div>
         ) : null}
       </SheetDialog>
       <SheetDialog label={settling?.singleBill ? "Record the payment" : "Record the final balance"} onClose={() => setSettling(null)} open={settling != null}>
@@ -1213,6 +1233,8 @@ function TodayCard({
           <PackageRequestActions action={item.action} onChangeBooking={onChangeBooking} onCleared={onCleared} />
         ) : item.action.kind === "close_inquiry" ? (
           <CloseInquiryActions action={item.action} onCleared={onCleared} />
+        ) : item.action.kind === "quickbooks_check" ? (
+          <QuickBooksCheckActions action={item.action} />
         ) : item.action.kind === "email_problem" ? (
           <EmailProblemActions action={item.action} onCleared={onCleared} />
         ) : item.action.kind === "client_message" ? (
@@ -1254,6 +1276,37 @@ function TodayCard({
 }
 
 type InquiryAction = Extract<TodayItem["action"], { kind: "inquiry" }>;
+
+function QuickBooksCheckActions({ action }: { action: Extract<TodayItem["action"], { kind: "quickbooks_check" }> }) {
+  const workspace = useWorkspace();
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  async function retry() {
+    if (!workspace.tenantId) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const result = await retryQuickBooksCheck(workspace.tenantId, action.jobId);
+      if (!result.persisted) setNotice("Preview only — the check has not been queued.");
+      else {
+        setNotice("QuickBooks check queued.");
+        refreshTenantRecords("providerJobs");
+      }
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "The check could not be queued. Open connected tools to check QuickBooks, then try again."));
+      reportClientError(new Error("TODAY_QUICKBOOKS_CHECK_RETRY_FAILED"));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <>
+    {action.connected ? <button className="today-card-primary" disabled={busy || workspace.loading || !workspace.tenantId} onClick={() => void retry()} type="button">
+      {busy ? <LoaderCircle className="spin" size={14} /> : null}{busy ? "Queuing check…" : "Retry check"}
+    </button> : null}
+    <Link className={action.connected ? "today-card-secondary" : "today-card-primary"} href="/studio/integrations">{action.connected ? "Connected tools" : "Reconnect QuickBooks"} <ArrowRight size={14} /></Link>
+    {notice ? <span role="status">{notice}</span> : null}
+  </>;
+}
 
 /**
  * Answer a new inquiry without leaving Today.
@@ -1398,16 +1451,16 @@ function InquiryActions({
               Review &amp; reply <ArrowRight size={14} />
             </Link>
           )}
-          {reply ? (
+          {reply && onEdit ? (
             <button
               className={secondaryClass}
               disabled={busy !== null}
-              onClick={() => onEdit?.(reply.actionId)}
+              onClick={() => onEdit(reply.actionId)}
               type="button"
             >
               <Pencil size={13} /> Edit
             </button>
-          ) : null}
+          ) : reply ? <Link className={secondaryClass} href={action.href}><Pencil size={13} /> Edit</Link> : null}
           {reply && !action.followUp ? (
             // The new-inquiry email replies to the couple, so the studio may
             // have answered from its own inbox: put the drafted reply away

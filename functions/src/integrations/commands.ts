@@ -23,10 +23,17 @@ import {
   normaliseStudioInvoiceSettings,
 } from "../billing/studio-invoice-settings.js";
 import { previewStudioInvoice } from "../billing/studio-invoice-preview.js";
+import { assertQuickBooksCheckRetry } from "./retry-quickbooks-check.js";
 
 const allowedRoles = ["studio_owner", "studio_admin"];
 
 const commandSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("retryQuickBooksCheck"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ jobId: z.string().min(1).max(300).regex(/^[A-Za-z0-9_-]+$/) }),
+  }),
   z.object({
     type: z.literal("setCapabilityProvider"),
     tenantId: z.string().min(1),
@@ -267,6 +274,33 @@ export const integrationsCommand = onRequest(
         const execution = await transaction.get(commandReference);
         if (execution.exists) {
           return execution.data()?.result as Record<string, unknown>;
+        }
+
+        if (command.type === "retryQuickBooksCheck") {
+          const reference = db.doc(`providerJobs/${command.input.jobId}`);
+          const [job, connection] = await Promise.all([
+            transaction.get(reference),
+            transaction.get(db.doc(`integrationConnections/${command.tenantId}_quickbooks`)),
+          ]);
+          assertQuickBooksCheckRetry({ tenantId: command.tenantId, job: job.data() ?? {}, connection: connection.data() ?? {} });
+          const replayId = randomUUID();
+          transaction.update(reference, {
+            status: "queued", attempts: 0, nextAttemptAt: timestamp, completedAt: null,
+            error: null, dismissedAt: null, manualReplayId: replayId, manualRerunBy: identity.uid, updatedAt: timestamp,
+          });
+          const auditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${auditId}`), {
+            id: auditId, tenantId: command.tenantId, projectId: job.get("projectId") ?? null,
+            actorId: identity.uid, actorType: "user", action: "integration.quickbooks_check_retried",
+            entityType: "providerJobs", entityId: job.id, timestamp, correlationId,
+            before: { status: job.get("status"), error: job.get("error") ?? null, attempts: job.get("attempts") ?? 0 },
+            after: { status: "queued", replayId },
+            ipAddress: request.ip ?? null, userAgent: request.header("user-agent") ?? null,
+            automationRunId: null, providerEventId: job.get("webhookEventId") ?? null,
+          });
+          const output = { jobId: job.id, status: "queued" };
+          transaction.create(commandReference, { tenantId: command.tenantId, idempotencyKey: command.idempotencyKey, result: output, createdAt: timestamp });
+          return output;
         }
 
         if (command.type === "setCapabilityProvider") {

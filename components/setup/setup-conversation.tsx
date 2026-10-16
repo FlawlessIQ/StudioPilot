@@ -652,7 +652,7 @@ function HostedFormLink({ slug }: { slug: string }) {
           {copied ? <Check size={14} /> : <Copy size={14} />}
           {copied ? "Copied" : "Copy link"}
         </button>
-        <Link href={`${path}&preview=studio`} target="_blank">
+        <Link href={`${path}&preview=studio`} prefetch={false} target="_blank">
           Preview <ExternalLink size={13} />
         </Link>
       </div>

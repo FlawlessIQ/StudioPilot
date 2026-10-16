@@ -6363,6 +6363,20 @@ textarea:focus-visible {
   text-align: center;
 }
 
+.search-status {
+  color: var(--ds-ink-faint, var(--muted));
+  font-size: 12px;
+  margin: 0;
+  padding: 0 22px 16px;
+}
+
+.search-results a:focus-visible,
+.search-quick-actions a:focus-visible {
+  background: #f3f5f1;
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .setup-checklist {
   background: linear-gradient(115deg, #19251e, #26372d);
   border-radius: 20px;

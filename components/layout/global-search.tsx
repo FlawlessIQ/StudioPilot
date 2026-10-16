@@ -15,7 +15,11 @@ import {
   Search,
   UserPlus,
   X,
+  Settings,
+  CircleHelp,
+  Package,
 } from "lucide-react";
+import { searchStudio, studioSearchDestinations, type StudioSearchResult } from "@/features/search/studio-search";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { KindGlyph } from "@/components/library/kind-glyph";
@@ -24,21 +28,7 @@ import type { LibraryKind } from "@/features/library/kinds";
 import { preBookingStates } from "@/features/inquiries/stages";
 import { callWords, newJobLine } from "@/components/studio/trade-words";
 
-type SearchResult = {
-  id: string;
-  label: string;
-  detail: string;
-  href: string;
-  kind:
-    | "Project"
-    | "Inquiry"
-    | "Client"
-    | "Task"
-    | "Contract"
-    | "Schedule"
-    | "Message"
-    | "Approval";
-};
+type SearchResult = StudioSearchResult;
 
 /**
  * Search is the one list in the product that is always mixed, which makes
@@ -57,6 +47,10 @@ const searchResultGlyphs: Record<
   Inquiry: { kind: null, icon: Inbox },
   Client: { kind: null, icon: ContactRound },
   Approval: { kind: null, icon: BrainCircuit },
+  Action: { kind: null, icon: Plus },
+  Settings: { kind: null, icon: Settings },
+  Help: { kind: null, icon: CircleHelp },
+  Package: { kind: null, icon: Package },
   Task: { kind: "task" },
   Contract: { kind: "contract" },
   Schedule: { kind: "schedule" },
@@ -67,12 +61,20 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+/** Hidden matching terms; displayed dates still use formatDueDate. */
+function searchKeywords(...values: unknown[]): string {
+  return values.map(text).filter(Boolean).join(" ");
+}
+
 export function GlobalSearch() {
   const workspace = useWorkspace();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const { records: projects } = useTenantDocuments("projects");
+  const dialogRef = useRef<HTMLElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const projectsRead = useTenantDocuments("projects", { enabled: open });
+  const { records: projects } = projectsRead;
   const privileged = ["studio_owner", "studio_admin"].includes(
     workspace.role ?? "",
   );
@@ -81,21 +83,33 @@ export function GlobalSearch() {
     "studio_admin",
     "studio_coordinator",
   ].includes(workspace.role ?? "");
-  const { records: contacts } = useTenantDocuments("contacts", {
-    enabled: privileged,
+  const contactsRead = useTenantDocuments("contacts", {
+    enabled: open && privileged,
   });
-  const { records: tasks } = useTenantDocuments("tasks");
-  const { records: contracts } = useTenantDocuments("contracts", {
-    enabled: operator,
+  const tasksRead = useTenantDocuments("tasks", { enabled: open });
+  const { records: tasks } = tasksRead;
+  const contractsRead = useTenantDocuments("contracts", {
+    enabled: open && operator,
   });
-  const { records: schedules } = useTenantDocuments("schedules");
-  const { records: messages } = useTenantDocuments("messages", {
-    enabled: operator,
+  const schedulesRead = useTenantDocuments("schedules", { enabled: open });
+  const { records: schedules } = schedulesRead;
+  const messagesRead = useTenantDocuments("messages", {
+    enabled: open && operator,
   });
-  const { records: aiActions } = useTenantDocuments("aiActions", {
-    enabled: operator,
+  const aiActionsRead = useTenantDocuments("aiActions", {
+    enabled: open && operator,
   });
-  const { records: leads } = useTenantDocuments("leads", { enabled: operator });
+  const leadsRead = useTenantDocuments("leads", { enabled: open && operator });
+
+  const packagesRead = useTenantDocuments("packages", { enabled: open && privileged });
+  const { records: contacts } = contactsRead;
+  const { records: contracts } = contractsRead;
+  const { records: messages } = messagesRead;
+  const { records: aiActions } = aiActionsRead;
+  const { records: leads } = leadsRead;
+  const reads = [projectsRead, tasksRead, schedulesRead, contactsRead, contractsRead, messagesRead, aiActionsRead, leadsRead, packagesRead];
+  const loading = reads.some((read) => read.loading);
+  const readFailed = reads.some((read) => read.error);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -111,14 +125,20 @@ export function GlobalSearch() {
 
   useEffect(() => {
     if (!open) return;
+    const trigger = triggerRef.current;
     const timeout = window.setTimeout(() => inputRef.current?.focus(), 20);
-    return () => window.clearTimeout(timeout);
+    return () => {
+      window.clearTimeout(timeout);
+      trigger?.focus();
+    };
   }, [open]);
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return [];
     const values: SearchResult[] = [
+      ...studioSearchDestinations(workspace.role, workspace.tenantTrade),
+      ...(packagesRead.records ?? []).map((entry) => ({ id: `package-${entry.id}`, label: text(entry.name) || "Package", detail: "Your package", href: `/studio/packages/${entry.id}`, kind: "Package" as const })),
       ...(projects ?? []).map((project) => ({
         id: `project-${project.id}`,
         label: text(project.name) || "Untitled project",
@@ -135,6 +155,7 @@ export function GlobalSearch() {
           .filter(Boolean)
           .join(" · "),
         href: `/studio/projects/${project.id}`,
+        searchText: searchKeywords(project.eventDate, project.venueName, project.city),
       })),
       // Inquiries that aren't a job yet (no date, or not confirmed): found by
       // the couple's name or email, which is how a studio remembers them.
@@ -151,6 +172,7 @@ export function GlobalSearch() {
             .filter(Boolean)
             .join(" · "),
           href: `/studio/leads/${lead.id}`,
+          searchText: searchKeywords(lead.eventDate),
           kind: "Inquiry" as const,
         })),
       ...(contacts ?? []).map((contact) => ({
@@ -207,6 +229,7 @@ export function GlobalSearch() {
           text(message.bodyPreview) ||
           "Client message",
         detail: text(message.deliveryStatus) || text(message.channel),
+        searchText: searchKeywords(message.bodyPreview, message.body, message.projectName),
         href: `/studio/messages?project=${encodeURIComponent(
           text(message.projectId),
         )}`,
@@ -225,15 +248,12 @@ export function GlobalSearch() {
           kind: "Approval" as const,
         })),
     ];
-    return values
-      .filter((result) =>
-        `${result.label} ${result.detail} ${result.kind}`
-          .toLowerCase()
-          .includes(needle),
-      )
-      .slice(0, 10);
+    return searchStudio(values, needle).slice(0, 12);
   }, [
     aiActions,
+    packagesRead.records,
+    workspace.role,
+    workspace.tenantTrade,
     leads,
     contacts,
     contracts,
@@ -252,6 +272,7 @@ export function GlobalSearch() {
   return (
     <>
       <button
+        ref={triggerRef}
         aria-label="Search StudioCue"
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -272,6 +293,27 @@ export function GlobalSearch() {
             type="button"
           />
           <section
+            ref={dialogRef}
+            onKeyDown={(event) => {
+              const panel = dialogRef.current;
+              if (!panel) return;
+              const links = Array.from(panel.querySelectorAll<HTMLAnchorElement>("a[href]"));
+              const index = links.indexOf(document.activeElement as HTMLAnchorElement);
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                const next = event.key === "ArrowDown" ? index + 1 : index < 0 ? links.length - 1 : index - 1;
+                if (next < 0 || next >= links.length) inputRef.current?.focus();
+                else links[next]?.focus();
+              } else if (event.key === "Enter" && event.target === inputRef.current) {
+                event.preventDefault();
+                links[0]?.click();
+              } else if (event.key === "Tab") {
+                const controls = Array.from(panel.querySelectorAll<HTMLElement>("input, button, a[href]"));
+                const first = controls[0], last = controls.at(-1);
+                if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+                else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+              }
+            }}
             aria-label="Search StudioCue"
             aria-modal="true"
             className="search-dialog"
@@ -282,7 +324,7 @@ export function GlobalSearch() {
               <input
                 aria-label="Search records and commands"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search projects, people, contracts, tasks…"
+                placeholder="Search names, jobs, settings, or how to do something…"
                 ref={inputRef}
                 value={query}
               />
@@ -293,6 +335,7 @@ export function GlobalSearch() {
             {!query.trim() ? (
               <div className="search-quick-actions">
                 <p>Quick actions</p>
+                {privileged ? <Link href="/studio/packages/new" onClick={close}><Package size={17} /><span><strong>Add a package</strong><small>Set your services and prices</small></span></Link> : null}
                 {operator ? <Link href="/studio/projects/new" onClick={close}>
                   <Plus size={17} />
                   <span>
@@ -362,12 +405,15 @@ export function GlobalSearch() {
             ) : (
               <div className="search-no-results">
                 <Search size={20} />
-                <strong>No matching records</strong>
+                <strong>{loading ? "Searching your studio…" : readFailed ? "Some records could not be searched" : "No matches yet"}</strong>
                 <small>
-                  Try a project name, date, contract, schedule, message, or task.
+                  {readFailed ? "Close search and try again. You can still find settings and guides." : 'Try a name, date, or something you want to do, like “add packages”.'}
                 </small>
               </div>
             )}
+            {query.trim() && results.length > 0 && (loading || readFailed) ? (
+              <p className="search-status" role="status">{readFailed ? "Some records could not be searched. Close search and try again." : "Still searching your records…"}</p>
+            ) : null}
           </section>
         </div>
       ) : null}

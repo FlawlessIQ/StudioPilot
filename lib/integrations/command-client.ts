@@ -7,6 +7,24 @@ import type {
   IntegrationProvider,
 } from "@/features/integrations/schema";
 import { markTenantRecordsWritten } from "@/lib/live/record-writes";
+import { withTimeout } from "@/lib/async/with-timeout";
+
+export async function retryQuickBooksCheck(tenantId: string, jobId: string): Promise<{ persisted: boolean }> {
+  const endpoint = process.env.NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL;
+  if (!endpoint) return { persisted: false };
+  const user = getFirebaseClient().auth.currentUser;
+  if (!user || !tenantId) throw new Error("Sign in before retrying this check.");
+  const appCheckToken = await getOptionalAppCheckToken();
+  const response = await withTimeout(fetch(`${endpoint.replace(/\/$/, "")}/integrationsCommand`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${await user.getIdToken()}`, ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}) },
+    body: JSON.stringify({ type: "retryQuickBooksCheck", tenantId, idempotencyKey: crypto.randomUUID(), input: { jobId } }),
+  }), 20_000, "The check could not be queued in time. Try again.");
+  const result = await response.json() as { error?: string };
+  if (!response.ok || result.error) throw new Error(result.error ?? "The QuickBooks check could not be queued.");
+  markTenantRecordsWritten();
+  return { persisted: true };
+}
 
 export type SetCapabilityProviderResult = {
   capability: IntegrationCapability;
