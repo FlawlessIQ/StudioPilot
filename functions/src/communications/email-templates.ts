@@ -204,6 +204,9 @@ export const emailTemplateKeys = [
   // (booking/studio-call-alert.ts). Today shows it too; this is for a studio
   // that isn't looking at Today (Gabe, 2026-10-12).
   "studio_call_booked",
+  // Studio-facing: a connection to another app broke and needs reconnecting
+  // (integrations/connection-alert.ts). Today shows it too.
+  "studio_connection_broken",
   // Studio-facing: the couple asked for changes to the day plan (run of show)
   // in their portal. Queued by approveSchedule (functions/src/planning).
   "studio_schedule_changes_requested",
@@ -3191,6 +3194,22 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           "They have their confirmation, and it's on the job in StudioCue. Nothing for you to do.",
         ],
         action: actionUrl ? { label: "Open the job", url: actionUrl } : undefined,
+      };
+    }
+    case "studio_connection_broken": {
+      const app = stringValue(values, "providerLabel") || "A connected app";
+      const stops = stringValue(values, "stops");
+      return {
+        subject: `${app} is disconnected from StudioCue`,
+        preheader: "Reconnect it in a minute from Settings, Integrations.",
+        eyebrow: "Needs reconnecting",
+        heading: `Reconnect ${app}`,
+        paragraphs: [
+          `${app} stopped accepting StudioCue's sign-in, so StudioCue can't use it until you reconnect.`,
+          ...(stops ? [`Until then: ${stops.charAt(0).toLowerCase()}${stops.slice(1)}`] : []),
+          "It takes about a minute: open Integrations, choose Reconnect, and sign in again.",
+        ],
+        action: actionUrl ? { label: "Reconnect it", url: actionUrl } : undefined,
       };
     }
     case "studio_new_inquiry": {

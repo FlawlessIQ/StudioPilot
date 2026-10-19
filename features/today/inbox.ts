@@ -16,6 +16,7 @@
  * records and journey positions.
  */
 
+import { connectionConsequence } from "@/features/integrations/connection-consequence";
 import { invoiceRecordsDeleted } from "@/features/billing/invoice-purge-policy";
 import { shotListNeedsStudio, type ShotListRecord } from "@/features/planning/shot-list";
 import { coupleVendorsNeedStudio, type CoupleVendorTeamRecord } from "@/features/vendors/couple-team";
@@ -2321,11 +2322,14 @@ export function todayInbox(input: TodayInput): TodayInbox {
   }
   for (const connection of rows(input.integrationConnections)) {
     if (text(connection.status) !== "error" && !connection.lastError) continue;
+    // Says what has stopped, not "automation is paused": FlawlessIQ's Google
+    // Calendar sat broken for three days behind that line (2026-10-15).
+    const consequence = connectionConsequence(connection.provider);
     exception({
       id: `connection-${connection.id}`,
       kind: null,
-      title: `Reconnect ${readable(connection.provider) || "an integration"}`,
-      detail: "Automation is paused until this is reconnected",
+      title: `Reconnect ${consequence.label}`,
+      detail: consequence.stops,
       href: "/studio/integrations",
       updatedAt: changedAt(connection),
       label: "Reconnect",

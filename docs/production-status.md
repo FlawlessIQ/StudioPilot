@@ -128,8 +128,8 @@ verified by commit. GitHub Actions runs the same checks on every push
   prod (FlawlessIQ's trial dates shifted for the test, then restored).
 - **Today's morning handoff — live 2026-10-06.** "Since yesterday, Cue
   handled N things. M need you." (`features/today/handoff.ts`), owners and
-  admins only. Known gap: the older "Handled for you" hero stat reads email
-  status `sent`/`delivered`, but the worker writes `succeeded`.
+  admins only. (The "Handled for you" count reads `succeeded`, the
+  status the email worker writes: fixed 2be0a456.)
 - Rotate the secrets ever pasted into chat; MFA on every provider console.
 - A SendGrid subuser so StudioCue gets its own Event Webhook.
 - ~~Firestore point-in-time recovery~~ — **on since 2026-10-15** (7 days of versions).

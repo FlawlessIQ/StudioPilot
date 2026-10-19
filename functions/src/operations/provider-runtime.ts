@@ -32,6 +32,7 @@ import {
 import { GRAPH_BASE_URL, outlookBusyFromGraph } from "../integrations/outlook-calendar.js";
 import { appleBusyFromCalDav, isIcloudCalDavUrl } from "../integrations/apple-calendar.js";
 import { platformSecret } from "../integrations/platform-secret.js";
+import { queueConnectionBrokenAlert } from "../integrations/connection-alert.js";
 import { ZOOM_DEVELOPMENT_APP, zoomDevelopmentClient } from "../integrations/zoom-review-app.js";
 import { consumeAiQuota } from "../saas/usage.js";
 import { autoInstantiateWorkflow } from "../workflow/commands.js";
@@ -234,7 +235,12 @@ export async function connection(tenantId:string,provider:Provider){
       console.error(JSON.stringify({severity:"ERROR",event:"integration.refresh_not_configured",provider,tenantId,detail:"client id/secret missing on this Function; the studio credential was not touched"}));
       throw caught;
     }
-    await document.ref.update({status:"error",lastError:code,updatedAt:new Date().toISOString()});
+    const brokenAt=new Date().toISOString();
+    await document.ref.update({status:"error",lastError:code,updatedAt:brokenAt});
+    // The studio is told, once: a connection marked "error" is never loaded
+    // again until it is reconnected (integrations/connection-alert.ts).
+    await queueConnectionBrokenAlert(getFirestore(),{tenantId,provider,connectedAt:text(document.get("connectedAt"))||null,code,now:brokenAt})
+      .catch((alertError:unknown)=>console.error("connection alert failed",{tenantId,provider,error:alertError instanceof Error?alertError.message:alertError}));
     throw caught;
   }
 }
