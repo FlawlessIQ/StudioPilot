@@ -79,11 +79,15 @@ function reverb(input: Float32Array, spread: number): Float32Array {
 }
 
 /** "calm": the journey film's original bed. "upbeat": lively, for the sales films (below). */
-export type BedStyle = "calm" | "upbeat" | "lively";
+export type BedStyle = "calm" | "upbeat" | "lively" | "social" | "rock";
 
 export function makeMusicBed(seconds: number, outWav: string, seed = 7, style: BedStyle = "calm", options: { liftAt?: number } = {}): void {
   if (style === "upbeat") return makeUpbeatBed(seconds, outWav, seed, options.liftAt);
   if (style === "lively") return makeUpbeatBed(seconds, outWav, seed, options.liftAt, true);
+  // Social (the Meet Cue ad, Conor 2026-10-19: "more upbeat, louder throughout"): the lively
+  // parts at 134 bpm, drums from the first beat, no slow fade in.
+  if (style === "rock") return makeRockBed(seconds, outWav, seed, options.liftAt);
+  if (style === "social") return makeUpbeatBed(seconds, outWav, seed, options.liftAt, true, { bpm: 134, introBars: 0, fadeIn: 0.05, fadeOut: 1.2 });
   const length = Math.ceil((seconds + 2) * RATE);
   const left = new Float32Array(length);
   const right = new Float32Array(length);
@@ -240,6 +244,154 @@ function writeWav(left: Float32Array, right: Float32Array, total: number, peak: 
  * speaks; the voice keeps its own -16 LUFS, in stereo. The picture is
  * copied untouched.
  */
+/**
+ * Rock (the Meet Cue ad, Conor 2026-10-19: "a different direction ... like
+ * rock"): 140 bpm in E, i–VI–III–VII (E5 C5 G5 D5). Double-tracked distorted
+ * power chords chug palm-muted eighths and ring out on the fourth bar of each
+ * phrase; a driven bass doubles the roots; the kit is kick, snare, hats,
+ * crashes on each phrase and a snare fill into it. From the first beat, no
+ * intro. Synthesized like the other beds: a tight synth-rock bed, not a band.
+ */
+function makeRockBed(seconds: number, outWav: string, seed: number, liftAt?: number): void {
+  const bpm = 140;
+  const beat = 60 / bpm, bar = 4 * beat, eighth = beat / 2;
+  const length = Math.ceil((seconds + 2) * RATE);
+  const rand = seeded(seed);
+  const gtrL = new Float32Array(length), gtrR = new Float32Array(length);
+  const bass = new Float32Array(length);
+  const drumL = new Float32Array(length), drumR = new Float32Array(length);
+  const add = (buf: Float32Array, at: number, dur: number, voice: (t: number) => number) => {
+    const from = Math.max(0, Math.floor(at * RATE)), len = Math.floor(dur * RATE);
+    for (let k = 0; k < len && from + k < length; k++) buf[from + k]! += voice(k / RATE);
+  };
+  const both = (at: number, dur: number, pan: number, voice: (t: number) => number) => {
+    add(drumL, at, dur, (t) => voice(t) * (1 - pan));
+    add(drumR, at, dur, (t) => voice(t) * pan);
+  };
+  const saw = (phase: number) => 2 * (phase - Math.floor(phase + 0.5));
+  const ROOTS = [40, 48, 43, 50];
+  const lifted = (at: number) => liftAt !== undefined && at >= liftAt - 0.01;
+  const bars = Math.ceil(seconds / bar) + 1;
+
+  /** A power chord: root, fifth, octave, as detuned saws (distorted later, as one signal). */
+  const chord = (buf: Float32Array, at: number, root: number, dur: number, muted: boolean, detune: number) => {
+    const fs = [root, root + 7, root + 12].map((n) => freq(n) * (1 + detune));
+    const level = muted ? 0.16 : 0.24;
+    add(buf, at, dur + 0.02, (t) => {
+      const env = Math.min(1, t / 0.002) * (muted ? Math.exp(-t / 0.075) : Math.exp(-t / 2.2)) * Math.min(1, Math.max(0, (dur + 0.02 - t) / 0.02));
+      let v = 0;
+      for (const f of fs) v += saw(f * t) + 0.5 * saw(f * 1.004 * t + 0.3);
+      return v * env * level;
+    });
+  };
+
+  for (let b = 0; b < bars; b++) {
+    const start = b * bar;
+    const root = ROOTS[b % ROOTS.length]!;
+    const ring = b % 4 === 3 || lifted(start);
+    const phrase = b % 4 === 0;
+
+    // Guitars, left and right takes a few milliseconds apart.
+    for (const [buf, detune, late] of [[gtrL, -0.0035, 0], [gtrR, 0.0035, 0.009]] as const) {
+      if (ring) {
+        chord(buf, start + late, root, 2 * beat - 0.02, false, detune);
+        for (let e = 4; e < 8; e++) chord(buf, start + e * eighth + late, root, eighth - 0.01, e % 2 === 1, detune);
+      } else {
+        for (let e = 0; e < 8; e++) chord(buf, start + e * eighth + late + (rand() - 0.5) * 0.003, root, eighth - 0.01, e !== 0 && e !== 3 && e !== 6, detune);
+      }
+    }
+
+    // Bass: the root an octave down, eighths.
+    for (let e = 0; e < 8; e++) {
+      const f = freq(root - 12);
+      add(bass, start + e * eighth, eighth, (t) => {
+        const env = Math.min(1, t / 0.003) * Math.exp(-t / 0.25) * Math.min(1, Math.max(0, (eighth - t) / 0.012));
+        return Math.tanh(2.2 * (saw(f * t) * 0.6 + Math.sin(2 * Math.PI * f * t))) * env * 0.32;
+      });
+    }
+
+    // Kick on one, three and the and of three.
+    for (const q of [0, 2, 2.5])
+      both(start + q * beat, 0.35, 0.5, (t) => {
+        const phase = 2 * Math.PI * (52 * t + (110 / 30) * (1 - Math.exp(-30 * t)));
+        const click = t < 0.003 ? (rand() * 2 - 1) * 0.5 : 0;
+        return (Math.sin(phase) * Math.exp(-t / 0.16) + click) * 0.85;
+      });
+    // Snare on two and four: a body and a burst of noise.
+    const snare = (at: number, level: number) => {
+      let previous = 0;
+      both(at, 0.32, 0.52, (t) => {
+        const noise = rand() * 2 - 1;
+        const high = noise - previous;
+        previous = noise;
+        const body = Math.sin(2 * Math.PI * 190 * t) * Math.exp(-t / 0.06);
+        return (body * 0.7 + high * 0.8 * Math.exp(-t / 0.12)) * level;
+      });
+    };
+    snare(start + beat, 0.5);
+    snare(start + 3 * beat, 0.5);
+    // A fill into each phrase: sixteenths over the last beat, getting louder.
+    if (b % 4 === 3) for (let x = 0; x < 4; x++) snare(start + 3 * beat + x * (beat / 4), 0.25 + x * 0.08);
+    // Hats: eighths, the downbeats leaning in (open on the off-beats once lifted).
+    for (let e = 0; e < 8; e++) {
+      let previous = 0;
+      const open = lifted(start) && e % 2 === 1;
+      both(start + e * eighth, open ? 0.25 : 0.05, 0.62, (t) => {
+        const noise = rand() * 2 - 1;
+        const high = noise - previous;
+        previous = noise;
+        return high * Math.exp(-t / (open ? 0.09 : 0.022)) * (e % 2 ? 0.07 : 0.11);
+      });
+    }
+    // Crash at the top of every phrase.
+    if (phrase || (liftAt !== undefined && Math.abs(start - liftAt) < bar / 2)) {
+      const at = phrase ? start : liftAt!;
+      for (const pan of [0.3, 0.7]) {
+        let previous = 0;
+        both(at, 1.6, pan, (t) => {
+          const noise = rand() * 2 - 1;
+          const high = noise - previous;
+          previous = noise;
+          return high * Math.exp(-t / 0.55) * 0.13;
+        });
+      }
+    }
+  }
+
+  // The amp: one drive for the whole take (so chords intermodulate), then a cabinet's roll-off.
+  const amp = (x: Float32Array) => {
+    const drive = 5.5;
+    let hp = 0, prevIn = 0, lp1 = 0, lp2 = 0;
+    const aLow = 1 - Math.exp((-2 * Math.PI * 4200) / RATE);
+    for (let n = 0; n < x.length; n++) {
+      const d = Math.tanh(drive * x[n]!);
+      hp = 0.995 * (hp + d - prevIn); // ~35 Hz high-pass
+      prevIn = d;
+      lp1 += aLow * (hp - lp1);
+      lp2 += aLow * (lp1 - lp2);
+      x[n] = lp2;
+    }
+  };
+  amp(gtrL);
+  amp(gtrR);
+  let low = 0;
+  const aBass = 1 - Math.exp((-2 * Math.PI * 900) / RATE);
+  for (let n = 0; n < length; n++) bass[n] = low = low + aBass * (bass[n]! - low);
+  const roomL = reverb(drumL, 0), roomR = reverb(drumR, 23);
+
+  const total = Math.floor(seconds * RATE);
+  let peak = 0;
+  const left = new Float32Array(length), right = new Float32Array(length);
+  for (let n = 0; n < total; n++) {
+    const t = n / RATE;
+    const fade = Math.min(1, t / 0.02) * Math.min(1, Math.max(0, (seconds - t) / 1.2));
+    left[n] = (gtrL[n]! * 0.42 + gtrR[n]! * 0.1 + bass[n]! + drumL[n]! + roomL[n]! * 0.12) * fade;
+    right[n] = (gtrR[n]! * 0.42 + gtrL[n]! * 0.1 + bass[n]! + drumR[n]! + roomR[n]! * 0.12) * fade;
+    peak = Math.max(peak, Math.abs(left[n]!), Math.abs(right[n]!));
+  }
+  writeWav(left, right, total, peak, outWav);
+}
+
 export function withMusic(voiceMp4: string, bedWav: string, from: number, length: number, outMp4: string, style: BedStyle = "calm"): void {
   const fadeOut = Math.max(0, length - 1.5);
   // The upbeat bed is busier, so it sits a little lower, keeps its kick
@@ -249,10 +401,12 @@ export function withMusic(voiceMp4: string, bedWav: string, from: number, length
   // The lively bed (the trial teaser) sits further forward still, and ducks
   // about 9 dB under her, measured as RMS over a spoken line (LUFS gating
   // hides the dips): the key is boosted (level_sc) so short words still bite.
-  const bedChain = { upbeat: "highpass=f=70,volume=0.40", lively: "highpass=f=60,volume=0.62", calm: "highpass=f=120,volume=0.42" }[style];
+  const bedChain = { upbeat: "highpass=f=70,volume=0.40", lively: "highpass=f=60,volume=0.62", social: "highpass=f=60,volume=0.62", rock: "highpass=f=60,volume=0.62", calm: "highpass=f=120,volume=0.42" }[style];
   const duck = {
     upbeat: "threshold=0.05:ratio=4:attack=12:release=380:knee=4",
     lively: "threshold=0.02:ratio=12:attack=8:release=300:knee=2:level_sc=6",
+    social: "threshold=0.02:ratio=12:attack=8:release=300:knee=2:level_sc=6",
+    rock: "threshold=0.02:ratio=12:attack=8:release=300:knee=2:level_sc=6",
     calm: "threshold=0.03:ratio=3.5:attack=25:release=500",
   }[style];
   execFileSync(
@@ -289,12 +443,19 @@ export function withMusic(voiceMp4: string, bedWav: string, from: number, length
  * pad. `liftAt` (seconds) builds a two-bar riser into that moment and opens
  * up after it, for the end card. Deterministic, like the calm bed.
  */
-function makeUpbeatBed(seconds: number, outWav: string, seed: number, liftAt?: number, lively = false): void {
+function makeUpbeatBed(
+  seconds: number,
+  outWav: string,
+  seed: number,
+  liftAt?: number,
+  lively = false,
+  tune: { bpm?: number; introBars?: number; fadeIn?: number; fadeOut?: number } = {},
+): void {
   // Lively (the trial teaser, Conor 2026-10-06: "much more upbeat"): 128 bpm
   // in E, a snare under the claps, open hats, a bright saw lead hook every
   // bar, and a four-bar build with a snare roll into the end. Its extra parts
   // draw from their own random stream, so the upbeat bed is unchanged.
-  const bpm = lively ? 128 : 122;
+  const bpm = tune.bpm ?? (lively ? 128 : 122);
   const shift = lively ? 2 : 0;
   const rand2 = seeded(seed + 1000);
   const beat = 60 / bpm;
@@ -319,7 +480,7 @@ function makeUpbeatBed(seconds: number, outWav: string, seed: number, liftAt?: n
     const start = b * bar;
     const notes = PROGRESSION[b % PROGRESSION.length]!.map((n) => n + shift);
     const cycle = Math.floor(b / PROGRESSION.length);
-    const intro = b < 2; // two bars in before the drums: the bed arrives, then moves
+    const intro = b < (tune.introBars ?? 2); // two bars in before the drums: the bed arrives, then moves
     const open = lifted(start);
 
     // Kick: every beat, soft and short; a falling sine.
@@ -480,7 +641,7 @@ function makeUpbeatBed(seconds: number, outWav: string, seed: number, liftAt?: n
   let peak = 0;
   for (let n = 0; n < total; n++) {
     const t = n / RATE;
-    const fade = Math.min(1, t / 1.5) * Math.min(1, Math.max(0, (seconds - t) / 3));
+    const fade = Math.min(1, t / (tune.fadeIn ?? 1.5)) * Math.min(1, Math.max(0, (seconds - t) / (tune.fadeOut ?? 3)));
     left[n] = (left[n]! * 0.85 + wetL[n]! * 0.22 + drumL[n]!) * fade;
     right[n] = (right[n]! * 0.85 + wetR[n]! * 0.22 + drumR[n]!) * fade;
     peak = Math.max(peak, Math.abs(left[n]!), Math.abs(right[n]!));
