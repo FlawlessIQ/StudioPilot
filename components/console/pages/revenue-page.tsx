@@ -9,6 +9,7 @@ import { humanize, money, shortDate } from "@/lib/console/format";
 import { useLiveQuery } from "@/lib/console/live";
 import { studioHref } from "@/lib/console/studio-display";
 import { useNow } from "@/lib/console/use-now";
+import { isTestStudio } from "@/features/console/test-studios";
 import { BarChart, LineChart } from "../charts";
 import { useConsole } from "../console-context";
 import { Topbar } from "../console-frame";
@@ -44,7 +45,14 @@ export function RevenuePage() {
   const router = useRouter();
   const { studios, studioById } = useConsole();
   const metrics = useLiveQuery<Metric>("revenue:metrics", (firestore) => query(collection(firestore, "consoleMetrics"), orderBy("day"), limitToLast(120)));
-  const invoices = useLiveQuery<Invoice>("revenue:invoices", (firestore) => query(collection(firestore, "saasInvoices"), orderBy("createdAt", "desc"), limit(500)));
+  const invoiceRows = useLiveQuery<Invoice>("revenue:invoices", (firestore) => query(collection(firestore, "saasInvoices"), orderBy("createdAt", "desc"), limit(500)));
+  // Our own studios' money is not revenue (Conor, 2026-10-20). The daily
+  // metrics leave them out on the server; the rows and invoices here.
+  const real = useMemo(() => (studios.rows ? studios.rows.filter((studio) => !isTestStudio(studio)) : null), [studios.rows]);
+  const invoices = useMemo(
+    () => ({ ...invoiceRows, rows: invoiceRows.rows?.filter((invoice) => { const studio = studioById(invoice.tenantId); return !studio || !isTestStudio(studio); }) ?? null }),
+    [invoiceRows, studioById],
+  );
 
   const days = useMemo(() => [...(metrics.rows ?? [])].sort((a, b) => a.day.localeCompare(b.day)).slice(-90), [metrics.rows]);
   const months = useMemo(() => {
@@ -65,16 +73,16 @@ export function RevenuePage() {
   const cohorts = useMemo(
     () =>
       months.slice(-6).map((key) => {
-        const signed = (studios.rows ?? []).filter((studio) => studio.createdAt?.startsWith(key));
+        const signed = (real ?? []).filter((studio) => studio.createdAt?.startsWith(key));
         const paying = signed.filter((studio) => studio.mrrCents > 0 || (studio.subscriptionStatus === "active" && !studio.comped)).length;
         const trialing = signed.filter((studio) => studio.subscriptionStatus === "trialing").length;
         const lost = signed.filter((studio) => ["cancelled", "incomplete"].includes(studio.subscriptionStatus ?? "")).length;
         return { key, signed: signed.length, paying, trialing, lost };
       }),
-    [studios.rows, months],
+    [real, months],
   );
 
-  const all = studios.rows ?? [];
+  const all = real ?? [];
   const now = useNow();
   const mrr = all.reduce((sum, studio) => sum + studio.mrrCents, 0);
   const start = days.find((day) => day.day >= new Date(now - 30 * 86_400_000).toISOString().slice(0, 10));

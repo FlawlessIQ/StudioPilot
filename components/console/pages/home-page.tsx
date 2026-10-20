@@ -19,6 +19,7 @@ import { type Feedback, KindIcon } from "./inbox-page";
 import { useSourcedStudios } from "./sources-page";
 import { usePipeline } from "./pipeline-page";
 import { CHANNEL_LABELS, funnelBy, funnelStage, rate } from "@/features/console/sources";
+import { isTestStudio } from "@/features/console/test-studios";
 
 /**
  * Home (docs/console.md): the morning check on one screen. Growth first
@@ -38,7 +39,8 @@ export function HomePage() {
   const jobs = useJobs("failed");
   const sourced = useSourcedStudios();
   const pipeline = usePipeline();
-  const all = studios.rows ?? [];
+  // Our own studios are not customers: no signups, MRR, trials or nudges.
+  const all = useMemo(() => (studios.rows ?? []).filter((studio) => !isTestStudio(studio)), [studios.rows]);
   const now = useNow();
   const DAY = 86_400_000;
   const ageOf = (iso: string | null) => (iso ? now - Date.parse(iso) : Infinity);
@@ -48,7 +50,7 @@ export function HomePage() {
   const matured = counted.filter((studio) => ageOf(studio.createdAt) > 14 * DAY && ageOf(studio.createdAt) <= 104 * DAY);
   const converted = matured.filter((studio) => funnelStage(studio) === "paying").length;
   const channels30 = funnelBy(
-    (sourced.rows ?? []).filter((row) => ageOf(row.studio.createdAt) <= 30 * DAY),
+    (sourced.rows ?? []).filter((row) => !isTestStudio(row.studio) && ageOf(row.studio.createdAt) <= 30 * DAY),
     (row) => ({ key: row.source.channel, label: CHANNEL_LABELS[row.source.channel] }),
   );
 

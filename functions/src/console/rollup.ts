@@ -3,6 +3,7 @@ import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
 import { DEFAULT_HEALTH_WEIGHTS, type HealthWeightKey, type SetupKey } from "./model.js";
 import { roleFromClaims } from "./roles.js";
 import { buildStudioSummary, type StudioRaw } from "./summary.js";
+import { isTestStudio } from "./test-studios.js";
 
 /**
  * Fills the Console's summary rows (docs/console.md).
@@ -368,10 +369,11 @@ export async function writeDailyMetrics(db: Firestore, now = new Date()) {
   const rows = await db
     .collection("consoleStudios")
     .where("removed", "==", false)
-    .select("mrrCents", "subscriptionStatus", "comped", "lifecycle", "createdAt", "potentialMrrCents")
+    .select("mrrCents", "subscriptionStatus", "comped", "lifecycle", "createdAt", "potentialMrrCents", "ownerEmail", "tags")
     .get();
   const day = now.toISOString().slice(0, 10);
-  const studios = rows.docs.map((doc) => doc.data());
+  // Our own studios are not revenue, trials or signups (Conor, 2026-10-20).
+  const studios = rows.docs.map((doc) => doc.data()).filter((studio) => !isTestStudio(studio));
   const status = (value: string) => studios.filter((studio) => studio.subscriptionStatus === value && studio.comped !== true).length;
   await db.doc(`consoleMetrics/${day}`).set({
     id: day,
