@@ -16,6 +16,7 @@ import {
 import { daysUntil, money, relative } from "@/lib/console/format";
 import { billingMomentText, downloadCsv, planLabel, studioHref, subscriptionBadge, toCsv } from "@/lib/console/studio-display";
 import { useNow } from "@/lib/console/use-now";
+import { REAL_TAG, TEST_TAG, isTeamEmail, isTestStudio } from "@/features/console/test-studios";
 import { useConsole } from "../console-context";
 import { Topbar } from "../console-frame";
 import { EmailStudioDialog, TagsDialog, TaskDialog } from "../crm-dialogs";
@@ -92,10 +93,28 @@ export function StudiosPage() {
   const now = useNow();
 
   const everyStudio = studios.rows;
+  // Our own studios (team-owned or tagged "test") stay out of the tabs,
+  // counts and stats unless asked for, so the list is real customers.
+  // Linkable as ?test=1.
+  const showTest = params.get("test") === "1";
+  const testCount = useMemo(() => (everyStudio ?? []).filter(isTestStudio).length, [everyStudio]);
   const all = useMemo(
-    () => (everyStudio && trade ? everyStudio.filter((studio) => tradeOf(studio.trade) === trade) : everyStudio),
-    [everyStudio, trade],
+    () => everyStudio?.filter((studio) => (showTest || !isTestStudio(studio)) && (!trade || tradeOf(studio.trade) === trade)) ?? null,
+    [everyStudio, trade, showTest],
   );
+  const setShowTest = (next: boolean) => {
+    const query = new URLSearchParams(params.toString());
+    if (next) query.set("test", "1");
+    else query.delete("test");
+    router.replace(`${pathname}${query.size ? `?${query}` : ""}`, { scroll: false });
+    setSelection({});
+  };
+  const markTest = (studio: ConsoleStudio, test: boolean) => {
+    const others = (studio.tags ?? []).filter((item) => ![TEST_TAG, REAL_TAG].includes(item.trim().toLowerCase()));
+    // A team-owned studio needs "real" to come back; any other needs nothing.
+    const tags = test ? [...others, TEST_TAG] : isTeamEmail(studio.ownerEmail) ? [...others, REAL_TAG] : others;
+    void run("setStudioTags", { tenantIds: [studio.tenantId], tags, mode: "replace" }, { done: test ? `${studio.name} is hidden as a test studio.` : `${studio.name} shows as a real studio.` });
+  };
   const counts = useMemo(
     () => Object.fromEntries(STUDIO_VIEWS.map((item) => [item.key, (all ?? []).filter((studio) => item.test(studio, now)).length])),
     // `now` moves every render; counts only need the rows.
@@ -273,6 +292,9 @@ export function StudiosPage() {
                     { label: "Email owner…", onSelect: () => setDialog({ kind: "email", ids: [row.original.tenantId] }) },
                     { label: "Add task…", onSelect: () => setDialog({ kind: "task", ids: [row.original.tenantId] }) },
                     { label: "Tags…", onSelect: () => setDialog({ kind: "tags", ids: [row.original.tenantId] }) },
+                    isTestStudio(row.original)
+                      ? { label: "Mark as real", onSelect: () => markTest(row.original, false) }
+                      : { label: "Mark as test", onSelect: () => markTest(row.original, true) },
                   ]
                 : []),
               ...billing.menuItems(row.original),
@@ -283,7 +305,7 @@ export function StudiosPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [can, router, billing.menuItems],
+    [can, router, billing.menuItems, run],
   );
 
   return (
@@ -372,6 +394,11 @@ export function StudiosPage() {
             />
             <ChipSelect label="Lifecycle" onChange={setLifecycle} options={LIFECYCLE_STAGES.map((value) => ({ value, label: LIFECYCLE_LABELS[value] }))} value={lifecycle} />
             {tags.length ? <ChipSelect label="Tag" onChange={setTag} options={tags.map((value) => ({ value, label: value }))} value={tag} /> : null}
+            {testCount ? (
+              <button aria-pressed={showTest} className="cx-chip" data-active={showTest ? "true" : undefined} onClick={() => setShowTest(!showTest)} type="button">
+                {showTest ? `Hide test studios (${testCount})` : `Show test studios (${testCount})`}
+              </button>
+            ) : null}
           </FilterBar>
         )}
 

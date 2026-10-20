@@ -142,7 +142,7 @@ test("the Console's Studios page filters by trade, counts and all", () => {
   assert.match(page, /const filtered = Boolean\(plan \|\| trade \|\|/);
   assert.match(page, /params\.get\("trade"\)/);
   // The tabs' counts and the stats follow the trade.
-  assert.match(page, /everyStudio && trade \? everyStudio\.filter\(\(studio\) => tradeOf\(studio\.trade\) === trade\)/);
+  assert.match(page, /\(!trade \|\| tradeOf\(studio\.trade\) === trade\)/);
 });
 
 test("signup always asks what you do, starting on the trade you came for", () => {
