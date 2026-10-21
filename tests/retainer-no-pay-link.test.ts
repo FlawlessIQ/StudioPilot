@@ -116,13 +116,15 @@ test("the payments page and the studio page use the shared decision", () => {
   assert.match(studio, /QUICKBOOKS_NO_PAY_LINK_NOTE/);
 });
 
-test("QuickBooks invoices are created with online card and bank payment allowed", () => {
+test("QuickBooks invoices are created with the studio's online payment methods", () => {
   const runtime = readFileSync("functions/src/operations/provider-runtime.ts", "utf8");
-  assert.match(runtime, /AllowOnlineCreditCardPayment:\s*true/);
-  assert.match(runtime, /AllowOnlineACHPayment:\s*true/);
+  // The studio's choice, bank transfer only by default (GR, 2026-10-21) —
+  // never both forced on (tests/billing-guards.test.ts).
+  assert.match(runtime, /const payFlags=await quickBooksOnlinePaymentFlagsFor\(db,tenantId\);/);
+  assert.doesNotMatch(runtime, /AllowOnlineCreditCardPayment:\s*true/);
   const create = runtime.slice(runtime.indexOf("export async function createQuickBooksInvoice"));
   const body = create.slice(create.indexOf('"QUICKBOOKS_CREATE_FAILED"') - 2000, create.indexOf('"QUICKBOOKS_CREATE_FAILED"'));
-  assert.match(body, /\.\.\.\(online\?QUICKBOOKS_ONLINE_PAYMENT_FLAGS:\{\}\)/);
+  assert.match(body, /\.\.\.\(online\?payFlags:\{\}\)/);
   // A company that refused the flags still gets its invoice: a 400 created
   // nothing, so it is asked once more without them, under its own request id
   // (and, after that, without tax codes — quickbooks-invoice-lines.test.ts).

@@ -417,7 +417,7 @@ test("the worker sends the lines, keeps the online-payment retry, and reads the 
   const body = source.slice(start, source.indexOf("export async function voidQuickBooksInvoice(", start));
   assert.match(body, /planQuickBooksInvoiceLines\(db,invoice\)/);
   assert.match(body, /Line:payload\.Line/);
-  assert.match(body, /QUICKBOOKS_ONLINE_PAYMENT_FLAGS/);
+  assert.match(body, /\.\.\.\(online\?payFlags:\{\}\)/);
   assert.match(body, /quickBooksAmountCheck\(/);
   assert.match(body, /providerAmountMismatch/);
   assert.doesNotMatch(body, /Description:String\(invoice\.get\("kind"\)\)/, "the one-line 'retainer' invoice is gone");

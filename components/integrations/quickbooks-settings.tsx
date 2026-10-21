@@ -77,6 +77,10 @@ export function QuickBooksSettings() {
   const [mode, setMode] = useState<SalesTaxMode>("none");
   const [rate, setRate] = useState("");
   const [holdRetainer, setHoldRetainer] = useState(false);
+  // How clients pay a QuickBooks invoice online: bank transfer only unless
+  // the studio turns card on (GR, 2026-10-21).
+  const [payByCard, setPayByCard] = useState(false);
+  const [payByBank, setPayByBank] = useState(true);
   const [test, setTest] = useState<QuickBooksTestResult | null>(null);
 
   const load = useCallback(async () => {
@@ -97,6 +101,8 @@ export function QuickBooksSettings() {
         ),
       );
       setHoldRetainer(next.settings.holdRetainerForReview);
+      setPayByCard(next.settings.quickbooksPayMethods.card);
+      setPayByBank(next.settings.quickbooksPayMethods.bank);
       setTest(next.lastTest);
     } catch (caught: unknown) {
       setNotice(errorWords(caught, "QuickBooks couldn't be read."));
@@ -124,6 +130,7 @@ export function QuickBooksSettings() {
       const result = await saveBillingSettings(tenantId!, {
         salesTax: { mode, estimateRateBasisPoints: mode === "quickbooks" ? rateBasisPoints : null },
         holdRetainerForReview: holdRetainer,
+        quickbooksPayMethods: { card: payByCard, bank: payByBank },
       });
       setNotice(result.persisted ? "Saved." : "Preview mode: nothing was saved.");
       if (result.persisted) await load();
@@ -276,8 +283,26 @@ export function QuickBooksSettings() {
               <input checked={holdRetainer} onChange={(event) => setHoldRetainer(event.target.checked)} type="checkbox" />
               <span>Hold retainer invoices for my review before they go</span>
             </label>
+            <div className="qb-settings-pay-methods" role="group" aria-labelledby="qb-pay-methods-label">
+              <span className="qb-settings-hint" id="qb-pay-methods-label">
+                Clients can pay StudioCue&rsquo;s QuickBooks invoices online by
+              </span>
+              <label className="autopay-toggle">
+                <input checked={payByBank} onChange={(event) => setPayByBank(event.target.checked)} type="checkbox" />
+                <span>Bank transfer (QuickBooks charges you 1%, up to $20)</span>
+              </label>
+              <label className="autopay-toggle">
+                <input checked={payByCard} onChange={(event) => setPayByCard(event.target.checked)} type="checkbox" />
+                <span>Card (QuickBooks charges you about 3.4% + 25¢)</span>
+              </label>
+              {!payByBank && !payByCard ? (
+                <small className="form-error" role="alert">
+                  Choose at least one. Without one, the invoice has no pay link.
+                </small>
+              ) : null}
+            </div>
             <div>
-              <button className="button button-dark" disabled={busy !== null || rateInvalid} onClick={() => void save()} type="button">
+              <button className="button button-dark" disabled={busy !== null || rateInvalid || (!payByBank && !payByCard)} onClick={() => void save()} type="button">
                 {busy === "save" ? <LoaderCircle className="spin" size={14} /> : null}
                 Save
               </button>

@@ -38,3 +38,16 @@ test("moving a job to QuickBooks voids its unpaid StudioCue bills and raises the
   // Says so first, by number.
   assert.match(read("components/booking/job-billing-choice.tsx"), /confirmLabel="Move it to QuickBooks"/);
 });
+
+test("QuickBooks invoices offer bank transfer only unless the studio turns card on", async () => {
+  const settings = await import("../features/billing/sales-tax-settings");
+  const flags = (raw: unknown) => settings.quickBooksOnlinePaymentFlags(settings.normaliseBillingSettings(raw, "t").quickbooksPayMethods);
+  assert.deepEqual(flags(null), { AllowOnlineCreditCardPayment: false, AllowOnlineACHPayment: true });
+  assert.deepEqual(flags({ quickbooksPayMethods: { card: true, bank: true } }), { AllowOnlineCreditCardPayment: true, AllowOnlineACHPayment: true });
+  assert.deepEqual(flags({ quickbooksPayMethods: { card: true, bank: false } }), { AllowOnlineCreditCardPayment: true, AllowOnlineACHPayment: false });
+  // Never neither: an invoice with no online method has no pay link.
+  assert.deepEqual(flags({ quickbooksPayMethods: { card: false, bank: false } }), { AllowOnlineCreditCardPayment: false, AllowOnlineACHPayment: true });
+  // Every path that creates one reads the studio's choice.
+  for (const path of ["functions/src/operations/provider-runtime.ts", "functions/src/operations/quickbooks-held-invoice.ts", "functions/src/group-events/participant-invoices.ts"])
+    assert.doesNotMatch(read(path), /AllowOnlineCreditCardPayment: ?true|QUICKBOOKS_ONLINE_PAYMENT_FLAGS/, path);
+});

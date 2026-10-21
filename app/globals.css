@@ -14341,6 +14341,12 @@ form:has(> .address-field) > .address-field,
   max-width: 62ch;
 }
 
+/* Clients can pay online by: bank / card (Integrations → QuickBooks). */
+.qb-settings-pay-methods {
+  display: grid;
+  gap: 6px;
+}
+
 .qb-settings-hint.is-attention {
   color: #9a5b00;
 }

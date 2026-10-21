@@ -14,6 +14,7 @@ import { hasPaymentsScope } from "../billing/autopay-core.js";
 import {
   MAX_ESTIMATE_RATE_BASIS_POINTS,
   normaliseBillingSettings,
+  normaliseQuickBooksPayMethods,
 } from "../billing/sales-tax-settings.js";
 import {
   STUDIO_INVOICE_MAX_DUE_DAYS,
@@ -158,6 +159,8 @@ const commandSchema = z.discriminatedUnion("type", [
         estimateRateBasisPoints: z.number().int().min(0).max(MAX_ESTIMATE_RATE_BASIS_POINTS).nullable(),
       }),
       holdRetainerForReview: z.boolean(),
+      // Optional so a screen from before the setting still saves.
+      quickbooksPayMethods: z.object({ card: z.boolean(), bank: z.boolean() }).optional(),
     }),
   }),
   z.object({
@@ -573,7 +576,7 @@ export const integrationsCommand = onRequest(
         }
 
         if (command.type === "setBillingSettings") {
-          const { salesTax, holdRetainerForReview } = command.input;
+          const { salesTax, holdRetainerForReview, quickbooksPayMethods } = command.input;
           const settingsReference = db.doc(`billingSettings/${command.tenantId}`);
           const existing = await transaction.get(settingsReference);
           const before = normaliseBillingSettings(
@@ -589,6 +592,7 @@ export const integrationsCommand = onRequest(
                 estimateRateBasisPoints: salesTax.estimateRateBasisPoints,
               },
               holdRetainerForReview,
+              quickbooksPayMethods: normaliseQuickBooksPayMethods(quickbooksPayMethods ?? before.quickbooksPayMethods),
               quickbooksItems: before.quickbooksItems,
               updatedAt: timestamp,
               updatedBy: identity.uid,

@@ -27,6 +27,13 @@ export type BillingSettings = {
   };
   /** Retainer invoices wait for the studio's review before they go. */
   holdRetainerForReview: boolean;
+  /**
+   * How clients may pay a QuickBooks invoice online. StudioCue must say:
+   * QuickBooks applies none of the studio's own defaults to an invoice made
+   * through its API. Bank transfer only unless the studio turns card on —
+   * card on every invoice was StudioCue overriding GR's choice (2026-10-21).
+   */
+  quickbooksPayMethods: QuickBooksPayMethods;
   /** The StudioCue items in the studio's QuickBooks, once set up. */
   quickbooksItems: {
     retainerItemId: string | null;
@@ -35,6 +42,27 @@ export type BillingSettings = {
   updatedAt: string | null;
   updatedBy: string | null;
 };
+
+export type QuickBooksPayMethods = { card: boolean; bank: boolean };
+
+export const DEFAULT_QUICKBOOKS_PAY_METHODS: QuickBooksPayMethods = { card: false, bank: true };
+
+/** The studio's choice; never neither, since an invoice with no online method has no pay link. */
+export function normaliseQuickBooksPayMethods(value: unknown): QuickBooksPayMethods {
+  const record = settingsRecord(value);
+  const card = typeof record.card === "boolean" ? record.card : DEFAULT_QUICKBOOKS_PAY_METHODS.card;
+  const bank = typeof record.bank === "boolean" ? record.bank : DEFAULT_QUICKBOOKS_PAY_METHODS.bank;
+  return card || bank ? { card, bank } : { ...DEFAULT_QUICKBOOKS_PAY_METHODS };
+}
+
+/** The QuickBooks invoice fields that switch on the studio's online payment methods. */
+export function quickBooksOnlinePaymentFlags(methods: QuickBooksPayMethods): {
+  AllowOnlineCreditCardPayment: boolean;
+  AllowOnlineACHPayment: boolean;
+} {
+  const chosen = normaliseQuickBooksPayMethods(methods);
+  return { AllowOnlineCreditCardPayment: chosen.card, AllowOnlineACHPayment: chosen.bank };
+}
 
 /** What a settings read can say about the connected QuickBooks company. */
 export type BillingSettingsHint = {
@@ -71,6 +99,7 @@ export function defaultBillingSettings(tenantId: string, hint: BillingSettingsHi
     tenantId,
     salesTax: { mode: hint.quickBooksSalesTax === true ? "quickbooks" : "none", estimateRateBasisPoints: null },
     holdRetainerForReview: false,
+    quickbooksPayMethods: { ...DEFAULT_QUICKBOOKS_PAY_METHODS },
     quickbooksItems: { retainerItemId: null, packageItemId: null },
     updatedAt: null,
     updatedBy: null,
@@ -97,6 +126,7 @@ export function normaliseBillingSettings(
     tenantId: fallback.tenantId,
     salesTax: { mode, estimateRateBasisPoints: normaliseEstimateRate(salesTax.estimateRateBasisPoints) },
     holdRetainerForReview: record.holdRetainerForReview === true,
+    quickbooksPayMethods: normaliseQuickBooksPayMethods(record.quickbooksPayMethods),
     quickbooksItems: {
       retainerItemId: settingsText(items.retainerItemId),
       packageItemId: settingsText(items.packageItemId),

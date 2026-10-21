@@ -122,7 +122,12 @@ export async function sendQuickBooksTestInvoice(tenantId: string): Promise<Quick
 /** Save the sales tax choice, the estimate rate and retainer review. */
 export async function saveBillingSettings(
   tenantId: string,
-  input: { salesTax: { mode: SalesTaxMode; estimateRateBasisPoints: number | null }; holdRetainerForReview: boolean },
+  input: {
+    salesTax: { mode: SalesTaxMode; estimateRateBasisPoints: number | null };
+    holdRetainerForReview: boolean;
+    /** Left out: what the studio saved stays. */
+    quickbooksPayMethods?: { card: boolean; bank: boolean };
+  },
 ): Promise<{ persisted: boolean }> {
   if (!quickBooksSetupAvailable()) return { persisted: false };
   const endpoint = functionsEndpoint();

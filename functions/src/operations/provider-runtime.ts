@@ -1,4 +1,5 @@
 import { tradeProfile, tradeVocab } from "../trades/trades.js";
+import { quickBooksOnlinePaymentFlagsFor } from "../billing/quickbooks-pay-methods.js";
 import { consultationPurpose } from "../booking/consultation-purpose.js";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -1675,8 +1676,12 @@ async function findQuickBooksInvoiceByDocNumber(
 }
 
 /**
- * Ask QuickBooks to let the client pay this invoice online, by card and by
- * bank transfer.
+ * Ask QuickBooks to let the client pay this invoice online — by the methods
+ * the studio chose (billingSettings.quickbooksPayMethods: bank transfer only
+ * unless it turns card on; billing/quickbooks-pay-methods.ts). Card and bank
+ * were both forced on here until GR found card on every invoice, over his own
+ * QuickBooks default (2026-10-21): QuickBooks applies no company default to an
+ * invoice made through its API, so StudioCue must say.
  *
  * Never set before, so every invoice StudioCue made was created with online
  * payment off — and an invoice with online payment off has no InvoiceLink,
@@ -1690,10 +1695,6 @@ async function findQuickBooksInvoiceByDocNumber(
  * company ever refuses them, the create fails loudly (QUICKBOOKS_CREATE_FAILED)
  * rather than silently — look here first.
  */
-export const QUICKBOOKS_ONLINE_PAYMENT_FLAGS = {
-  AllowOnlineCreditCardPayment: true,
-  AllowOnlineACHPayment: true,
-} as const;
 
 /**
  * The shareable link QuickBooks puts behind its own "Review and pay" button.
@@ -1830,7 +1831,7 @@ async function adoptQuickBooksInvoice(
 
 /** This runtime's own helpers, lent to the gated QuickBooks workers (quickbooks-held-invoice.ts). */
 function heldInvoiceDeps():HeldInvoiceDeps{
-  return{connection:(tenantId)=>connection(tenantId,"quickbooks"),request:providerJson,mockId,docNumber:studioCueDocNumber,onlinePaymentFlags:QUICKBOOKS_ONLINE_PAYMENT_FLAGS,customerId:(tenantId,projectId,invoice,credential,realmId,key)=>quickBooksCustomerId(tenantId,projectId,invoice,credential,realmId,key),fallbackItemRef:(base,realmId,credential,key)=>quickBooksItemRef(base,realmId,credential,key),invoiceLink:(base,realmId,credential,id)=>quickBooksInvoiceLink(base,realmId,credential,id),enqueueInvoiceEmail:enqueueRetainerEmail,clientEmailFor,landProviderInvoice,skipClosedInvoice};
+  return{connection:(tenantId)=>connection(tenantId,"quickbooks"),request:providerJson,mockId,docNumber:studioCueDocNumber,onlinePaymentFlags:(tenantId)=>quickBooksOnlinePaymentFlagsFor(getFirestore(),tenantId),customerId:(tenantId,projectId,invoice,credential,realmId,key)=>quickBooksCustomerId(tenantId,projectId,invoice,credential,realmId,key),fallbackItemRef:(base,realmId,credential,key)=>quickBooksItemRef(base,realmId,credential,key),invoiceLink:(base,realmId,credential,id)=>quickBooksInvoiceLink(base,realmId,credential,id),enqueueInvoiceEmail:enqueueRetainerEmail,clientEmailFor,landProviderInvoice,skipClosedInvoice};
 }
 
 /** Job `release_quickbooks_invoice`: the studio's "Send with tax" / "Send without tax" / "Work the tax out again". */
@@ -1858,8 +1859,8 @@ export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=get
       // studio switched on to itemised invoices: one that isn't gets no new
       // items in its QuickBooks and exactly the invoice it always had.
       const itemRef=(plan.itemised?await studioCueInvoiceItemRefs({tenantId,company:quickBooksCompany({apiBaseUrl:base,realmId,accessToken:credential.accessToken,request:providerJson}),idempotencyKey:itemKey}):null)??await quickBooksItemRef(base,realmId,credential,itemKey);const requestId=String(job.get("idempotencyKey")??job.id);
-      const billEmail=quickBooksBillEmail(await clientEmailFor(db,tenantId,String(invoice.get("projectId"))));
-      const createInvoice=(online:boolean,mode:QuickBooksTaxMode,suffix:string)=>{const payload=quickBooksLinePayload({lines:plan.lines,taxCents:plan.taxCents,mode,itemRef});return providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":`${requestId}${suffix}`},body:JSON.stringify({...(ourNumber?{DocNumber:ourNumber}:{}),CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,...billEmail,...(online?QUICKBOOKS_ONLINE_PAYMENT_FLAGS:{}),Line:payload.Line,...(payload.TxnTaxDetail?{TxnTaxDetail:payload.TxnTaxDetail}:{})})},"QUICKBOOKS_CREATE_FAILED")};
+      const billEmail=quickBooksBillEmail(await clientEmailFor(db,tenantId,String(invoice.get("projectId"))));const payFlags=await quickBooksOnlinePaymentFlagsFor(db,tenantId);
+      const createInvoice=(online:boolean,mode:QuickBooksTaxMode,suffix:string)=>{const payload=quickBooksLinePayload({lines:plan.lines,taxCents:plan.taxCents,mode,itemRef});return providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":`${requestId}${suffix}`},body:JSON.stringify({...(ourNumber?{DocNumber:ourNumber}:{}),CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,...billEmail,...(online?payFlags:{}),Line:payload.Line,...(payload.TxnTaxDetail?{TxnTaxDetail:payload.TxnTaxDetail}:{})})},"QUICKBOOKS_CREATE_FAILED")};
       const refused=(error:unknown)=>String((error as Error)?.message??"").startsWith("QUICKBOOKS_CREATE_FAILED:400:");
       // A refused request (400) created nothing, so asking again cannot
       // duplicate the invoice. First without the online-payment flags (a

@@ -86,7 +86,8 @@ export type HeldInvoiceDeps = {
   request: QuickBooksRequest;
   mockId(scope: string, id: string): string;
   docNumber(invoiceId: string): string;
-  onlinePaymentFlags: Record<string, unknown>;
+  /** The studio's online payment methods (billing/quickbooks-pay-methods.ts). */
+  onlinePaymentFlags(tenantId: string): Promise<Record<string, unknown>>;
   customerId(
     tenantId: string,
     projectId: string,
@@ -261,6 +262,7 @@ export async function createGatedQuickBooksInvoice(input: {
       (ourNumber ? await findByDocNumber(company, ourNumber) : null);
     if (!created) {
       const billEmail = quickBooksBillEmail(await deps.clientEmailFor(db, tenantId, projectId));
+      const payFlags = await deps.onlinePaymentFlags(tenantId);
       const post = (online: boolean, body: GatedPayload, suffix: string) =>
         company.post(
           "invoice",
@@ -272,7 +274,7 @@ export async function createGatedQuickBooksInvoice(input: {
             // The couple's email, for the pay link; StudioCue does the
             // emailing, so QuickBooks creating the invoice never reaches them.
             ...billEmail,
-            ...(online ? deps.onlinePaymentFlags : {}),
+            ...(online ? payFlags : {}),
             Line: body.Line,
             ...(body.TxnTaxDetail ? { TxnTaxDetail: body.TxnTaxDetail } : {}),
           },

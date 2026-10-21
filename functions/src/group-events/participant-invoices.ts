@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { getFirestore, type DocumentSnapshot, type Firestore, type WriteBatch } from "firebase-admin/firestore";
+import { quickBooksOnlinePaymentFlagsFor } from "../billing/quickbooks-pay-methods.js";
 import {
-  QUICKBOOKS_ONLINE_PAYMENT_FLAGS,
   connection,
   mockId,
   providerJson,
@@ -183,6 +183,8 @@ export async function createParentInvoiceAt(
     packageName: string | null;
     eventName: string | null;
     requestId: string;
+    /** The studio's online payment methods (billing/quickbooks-pay-methods.ts). */
+    payFlags: Record<string, unknown>;
   },
 ): Promise<Json> {
   const preferences = await quickBooksPreferences(c.base, c.realmId, c.credential);
@@ -199,7 +201,7 @@ export async function createParentInvoiceAt(
           PrivateNote: `StudioCue group event · ${input.participantId}`,
           BillEmail: { Address: input.email },
           EmailStatus: "NotSet",
-          ...(online ? QUICKBOOKS_ONLINE_PAYMENT_FLAGS : {}),
+          ...(online ? input.payFlags : {}),
           Line: participantInvoiceLines({
             amountCents: input.amountCents,
             athleteName: input.athleteName,
@@ -311,6 +313,7 @@ export async function createQuickBooksParticipantInvoice(job: DocumentSnapshot) 
         packageName: text(participant.get("packageName")) || null,
         eventName: text(project.get("name")) || null,
         requestId,
+        payFlags: await quickBooksOnlinePaymentFlagsFor(db, tenantId),
       });
       adopted = value;
       providerInvoiceId = text(adopted.Id);
