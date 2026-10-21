@@ -461,6 +461,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   // Invoices the studio issues itself (bookingCommand sendStudioInvoice / createStudioDeposit).
   NOT_A_STUDIO_INVOICE: "This bill isn't one StudioCue issued for you. Open Invoices to see where it lives.",
   INVOICE_NOT_SENDABLE: "This invoice is paid or closed, so there's nothing to send.",
+  STUDIO_INVOICE_NO_WAY_TO_PAY:
+    "This invoice doesn't say how to pay yet. Add how clients pay you (Zelle, bank transfer, a payment link) first, then email it.",
   BILLING_QUICKBOOKS_JOB: "This job is billed through QuickBooks. Switch it to \u201cBill it myself\u201d on its booking page first.",
   INVOICE_NOT_DRAFTED: "The deposit invoice couldn't be made. Check the job has an accepted package, then try again.",
   // Deleting invoice records (bookingCommand deleteInvoiceRecords; billing/invoice-purge-policy.ts).

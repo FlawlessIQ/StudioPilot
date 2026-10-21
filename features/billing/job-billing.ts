@@ -7,8 +7,7 @@
  * - A studio with no QuickBooks bills every job itself. Nobody is asked.
  * - A studio with QuickBooks chooses per job, on the job's first bill. Until
  *   it has, a bill raised without a person (the deposit on signing, the
- *   28-day final) follows the studio's last choice, or QuickBooks if it has
- *   never chosen — which is what every job did before the choice existed.
+ *   28-day final) goes to QuickBooks — never to another job's choice.
  * - A job that already has bills at QuickBooks stays there, so an existing
  *   booking never silently changes hands.
  * - A job chosen for QuickBooks whose QuickBooks has since been
@@ -32,7 +31,7 @@ export type JobBillingReason =
   | "chosen"
   /** Not chosen, but this job already has bills at QuickBooks. */
   | "existing_bills"
-  /** Not chosen yet: the studio's last choice, or QuickBooks. */
+  /** Not chosen yet: QuickBooks, the studio's own books. */
   | "suggested"
   /** Chosen for QuickBooks, which is no longer connected. */
   | "quickbooks_disconnected";
@@ -66,7 +65,8 @@ export function chosenJobBillingMethod(project: unknown): JobBillingMethod | nul
  * `quickbooksReady`: QuickBooks resolves as the studio's invoicing provider
  * now (connected, not archived; see resolveActiveProvider).
  * `hasQuickBooksBills`: the job has a standing bill whose provider is
- * QuickBooks. `lastChoice`: `billingSettings.lastJobBillingMethod`.
+ * QuickBooks. `lastChoice`: `billingSettings.lastJobBillingMethod`, which
+ * decides nothing (below).
  */
 export function jobBilling(input: {
   project: unknown;
@@ -87,8 +87,13 @@ export function jobBilling(input: {
   if (input.hasQuickBooksBills === true) {
     return { method: "quickbooks", decided: true, canChoose: true, reason: "existing_bills" };
   }
+  // Not chosen on this job: QuickBooks. Following the last choice on
+  // another job sent Michelle & Kyle's deposit as a StudioCue PDF because
+  // GR's previous job (a corporate party) was billed by hand — a studio
+  // with QuickBooks bills there unless it says otherwise on the job
+  // (GR Productions, 2026-10-21).
   return {
-    method: isJobBillingMethod(input.lastChoice) ? input.lastChoice : "quickbooks",
+    method: "quickbooks",
     decided: false,
     canChoose: true,
     reason: "suggested",

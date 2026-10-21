@@ -134,6 +134,8 @@ test("an invoice never goes out silent about paying (Riley Park, 2026-10-10)", a
   });
   assert.match(email.text, /Spin Theory DJs will let you know how to pay\. Reply to this email with any questions\./);
   const actions = read("components/booking/studio-invoice-actions.tsx");
-  assert.match(actions, /You haven't added how clients pay you yet, so it won't say how to pay/);
+  // Warning wasn't enough (GR, 2026-10-21): emailing is refused, and the
+  // button becomes the way to add them (tests/billing-guards.test.ts).
+  assert.match(actions, /Add how clients pay you before you email it, so it says how to pay\./);
   assert.match(read("features/today/inbox.ts"), /Add how clients pay you first \(Settings → Invoices and payments\)/);
 });

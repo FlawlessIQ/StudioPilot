@@ -72,6 +72,13 @@ export async function sendStudioInvoice(context: CommandContext, input: z.infer<
     const settings = normaliseStudioInvoiceSettings(
       settingsDoc.exists && settingsDoc.get("tenantId") === context.tenantId ? settingsDoc.data() : null,
     );
+    // An emailed invoice must say how to pay. One that didn't left Michelle
+    // & Kyle (GR, 2026-10-21) with $1,000 due and nothing to pay it with —
+    // the confirm step only warned. "I sent it myself" still records a bill
+    // the studio handed over its own way, with its own instructions.
+    const invoicePayLink = text(invoice.get("payLinkUrl")) || settings.payLinkUrl;
+    if (input.via === "email" && !invoicePayLink && !settings.paymentInstructions)
+      throw new Error("STUDIO_INVOICE_NO_WAY_TO_PAY");
     const now = context.timestamp;
     const firstSend = status === "draft";
     transaction.update(invoiceReference, {
@@ -84,7 +91,7 @@ export async function sendStudioInvoice(context: CommandContext, input: z.infer<
     let emailJobId: string | null = null;
     if (input.via === "email") {
       emailJobId = `studio_invoice_${invoice.id}_${createHash("sha256").update(context.idempotencyKey).digest("hex").slice(0, 12)}`;
-      const payLink = text(invoice.get("payLinkUrl")) || settings.payLinkUrl;
+      const payLink = invoicePayLink;
       const kind = text(invoice.get("kind"));
       transaction.set(db.doc(`emailJobs/${emailJobId}`), {
         id: emailJobId,

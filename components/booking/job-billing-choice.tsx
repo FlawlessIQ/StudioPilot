@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { LoaderCircle } from "lucide-react";
+import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
+import { ConfirmStep } from "@/components/ui/confirm-step";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { isStandingInvoice } from "@/features/booking/invoice-standing";
+import { formatCentsExact } from "@/lib/format/money";
 import type { JobBilling, JobBillingMethod } from "@/features/billing/job-billing";
 import { setJobBillingMethod } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
@@ -26,7 +30,10 @@ const OPTIONS: ReadonlyArray<{ method: JobBillingMethod; label: string; detail: 
  *
  * Shown only to a studio with QuickBooks: without it there's nothing to
  * choose, and every job is the studio's to bill. Bills already raised stay
- * where they are; the choice decides the next one.
+ * where they are; the choice decides the next one — except unpaid bills
+ * StudioCue issued, which move with a switch to QuickBooks: voided, and the
+ * deposit raised there at once (booking/job-billing-method.ts). The switch
+ * says so first, by number.
  */
 export function JobBillingChoice({
   projectId,
@@ -40,6 +47,18 @@ export function JobBillingChoice({
   const workspace = useWorkspace();
   const [busy, setBusy] = useState<JobBillingMethod | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingMove, setConfirmingMove] = useState(false);
+  const { records: invoices } = useTenantDocuments("invoiceReferences");
+  // Unpaid bills StudioCue issued on this job: a switch to QuickBooks voids them.
+  const movingBills = (invoices ?? []).filter(
+    (invoice) =>
+      invoice.projectId === projectId &&
+      invoice.billedBy === "studio" &&
+      !invoice.provider &&
+      isStandingInvoice(invoice.status) &&
+      invoice.status !== "paid" &&
+      Number(invoice.amountCents ?? 0) - Number(invoice.balanceCents ?? 0) <= 0,
+  );
   if (!billing || !["studio_owner", "studio_admin"].includes(String(workspace.role))) return null;
   if (!billing.canChoose) {
     return billing.reason === "quickbooks_disconnected" ? (
@@ -53,17 +72,27 @@ export function JobBillingChoice({
     ) : null;
   }
 
-  async function choose(method: JobBillingMethod) {
+  async function choose(method: JobBillingMethod, confirmed = false) {
     if (billing?.decided && billing.method === method) return;
+    if (method === "quickbooks" && movingBills.length && !confirmed) {
+      setConfirmingMove(true);
+      return;
+    }
+    setConfirmingMove(false);
     setBusy(method);
     setError(null);
     try {
       const result = await setJobBillingMethod({ projectId, method });
+      const payload = result.mode === "live" ? result.payload : {};
+      const voided = Array.isArray(payload.voided) ? (payload.voided as string[]) : [];
+      if (voided.length) refreshTenantRecords("invoiceReferences", "projects");
       onChanged(
         result.mode === "preview"
           ? "Preview mode: how this job is billed was not saved."
           : method === "quickbooks"
-            ? "This job's bills go through QuickBooks from now on."
+            ? voided.length
+              ? `${voided.join(" and ")} ${voided.length === 1 ? "is" : "are"} void, and this job bills through QuickBooks from now on.${payload.depositRaised ? " The deposit is going to QuickBooks now, and your client gets it with QuickBooks' pay link." : ""}`
+              : "This job's bills go through QuickBooks from now on."
             : "You're billing this job yourself. Nothing new goes to QuickBooks.",
       );
     } catch (caught: unknown) {
@@ -104,6 +133,25 @@ export function JobBillingChoice({
           );
         })}
       </div>
+      {confirmingMove ? (
+        <ConfirmStep
+          busy={busy !== null}
+          cancelLabel="Not now"
+          confirmClassName="button button-dark"
+          confirmLabel="Move it to QuickBooks"
+          label="Move this job's bills to QuickBooks?"
+          onCancel={() => setConfirmingMove(false)}
+          onConfirm={() => void choose("quickbooks", true)}
+        >
+          {`${movingBills
+            .map((invoice) => `${String(invoice.number ?? "An invoice")} (${formatCentsExact(Number(invoice.balanceCents ?? 0))})`)
+            .join(" and ")} from StudioCue will be voided, and your client sees it marked void. ${
+            movingBills.some((invoice) => invoice.kind === "retainer")
+              ? "The deposit is raised in QuickBooks right away and emailed with its pay link, so your client can pay by card or bank transfer."
+              : "Create the next bill from here and it goes through QuickBooks."
+          }`}
+        </ConfirmStep>
+      ) : null}
       {error ? (
         <small className="form-notice" role="alert">
           {error}

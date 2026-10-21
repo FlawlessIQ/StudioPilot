@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { FileText, LoaderCircle, Mail } from "lucide-react";
+import { FileText, LoaderCircle, Mail, ReceiptText } from "lucide-react";
 import {
   refreshTenantRecords,
   useTenantDocuments,
@@ -103,12 +104,22 @@ export function StudioInvoiceActions({
   // No instructions and no pay link: the invoice can't say how to pay, so
   // the studio is told before it goes (Riley Park, Spin Theory DJs, prod
   // walk 2026-10-10: it went out saying nothing about paying).
-  const paymentDetailsReady = studioInvoicePaymentReady(
-    normaliseStudioInvoiceSettings(billingSettings?.find((record) => record.tenantId === workspace.tenantId) ?? null),
+  // Emailing it is refused until it can (GR, 2026-10-21: the warning alone
+  // let Michelle & Kyle's deposit go out with nothing to pay it with), so
+  // the button becomes the way to add them. Still loading counts as ready.
+  const paymentDetailsReady =
+    billingSettings === null ||
+    Boolean(text(invoice.payLinkUrl)) ||
+    studioInvoicePaymentReady(
+      normaliseStudioInvoiceSettings(billingSettings.find((record) => record.tenantId === workspace.tenantId) ?? null),
+    );
+  const howToPay = "with the PDF attached and your payment details";
+  const addPaymentDetails = (
+    <Link className={primaryClassName} href="/studio/settings/invoices">
+      <ReceiptText size={14} />
+      Add how clients pay you
+    </Link>
   );
-  const howToPay = paymentDetailsReady
-    ? "with the PDF attached and your payment details"
-    : "with the PDF attached. You haven't added how clients pay you yet, so it won't say how to pay — add it first in Settings → Invoices and payments, or tell them yourself";
   const ownerOrAdmin =
     workspace.role === "studio_owner" || workspace.role === "studio_admin";
 
@@ -204,19 +215,23 @@ export function StudioInvoiceActions({
     }
     return (
       <>
-        <button
-          className={primaryClassName}
-          disabled={busy !== null}
-          onClick={() => setConfirming("email")}
-          type="button"
-        >
-          {busy === "email" ? (
-            <LoaderCircle className="spin" size={14} />
-          ) : (
-            <Mail size={14} />
-          )}
-          Email it
-        </button>
+        {paymentDetailsReady ? (
+          <button
+            className={primaryClassName}
+            disabled={busy !== null}
+            onClick={() => setConfirming("email")}
+            type="button"
+          >
+            {busy === "email" ? (
+              <LoaderCircle className="spin" size={14} />
+            ) : (
+              <Mail size={14} />
+            )}
+            Email it
+          </button>
+        ) : (
+          addPaymentDetails
+        )}
         {pdfLink ? (
           <a
             className={secondaryClassName}
@@ -264,7 +279,7 @@ export function StudioInvoiceActions({
             {settled
               ? `Paid in full. The PDF shows the payment${Array.isArray(invoice.studioPayments) && invoice.studioPayments.length > 1 ? "s" : ""}.`
               : draft
-                ? `Your ${label} invoice is ready${text(invoice.dueDate) ? `, due ${formatDueDate(invoice.dueDate)}` : ""}. Nothing has gone to ${recipient ?? "the client"} yet.`
+                ? `Your ${label} invoice is ready${text(invoice.dueDate) ? `, due ${formatDueDate(invoice.dueDate)}` : ""}. Nothing has gone to ${recipient ?? "the client"} yet.${paymentDetailsReady ? "" : " Add how clients pay you before you email it, so it says how to pay."}`
                 : `Sent ${formatDueDate(text(invoice.sentAt).slice(0, 10))}${invoice.sentVia === "self" ? " by you" : " by email"}${text(invoice.dueDate) ? ` · due ${formatDueDate(invoice.dueDate)}` : ""}.`}
           </span>
         </p>
@@ -292,7 +307,9 @@ export function StudioInvoiceActions({
         </ConfirmStep>
       ) : (
         <div className="studio-invoice-buttons">
-          {settled ? null : (
+          {settled ? null : !paymentDetailsReady ? (
+            addPaymentDetails
+          ) : (
             <button
               className={primaryClassName}
               disabled={busy !== null}

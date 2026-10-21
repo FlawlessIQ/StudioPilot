@@ -67,9 +67,11 @@ for (const [name, module] of [
     assert.equal(billing.decided, true);
   });
 
-  test(`${name}: an unchosen new job follows the last choice, else QuickBooks, and is still to be asked`, () => {
+  test(`${name}: an unchosen new job goes to QuickBooks, whatever another job chose, and is still to be asked`, () => {
+    // GR, 2026-10-21: a corporate job billed by hand made the next wedding's
+    // deposit a StudioCue PDF with no way to pay.
     assert.deepEqual(module.jobBilling({ project: {}, quickbooksReady: true, lastChoice: "studio" }), {
-      method: "studio",
+      method: "quickbooks",
       decided: false,
       canChoose: true,
       reason: "suggested",
@@ -110,11 +112,12 @@ test("screens read QuickBooks readiness the way the server does", () => {
       .reason,
     "existing_bills",
   );
-  // Another job's QuickBooks bill doesn't decide this one.
+  // Another job's QuickBooks bill doesn't decide this one: it is unchosen,
+  // so QuickBooks, and still to be asked.
   assert.equal(
     jobBillingFromRecords({ projectId: "job2", project: {}, connections, invoices: [qbBill], billingSettings: { lastJobBillingMethod: "studio" } })
-      .method,
-    "studio",
+      .reason,
+    "suggested",
   );
 });
 
