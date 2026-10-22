@@ -1203,6 +1203,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Inquiries the website held during a functions outage, delivered by
+    // crm/pending-inquiries.ts. Server only.
+    match /pendingInquiries/{inquiryId} {
+      allow read, write: if false;
+    }
+
     // A group event's public sign-up link, looked up by the token's hash. The
     // server alone reads it (app/api/public/event-signup); studios see the
     // link on the job.

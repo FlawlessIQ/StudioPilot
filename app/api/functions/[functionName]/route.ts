@@ -1,5 +1,6 @@
 import { GoogleAuth } from "google-auth-library";
 import { requestClientIp } from "@/lib/security/client-ip";
+import { holdInquiry } from "@/server/intake/hold-inquiry";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -148,15 +149,49 @@ async function proxy(
   const targetUrl = new URL(target);
   targetUrl.search = incomingUrl.search;
 
-  const upstream = await fetch(targetUrl, {
-    method: request.method,
-    headers,
-    body:
-      request.method === "GET" || request.method === "HEAD"
-        ? undefined
-        : await request.arrayBuffer(),
-    cache: "no-store",
-  });
+  const requestBody =
+    request.method === "GET" || request.method === "HEAD"
+      ? undefined
+      : new Uint8Array(await request.arrayBuffer());
+  /**
+   * The public inquiry form must never turn a client away because our
+   * functions are down (2026-10-22: two real submissions refused during an
+   * hour-long outage). When publicLeadIntake answers 5xx or not at all, the
+   * website holds the inquiry itself (server/intake/hold-inquiry.ts) and
+   * functions/src/crm/pending-inquiries.ts delivers it once they are back.
+   */
+  const holdable = functionName === "publicLeadIntake" && request.method === "POST" && requestBody !== undefined;
+  const hold = async (reason: string) => {
+    const held = await holdInquiry({
+      bytes: requestBody!,
+      appCheckToken: request.headers.get("x-firebase-appcheck"),
+      clientAddress: clientIp ?? null,
+      userAgent: reportedAgent ?? request.headers.get("user-agent"),
+      reason,
+    });
+    return Response.json(held.body, { status: held.status });
+  };
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(targetUrl, {
+      method: request.method,
+      headers,
+      body: requestBody,
+      cache: "no-store",
+    });
+  } catch (caught) {
+    if (!holdable) throw caught;
+    console.error(`functions relay: ${deployedName} unreachable`, String(caught).slice(0, 300));
+    return hold("unreachable").catch(() => Response.json({ error: "FUNCTION_UPSTREAM_UNAVAILABLE" }, { status: 502 }));
+  }
+  if (holdable && upstream.status >= 500) {
+    const detail = await upstream.text().catch(() => "");
+    console.error(`functions relay: ${deployedName} answered ${upstream.status}`, detail.slice(0, 300));
+    return hold(`upstream_${upstream.status}`).catch(() =>
+      Response.json({ error: "FUNCTION_UPSTREAM_UNAVAILABLE" }, { status: 502 }),
+    );
+  }
 
   const responseHeaders = new Headers();
   const contentType = upstream.headers.get("content-type");

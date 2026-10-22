@@ -3,7 +3,7 @@ import { dateClashes, isKindVariant } from "../job-kinds/job-kinds.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
-import { requestFingerprint, requireAppCheck } from "./security.js";
+import { addressFingerprint, requestClientAddress, requireAppCheck } from "./security.js";
 import { recordInquiryMessage } from "../intake/capture.js";
 import { afterConversion, convertInquiryToJob } from "../intake/convert.js";
 import { formInquiryDetails, queueNewInquiryAlert } from "../intake/new-inquiry-alert.js";
@@ -131,6 +131,17 @@ const missingFields = (
   return missing;
 };
 
+/** Who sent an inquiry, as far as the checks below need to know. */
+export type InquirySender = {
+  /** The client's address, for the hourly rate limit. */
+  address: string;
+  userAgent: string | null;
+  correlationId: string | null;
+};
+
+/** Where the outcome goes: the HTTP response, or a delivery of a held inquiry. */
+export type InquiryReply = { status(code: number): { json(payload: unknown): void } };
+
 export const publicLeadIntake = onRequest(
   {
     cors: studioHubCors,
@@ -149,7 +160,27 @@ export const publicLeadIntake = onRequest(
       return;
     }
 
-    const body: unknown = request.body;
+    await handlePublicInquiry(
+      request.body,
+      {
+        address: requestClientAddress(request),
+        userAgent: request.header("user-agent") ?? null,
+        correlationId: request.header("x-correlation-id") ?? null,
+      },
+      response,
+    );
+  },
+);
+
+/**
+ * Everything an inquiry goes through once its sender is trusted: the form
+ * live (App Check above), and one the website held while this function could
+ * not answer (crm/pending-inquiries.ts; app/api/functions relay — the
+ * 2026-10-22 outage turned two real submissions away). Same checks, same
+ * rate limit, same lead.
+ */
+export async function handlePublicInquiry(body: unknown, sender: InquirySender, response: InquiryReply): Promise<void> {
+  {
     const slug = slugSchema.safeParse(
       typeof body === "object" && body !== null ? (body as { tenantSlug?: unknown }).tenantSlug : undefined,
     );
@@ -203,7 +234,7 @@ export const publicLeadIntake = onRequest(
     const dayFields = dayFieldsFor(chosenType);
     const customAnswers = inquiryAnswersForLead(formConfig, chosenType, input.customAnswers);
     const eventTypeLabel = chosenType?.label ?? input.eventType;
-    const rateLimitId = requestFingerprint(request, `lead:${tenantId}`);
+    const rateLimitId = addressFingerprint(sender.address, `lead:${tenantId}`);
     const rateLimitReference = db.doc(`publicRateLimits/${rateLimitId}`);
     const nowMillis = Date.now();
     const oneHourMillis = 60 * 60 * 1000;
@@ -439,8 +470,8 @@ export const publicLeadIntake = onRequest(
         duplicate: Boolean(duplicateLead),
       },
       ipAddress: null,
-      userAgent: request.header("user-agent") ?? null,
-      correlationId: request.header("x-correlation-id") ?? randomUUID(),
+      userAgent: sender.userAgent,
+      correlationId: sender.correlationId ?? randomUUID(),
       automationRunId: null,
       providerEventId: null,
     });
@@ -576,5 +607,5 @@ export const publicLeadIntake = onRequest(
       availabilityStatus,
       missingInformation: lead.missingInformation,
     });
-  },
-);
+  }
+}

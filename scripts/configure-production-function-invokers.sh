@@ -198,6 +198,9 @@ scheduler_services=(
   # taxed (billing/billing-address-request.ts).
   billingaddressrequestscheduler
   finalinvoicescheduler
+  # Delivers inquiries the website held while publicLeadIntake could not
+  # answer (crm/pending-inquiries.ts; the 2026-10-22 outage).
+  pendinginquirydelivery
   # Drafts follow-ups for inquiries that went quiet, and offers the close.
   # Missing here, it would 403 after the next invoker reset and quiet couples
   # would silently stop being followed up.

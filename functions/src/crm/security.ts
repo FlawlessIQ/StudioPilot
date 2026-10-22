@@ -37,8 +37,21 @@ export async function requireIdentity(request: Request): Promise<DecodedIdToken>
  * private, so only the relay can have set it.
  */
 export function requestFingerprint(request: Request, scope: string): string {
+  return addressFingerprint(requestClientAddress(request), scope);
+}
+
+/** Who sent it: the address App Hosting saw, else the forwarded one. */
+export function requestClientAddress(request: Request): string {
   const client = request.header("x-studiohub-client-ip")?.trim();
   const forwarded = request.header("x-forwarded-for")?.split(",")[0]?.trim();
-  const address = client || forwarded || request.ip || "unknown";
+  return client || forwarded || request.ip || "unknown";
+}
+
+/**
+ * The same fingerprint from a stored address: an inquiry the website held
+ * during an outage (crm/pending-inquiries.ts) is rate-limited as the person
+ * who sent it, not as the scheduler that delivers it.
+ */
+export function addressFingerprint(address: string, scope: string): string {
   return createHash("sha256").update(`${scope}|${address}`).digest("hex");
 }

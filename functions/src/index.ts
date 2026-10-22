@@ -7,6 +7,7 @@ import { z } from "zod";
 import { studioHubCors } from "./security/cors.js";
 export { crmCommand } from "./crm/commands.js";
 export { publicLeadIntake } from "./crm/public-lead.js";
+export { pendingInquiryDelivery } from "./crm/pending-inquiries.js";
 export { workflowCommand } from "./workflow/commands.js";
 export { bookingCommand } from "./booking/commands.js";
 export {
