@@ -88,6 +88,13 @@ export async function sweepInvoiceRecords(
       if (page.size < 200) break;
     }
   }
+  // The booking plan stays (INVOICE_PURGE_PROTECTED); it just stops naming
+  // a bill that is gone, so the next deposit is the one it waits on.
+  const plans = await db.collection("bookingOrchestrations").where("invoiceId", "==", invoiceId).limit(20).get();
+  for (const plan of plans.docs) {
+    if (plan.get("tenantId") !== tenantId) continue;
+    await plan.ref.update({ invoiceId: null, invoiceUnlinkedAt: input.now, invoiceUnlinkedBy: input.actorId, updatedAt: input.now });
+  }
   // Records that name it by id, not by field: Cue's payment reminders and a
   // booking change's "void the old invoice" task.
   const named = [

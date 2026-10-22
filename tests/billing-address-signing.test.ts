@@ -593,9 +593,9 @@ test("the studio sees where the address came from", () => {
   const asked = { fieldProvenance: { billingAddress: { source: "couple", via: "address_request" } } };
   const form = { fieldProvenance: { billingAddress: { source: "couple", via: "form" } } };
   const studio = { fieldProvenance: { billingAddress: { source: "studio" } } };
-  assert.equal(billingAddressOrigin(signed), "confirmed by the couple at signing");
-  assert.equal(billingAddressOrigin(asked), "confirmed by the couple");
-  assert.equal(billingAddressOrigin(form), "given by the couple on their form");
+  assert.equal(billingAddressOrigin(signed), "confirmed by the client at signing");
+  assert.equal(billingAddressOrigin(asked), "confirmed by the client");
+  assert.equal(billingAddressOrigin(form), "given by the client on their form");
   assert.equal(billingAddressOrigin(studio), "added by the studio");
   assert.equal(billingAddressOrigin({}), "added by the studio");
   assert.equal(billingAddressOrigin(form, "the client"), "given by the client on their form");

@@ -149,7 +149,8 @@ export type BillingAddressProvenance = {
 /** How the couple gave it: at a signature, or when asked for it on their portal. */
 export type BillingAddressVia = "contract_signing" | "amendment_signing" | "address_request" | "form";
 
-export const COUPLE_CONFIRMED_LABEL = "Confirmed by the couple at signing";
+// "client", not "couple": a corporate client read "confirmed by the couple" (Gabe, 2026-10-22).
+export const COUPLE_CONFIRMED_LABEL = "Confirmed by the client at signing";
 export const COUPLE_CONFIRMED_ON_REQUEST_LABEL = "Confirmed by the couple";
 
 export function coupleBillingAddressProvenance(input: {
@@ -183,7 +184,7 @@ export function coupleConfirmed(contact: object | null | undefined): { at: strin
  * "added by the studio". Two screens said "at signing" for every couple's
  * address, which was wrong for the ones they gave when asked.
  */
-export function billingAddressOrigin(contact: object | null | undefined, who = "the couple"): string {
+export function billingAddressOrigin(contact: object | null | undefined, who = "the client"): string {
   const stored = (contact as { fieldProvenance?: unknown } | null | undefined)?.fieldProvenance;
   const provenance = (stored as Record<string, unknown> | undefined)?.billingAddress as
     | Record<string, unknown>

@@ -86,8 +86,14 @@ test("the sweep keeps the job purge's three rules", () => {
   const tombstone = command.slice(command.indexOf('action: "invoice.deleted"'), command.indexOf("ipAddress: context.ipAddress"));
   assert.doesNotMatch(tombstone, /Cents/);
   // Idempotency rows, counters and the job are never swept.
-  for (const kept of ["commandExecutions", "webhookEvents", "invoiceCounters", "projects"])
+  for (const kept of ["commandExecutions", "webhookEvents", "invoiceCounters", "projects", "bookingOrchestrations"])
     assert.ok(features.INVOICE_PURGE_PROTECTED.includes(kept), kept);
+  // The booking plan named the deleted deposit: it is unlinked, never deleted,
+  // so a replacement deposit's payment still books the job (GR, 2026-10-22).
+  assert.match(
+    read("functions/src/billing/invoice-purge.ts"),
+    /collection\("bookingOrchestrations"\)\.where\("invoiceId", "==", invoiceId\)[\s\S]*?update\(\{ invoiceId: null,/,
+  );
   assert.match(read("functions/src/booking/commands.ts"), /type: z\.literal\("deleteInvoiceRecords"\)/);
 });
 

@@ -259,7 +259,7 @@ test("the couple's address lands on their own contact, closes the request and re
 
 test("given on request, it's still marked the couple's own", () => {
   assert.equal(coupleBillingAddressProvenance({ at: "x", via: "address_request", recordId: "r" }).label, "Confirmed by the couple");
-  assert.equal(coupleBillingAddressProvenance({ at: "x", via: "contract_signing", recordId: "r" }).label, "Confirmed by the couple at signing");
+  assert.equal(coupleBillingAddressProvenance({ at: "x", via: "contract_signing", recordId: "r" }).label, "Confirmed by the client at signing");
 });
 
 // ---------- Today ----------

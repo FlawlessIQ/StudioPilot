@@ -263,7 +263,7 @@ export function ClientRecordActions({
             />
             <small>
               {client.billingAddressByCouple && client.billingAddress
-                ? "Confirmed by the couple at signing. Changing it here makes it yours. "
+                ? "Confirmed by the client at signing. Changing it here makes it yours. "
                 : ""}
               QuickBooks works out sales tax from this. Filled in on their
               QuickBooks customer if it has none.

@@ -118,12 +118,22 @@ export function scrubMoney(value: unknown): unknown {
   return out;
 }
 
-/** Collections the sweep never touches: idempotency, counters, the job, the audit trail (scrubbed, not deleted), and the invoice itself (last). */
+/**
+ * Collections the sweep never touches: idempotency, counters, the job and
+ * its booking plan, the audit trail (scrubbed, not deleted), and the invoice
+ * itself (last).
+ *
+ * `bookingOrchestrations` is the job's booking plan, and it names the deposit
+ * it waits on. Deleting that deposit deleted the plan with it, so when the
+ * replacement was paid nothing booked the job (GR, Michelle & Kyle,
+ * 2026-10-22). The sweep unlinks the plan instead (invoice-purge.ts).
+ */
 export const INVOICE_PURGE_PROTECTED: readonly string[] = [
   "commandExecutions",
   "webhookEvents",
   "invoiceCounters",
   "projects",
+  "bookingOrchestrations",
   "auditEvents",
   "invoiceReferences",
   "tenants",
