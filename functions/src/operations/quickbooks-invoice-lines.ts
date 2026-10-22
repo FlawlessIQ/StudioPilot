@@ -547,3 +547,37 @@ export function quickBooksCustomerSparseUpdate(
   if (!Object.keys(fills).length) return null;
   return { Id: id, SyncToken: syncToken, sparse: true, ...fills };
 }
+
+/**
+ * The words on a bill, in the studio's own trade and the job's shape.
+ *
+ * Every QuickBooks line said "Retainer" — right for GR's weddings, wrong
+ * for a DJ or a makeup artist (their word is "Deposit", as everywhere else
+ * in StudioCue) and wrong for a job paid in one bill: Access Self Storage's
+ * whole $2,600 went out as "Retainer" (GR, 2026-10-21).
+ */
+export type BillWords = {
+  /** "Retainer" (photographers, planners) or "Deposit" (one-link trades). */
+  deposit: "Retainer" | "Deposit";
+  /** The job is paid in one bill: its first bill is the whole price. */
+  paidInFull: boolean;
+};
+
+export const DEFAULT_BILL_WORDS: BillWords = { deposit: "Retainer", paidInFull: false };
+
+/** The lines with the studio's words. The default words change nothing. */
+export function wordInvoiceLines(lines: readonly InvoiceLine[], words: BillWords): InvoiceLine[] {
+  const first = words.paidInFull ? "Payment in full" : words.deposit;
+  const swap = (value: string, from: RegExp, to: string) => value.replace(from, to);
+  return lines.map((entry) => {
+    if (entry.kind === "retainer")
+      return { ...entry, title: swap(entry.title, /^Retainer/, first), description: swap(entry.description, /^Retainer/, first) };
+    if (entry.kind === "retainer_received")
+      return {
+        ...entry,
+        title: swap(entry.title, /^Retainer received/, `${words.deposit} received`),
+        description: swap(entry.description, /^Retainer received/, `${words.deposit} received`),
+      };
+    return entry;
+  });
+}

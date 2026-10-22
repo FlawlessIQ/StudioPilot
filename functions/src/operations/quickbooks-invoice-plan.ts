@@ -5,10 +5,15 @@ import { packageInclusionItems } from "../packages/inclusions.js";
 import { normaliseBillingSettings, salesTaxApplies } from "../billing/sales-tax-settings.js";
 import { gatedFinalLines, quickBooksHoldReason, type HoldReason } from "./quickbooks-final-tax.js";
 import { installmentName } from "../billing/payment-plan.js";
+import { jobKindOf, journeyProfile } from "../job-kinds/job-kinds.js";
+import { tradeProfile } from "../trades/trades.js";
 import {
   billedCrewCount,
   coverageHours,
+  DEFAULT_BILL_WORDS,
   quickBooksRetainerLines,
+  wordInvoiceLines,
+  type BillWords,
   type InvoiceLine,
   type JobPackageItem,
   type RetainerPart,
@@ -182,7 +187,43 @@ function calculationTax(calculation: Row): number {
 /** `tenantFeatures/{tenantId}.quickbooksItemisedInvoices` — set by a platform admin. */
 export const QUICKBOOKS_ITEMISED_FLAG = "quickbooksItemisedInvoices";
 
+/**
+ * What StudioCue sends QuickBooks for this bill: the lines (below), in the
+ * studio's words — "Deposit" for a one-link trade, "Payment in full" on a
+ * job paid in one bill (quickbooks-invoice-lines.ts, wordInvoiceLines).
+ * Only the words change; a failure to read them keeps "Retainer".
+ */
 export async function planQuickBooksInvoiceLines(db: Firestore, invoice: DocumentSnapshot): Promise<QuickBooksInvoicePlan> {
+  const plan = await planInvoiceLines(db, invoice);
+  try {
+    return { ...plan, lines: wordInvoiceLines(plan.lines, await billWords(db, invoice)) };
+  } catch {
+    return plan;
+  }
+}
+
+async function billWords(db: Firestore, invoice: DocumentSnapshot): Promise<BillWords> {
+  const tenantId = text(invoice.get("tenantId"));
+  const [tenant, project] = await Promise.all([
+    db.doc(`tenants/${tenantId}`).get(),
+    db.doc(`projects/${text(invoice.get("projectId"))}`).get(),
+  ]);
+  const job = project.exists && project.get("tenantId") === tenantId ? project.data() ?? {} : {};
+  const shape = (job as { paymentShape?: unknown }).paymentShape;
+  // The same rule that raised the bill (booking/orchestration.ts): the
+  // package's shape, else the kind's. Only the first bill can be the whole.
+  const paidInFull =
+    text(invoice.get("kind")) === "retainer" &&
+    (invoice.get("paidInFull") === true ||
+      shape === "paid_in_full" ||
+      (!shape && project.exists && journeyProfile(jobKindOf(job)).payment === "paid_in_full"));
+  return {
+    deposit: tradeProfile(tenant.get("trade")).journey.oneLinkBooking ? "Deposit" : DEFAULT_BILL_WORDS.deposit,
+    paidInFull,
+  };
+}
+
+async function planInvoiceLines(db: Firestore, invoice: DocumentSnapshot): Promise<QuickBooksInvoicePlan> {
   const amountCents = cents(invoice.get("amountCents"));
   const kind = text(invoice.get("kind"));
   // One installment of a payment plan (billing/payment-plan.ts): "Installment 2 of 3".

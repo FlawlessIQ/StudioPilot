@@ -51,3 +51,23 @@ test("QuickBooks invoices offer bank transfer only unless the studio turns card 
   for (const path of ["functions/src/operations/provider-runtime.ts", "functions/src/operations/quickbooks-held-invoice.ts", "functions/src/group-events/participant-invoices.ts"])
     assert.doesNotMatch(read(path), /AllowOnlineCreditCardPayment: ?true|QUICKBOOKS_ONLINE_PAYMENT_FLAGS/, path);
 });
+
+test("QuickBooks lines use the studio's word, and a job paid in one bill says so", async () => {
+  const { quickBooksRetainerLines, wordInvoiceLines, DEFAULT_BILL_WORDS } = await import("../functions/src/operations/quickbooks-invoice-lines.ts");
+  const item = { kind: "package" as const, name: "Corporate Photo and Video", summary: null, inclusions: [], quantity: 1, unitPriceCents: 260_000, amountCents: 260_000, taxable: true };
+  const lines = quickBooksRetainerLines({ amountCents: 100_000, items: [item], parts: [], taxApplies: false });
+  const first = (words: Parameters<typeof wordInvoiceLines>[1]) => wordInvoiceLines(lines, words)[0]!;
+  // GR's weddings: unchanged.
+  assert.deepEqual(wordInvoiceLines(lines, DEFAULT_BILL_WORDS), lines);
+  assert.equal(first(DEFAULT_BILL_WORDS).description, "Retainer");
+  // A DJ, a makeup artist, a hair stylist.
+  assert.equal(first({ deposit: "Deposit", paidInFull: false }).description, "Deposit");
+  // Access Self Storage, 2026-10-21: the whole price in one bill.
+  assert.equal(first({ deposit: "Retainer", paidInFull: true }).description, "Payment in full");
+  assert.equal(first({ deposit: "Retainer", paidInFull: true }).amountCents, lines[0]!.amountCents);
+  // The final's credit follows the word.
+  const credit = [{ kind: "retainer_received", title: "Retainer received", description: "Retainer received — thank you", quantity: 1, unitPriceCents: -1, amountCents: -1, taxable: false }] as never;
+  assert.equal(wordInvoiceLines(credit, { deposit: "Deposit", paidInFull: false })[0]!.description, "Deposit received — thank you");
+  // Every QuickBooks invoice goes through the words.
+  assert.match(read("functions/src/operations/quickbooks-invoice-plan.ts"), /lines: wordInvoiceLines\(plan\.lines, await billWords\(db, invoice\)\)/);
+});
