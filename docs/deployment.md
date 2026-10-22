@@ -202,8 +202,21 @@ label and two rules: `studiocue-keep-live-images` (KEEP the 3 newest versions
 of each image, which always wins) and `studiocue-delete-old-images` (DELETE
 after 30 days). Cloud Build's account (`988256939236-compute@`) can read
 `gs://studiohub-prod_cloudbuild`, which `gcloud builds submit` needs.
-Submissions that failed during an outage were never stored: ask the studio
-whether a client tried, so they can resend.
+**Detection (Cloud Monitoring, to the operations email).** Uptime probes POST
+`{}` to `/api/functions/{publicLeadIntake,bookingCommand,crmCommand,publicConsultationScheduling}`
+on studio-cue.com every 5 minutes and expect a 4xx JSON refusal; alerts: "a
+function is down (probe)", "website cannot reach functions" (log metric
+`studiocue_function_relay_failures`, more than 2 in 5 minutes) and "a client
+inquiry was held" (log metric `studiocue_inquiries_held`, any). The older
+"server errors (Cloud Run 5xx)" alert needs traffic and missed this outage.
+
+**No inquiry is lost.** When `publicLeadIntake` answers 5xx or not at all,
+the relay holds the submission in `pendingInquiries` (App Check checked by
+the website) and the client sees "Inquiry received"; `pendingInquiryDelivery`
+delivers it every 5 minutes through the live form's checks. A held inquiry
+the checks reject (`status: rejected`, e.g. a required field missing) or that
+fails 24 times (`failed`) logs `PENDING_INQUIRY_NOT_DELIVERED` and keeps the
+full submission on its document: forward it to the studio by hand.
 
 The legacy Sites connection metadata in `.openai/hosting.json` is retained for
 traceability, but the production web application is deployed through Firebase
