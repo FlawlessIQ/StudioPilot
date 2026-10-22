@@ -154,6 +154,57 @@ were written on the server, but the studio's panel never saw them until the
 rules were deployed. The emulator loads rules from the file, so local walks
 cannot catch it.
 
+### Functions fail to start
+
+**Symptoms.** The relay logs `functions relay: <name> answered 500 with
+non-JSON body` and browsers get `FUNCTION_UPSTREAM_UNAVAILABLE` (502). The
+inquiry form says "Your inquiry could not be submitted". A direct call with a
+token returns Google's "500 Server Error… try again in 30 seconds" page and
+**the function logs nothing**. A redeploy fails with "container failed to
+start and listen on the port defined by PORT=8080", again with no log line.
+Functions with a warm instance keep working until it is recycled, so it
+spreads one function at a time.
+
+**Incident, 2026-10-22, ~21:14–23:00 UTC.** Two causes, found in this order:
+
+1. `firebase deploy --force` had silently set Artifact Registry's
+   `firebase-functions-cleanup` rule on `us-east4/gcf-artifacts` (delete every
+   image older than one day). 91 of 110 functions lost their images. Firebase's
+   CLI adds this rule only when a repository has no rule and no
+   `firebase-functions-cleanup-opted-out=true` label (firebase-tools
+   `lib/functions/artifacts.js`).
+2. The deciding one: Google's auto-updated `nodejs22` base image for Cloud Run
+   functions (`us-east4-docker.pkg.dev/serverless-runtimes/google-22-full/runtimes/nodejs22`;
+   `nodejs22_20261022_22_23_4_RC01` was tagged `public-image-next` at 20:40
+   UTC) stopped starting our functions at all. Function images carry no OS
+   ("scratch" run image); Cloud Run adds the base at every instance start
+   (`runtimeClassName: run.googleapis.com/linux-base-image-update`). Even an
+   image that started that morning failed; Google's sample container started
+   fine. `--base-image` accepts only `nodejs22`, never a release, and a
+   firebase deploy builds on the same base.
+
+**Fix:**
+
+1. Run every function from our own image, no Google base:
+   `./scripts/deploy-functions-self-contained.sh studiohub-prod` (builds
+   `functions/lib` into `node:22-slim` with Cloud Build, then
+   `gcloud run deploy <service> --image=… --clear-base-image` for every
+   function, then the invoker script). Each service keeps its own env,
+   secrets, `FUNCTION_TARGET` and `FUNCTION_SIGNATURE_TYPE`.
+2. `./scripts/verify-function-images.sh studiohub-prod` passes, and an empty
+   POST to `https://studio-cue.com/api/functions/publicLeadIntake` answers
+   JSON (401 `APP_CHECK_REQUIRED` from a script), not 502.
+3. Until Google confirms the base is fixed, deploy functions with that script.
+   A `firebase deploy --only functions` returns a function to Google's base.
+
+**Standing protection.** Every `gcf-artifacts` repository carries the opt-out
+label and two rules: `studiocue-keep-live-images` (KEEP the 3 newest versions
+of each image, which always wins) and `studiocue-delete-old-images` (DELETE
+after 30 days). Cloud Build's account (`988256939236-compute@`) can read
+`gs://studiohub-prod_cloudbuild`, which `gcloud builds submit` needs.
+Submissions that failed during an outage were never stored: ask the studio
+whether a client tried, so they can resend.
+
 The legacy Sites connection metadata in `.openai/hosting.json` is retained for
 traceability, but the production web application is deployed through Firebase
 App Hosting from the GitHub `main` branch. Automatic rollouts are enabled for

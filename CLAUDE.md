@@ -166,6 +166,33 @@ risked reverting the other clone's work.
    on every function revision, and any new function must also be added to the
    script's allowlist in the same change or it 403s with an HTML body (which
    surfaces client-side as `Unexpected token '<'`). See `docs/deployment.md`.
+
+   **Then check every function can still start:**
+   ```bash
+   ./scripts/verify-function-images.sh studiohub-prod
+   ```
+   On 2026-10-22 every studio command, the inquiry form and the Console went
+   down at once (~21:14–23:00 UTC; Gabe found it from a failed inquiry). Two
+   things, both silent:
+   - **Google's auto-updated `nodejs22` base image** for Cloud Run functions
+     changed that afternoon and no function of ours could start a new
+     instance — not even an image that had started fine that morning. Warm
+     instances kept answering, so it spread one function at a time, as a bare
+     Google HTML 500 with no log line. A `firebase deploy` builds on that same
+     base and cannot pin a release, so the fix was
+     `./scripts/deploy-functions-self-contained.sh studiohub-prod`: our own
+     Node 22 image, no Google base. **Until Google has fixed it, deploy
+     functions with that script, not `firebase deploy`** — a firebase deploy
+     puts the function back on the broken base.
+   - `firebase deploy --force` had silently added Firebase's
+     `firebase-functions-cleanup` rule to `gcf-artifacts` — **delete every
+     image older than 1 day** — so 91 functions had also lost their images.
+     The repositories now carry Firebase's opt-out label and a KEEP-newest-3
+     rule, so the CLI no longer adds its rule. Never set a cleanup rule on
+     `gcf-artifacts` without a KEEP rule beside it.
+   `verify-function-images.sh` fails if the rules are unsafe or any serving
+   revision's image is gone. Runbook: `docs/deployment.md` → "Functions fail
+   to start".
 6. **A selective function deploy must cover every function that imports what
    you changed.** `--only functions:foo` is the norm here for speed, and it is
    safe only when you know the full set. Shared modules break that: adding an
