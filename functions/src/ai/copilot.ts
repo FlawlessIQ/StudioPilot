@@ -1,3 +1,4 @@
+import { vertexFetch } from "./vertex-fetch.js";
 import { isSalesConsultation } from "../booking/consultation-purpose.js";
 import { answersResolvedFor, formFreshness, resolveAnswers } from "../planning/resolved-answers.js";
 import { answerForPeople } from "../planning/questionnaire-review-facts.js";
@@ -58,7 +59,6 @@ import {
   describeCoverage,
   resolveCoverage,
 } from "../packages/coverage.js";
-import { vertexEndpoint } from "./vertex-endpoint.js";
 import { separateGreeting } from "./reply-format.js";
 import {
   cleanStudioPreference,
@@ -2139,8 +2139,7 @@ async function generateIntake(
   if (!project || !model) return fallback();
   try {
     const token = await cloudAccessToken();
-    const response = await fetch(
-      vertexEndpoint(project, model),
+    const response = await vertexFetch(project, model,
       {
         method: "POST",
         headers: {
@@ -2374,8 +2373,7 @@ export async function generateProposalDraft(facts: {
   if (!project || !model) return fallback();
   try {
     const token = await cloudAccessToken();
-    const response = await fetch(
-      vertexEndpoint(project, model),
+    const response = await vertexFetch(project, model,
       {
         method: "POST",
         headers: {

@@ -153,7 +153,8 @@ test("the copilot has one way out to a model", () => {
   // The three copilot-turn call sites go through the transport. The two that
   // remain — intake extraction and drafting — return a deterministic fallback
   // before they ever reach a token, which is why they are allowed to stay.
-  const direct = [...copilot.matchAll(/await fetch\(/g)].length;
+  // Through vertexFetch since wave D (the retired-model fallback); still direct.
+  const direct = [...copilot.matchAll(/await (?:fetch|vertexFetch)\(/g)].length;
   assert.equal(direct, 2, `${direct} direct fetches in copilot.ts`);
   for (const guarded of copilot.split("const token = await cloudAccessToken();").slice(0, -1))
     assert.match(

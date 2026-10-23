@@ -1,3 +1,4 @@
+import { vertexFetch } from "./vertex-fetch.js";
 import { tradeInstruction } from "../trades/trade-instruction.js";
 import { tradeVocab } from "../trades/trades.js";
 import { randomUUID } from "node:crypto";
@@ -11,7 +12,6 @@ import { consumeAiQuota } from "../saas/usage.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { productEvent } from "../operations/product-events.js";
 import { normalizeClientEmailBody } from "../communications/email-content.js";
-import { vertexEndpoint } from "./vertex-endpoint.js";
 
 type Json = Record<string, unknown>;
 
@@ -70,8 +70,7 @@ async function generateCommunication(input: {
     process.env.VERTEX_AI_COPILOT_MODEL;
   if (!project || !model) throw new Error("VERTEX_AI_COMMUNICATIONS_NOT_CONFIGURED");
   const token = await cloudAccessToken();
-  const response = await fetch(
-    vertexEndpoint(project, model),
+  const response = await vertexFetch(project, model,
     {
       method: "POST",
       headers: {

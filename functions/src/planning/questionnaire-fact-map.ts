@@ -1,6 +1,6 @@
+import { vertexFetch } from "../ai/vertex-fetch.js";
 import type { Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
-import { vertexEndpoint } from "../ai/vertex-endpoint.js";
 import { consumeAiQuota, refundAiQuota } from "../saas/usage.js";
 import { FACT_DESCRIPTIONS, MAPPABLE_FACT_KEYS, normalisedQuestion, unmatchedFields, type FactKey } from "./job-facts.js";
 
@@ -76,7 +76,7 @@ async function askModel(fields: ReadonlyArray<{ id: string; label: string; type:
   const questions = fields
     .map((field) => `${field.id} | ${field.type || "text"} | ${field.label}${field.options.length ? ` | options: ${field.options.join(" / ")}` : ""}`)
     .join("\n");
-  const response = await fetch(vertexEndpoint(project, model), {
+  const response = await vertexFetch(project, model, {
     method: "POST",
     headers: { authorization: `Bearer ${await metadataToken()}`, "content-type": "application/json" },
     // "Send the form" waits on this once per form version: never for long.

@@ -120,6 +120,14 @@ sidebar and side rail had already narrowed.
 
 ## Working on `main` (read before pushing)
 
+**Release with one command:** `./scripts/release.sh` (from a clean, up-to-date
+`main`). It runs every step below in order and stops at the first failure:
+Node 22, gates, new functions created with Firebase, every function on our own
+pinned image, rules and indexes, the image/secret guard, push, a rollout of
+exactly this commit waited on until SUCCEEDED, and probes through
+studio-cue.com. `--no-app` stops after the functions. The rules below explain
+why each step exists; do them by hand only when the script can't.
+
 Work lands directly on `main`. There are no customers yet, so the cost of a
 PR round-trip outweighs the review it buys — commit, push, roll out.
 

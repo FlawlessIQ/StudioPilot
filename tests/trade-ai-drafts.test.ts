@@ -57,6 +57,7 @@ const MODEL_CALLS: Record<string, { kind: "draft" | "extraction" | "retrieval" |
   "functions/src/ai/copilot.ts#generateStructuredOnce": { kind: "transport", why: "sends the body finalAnswerBody built" },
   "functions/src/ai/copilot.ts#streamStructuredBody": { kind: "transport", why: "streams the body finalAnswerBody built" },
   "functions/src/ai/message-draft.ts#generateDraft": { kind: "draft", why: "message drafts and lifecycle emails" },
+  "functions/src/ai/schedule.ts#fetchVertexWithRetry": { kind: "transport", why: "retries the body generate built" },
   "functions/src/ai/schedule.ts#generate": { kind: "draft", why: "the run-of-show the client and crew read" },
   "functions/src/ai/signed-agreement.ts#readWithVertex": { kind: "extraction", why: "reads a signed agreement into fields" },
   "functions/src/ai/timing-rules.ts#propose": { kind: "extraction", why: "learns the studio's own timing rules" },
@@ -69,13 +70,14 @@ const MODEL_CALLS: Record<string, { kind: "draft" | "extraction" | "retrieval" |
   "functions/src/planning/questionnaire-fact-map.ts#askModel": { kind: "extraction", why: "maps form fields to job facts" },
   "functions/src/studio-import/extraction.ts#vertexExtraction": { kind: "extraction", why: "reads imported bookings" },
 };
-const TRANSPORT = new Set(["functions/src/ai/vertex-endpoint.ts", "functions/src/ai/vertex-transport.ts"]);
+const TRANSPORT = new Set(["functions/src/ai/vertex-endpoint.ts", "functions/src/ai/vertex-transport.ts", "functions/src/ai/vertex-fetch.ts"]);
 /** The trade instruction, or a prompt builder pinned below to append it. */
 const TRADE_AWARE =
   /tradeInstruction\(|inquiryReplySystemInstruction\(|messageDraftSystemInstruction\(|proposalDraftInstruction\(/;
 /** A top-level function or const, where a model call is named. */
 const DECLARATION = /^(?:export )?(?:async )?function\s+(\w+)|^(?:export )?(?:const|let)\s+(\w+)\s*[:=]/gm;
-const MODEL_SITE = /vertexEndpoint\(|vertexGenerate\(|systemInstruction\s*:/g;
+// vertexFetch: the model call with the retired-model fallback (wave D, 2026-10-23).
+const MODEL_SITE = /vertexEndpoint\(|vertexFetch\(|vertexGenerate\(|systemInstruction\s*:/g;
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

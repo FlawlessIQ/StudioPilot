@@ -1,3 +1,4 @@
+import { vertexFetch } from "./vertex-fetch.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -5,7 +6,6 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
-import { vertexEndpoint } from "./vertex-endpoint.js";
 
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json =>
@@ -62,9 +62,9 @@ async function propose(input: z.infer<typeof inputSchema>) {
     process.env.VERTEX_AI_MESSAGE_MODEL ?? process.env.VERTEX_AI_SCHEDULE_MODEL;
   if (!project || !model) throw new Error("VERTEX_AI_MESSAGE_NOT_CONFIGURED");
   const token = await accessToken();
-  const endpoint = vertexEndpoint(project, model);
+  
   const callModel = async (contents: Array<Json>) => {
-    const response = await fetch(endpoint, {
+    const response = await vertexFetch(project, model, {
       method: "POST",
       headers: {
         authorization: `Bearer ${token}`,

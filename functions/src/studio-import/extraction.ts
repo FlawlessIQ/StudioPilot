@@ -1,8 +1,8 @@
+import { vertexFetch } from "../ai/vertex-fetch.js";
 import { createHash } from "node:crypto";
 import { getFirestore, type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import mammoth from "mammoth";
-import { vertexEndpoint } from "../ai/vertex-endpoint.js";
 
 export const studioAssetTypes = [
   "message_template",
@@ -512,8 +512,7 @@ async function vertexExtraction(input: {
           fileUri: input.fileUri,
         },
       };
-  const response = await fetch(
-    vertexEndpoint(project, model),
+  const response = await vertexFetch(project, model,
     {
       method: "POST",
       headers: {

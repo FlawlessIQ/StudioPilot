@@ -1,3 +1,4 @@
+import { vertexFetch } from "./vertex-fetch.js";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { z } from "zod";
@@ -8,7 +9,6 @@ import {
   type SignedAgreementReading,
 } from "../booking/signed-agreement-match.js";
 import { cloudAccessToken } from "./vertex-token.js";
-import { vertexEndpoint } from "./vertex-endpoint.js";
 
 /**
  * Cue reading a signed agreement a studio has dropped into the chat.
@@ -168,8 +168,7 @@ async function readWithVertex(input: {
   const model = process.env.VERTEX_AI_EXTRACTION_MODEL;
   if (!project || !model) return null;
   const token = await cloudAccessToken();
-  const response = await fetch(
-    vertexEndpoint(project, model),
+  const response = await vertexFetch(project, model,
     {
       method: "POST",
       headers: {

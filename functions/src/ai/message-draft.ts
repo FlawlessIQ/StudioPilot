@@ -1,3 +1,4 @@
+import { vertexFetch } from "./vertex-fetch.js";
 import { createHash } from "node:crypto";
 import { US_ENGLISH_PART } from "./language.js";
 import { honoreeContext, jobKindOf } from "../job-kinds/job-kinds.js";
@@ -30,7 +31,6 @@ import {
   describeCoverage,
   resolveCoverage,
 } from "../packages/coverage.js";
-import { vertexEndpoint } from "./vertex-endpoint.js";
 import { isCataloguePackage } from "../packages/one-off.js";
 import { separateGreeting } from "./reply-format.js";
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
@@ -355,9 +355,9 @@ async function generateDraft(input: {
   if (!project || !model)
     return fallbackDraft({ trigger: input.trigger, context: input.context, trade: input.trade });
   const token = await accessToken();
-  const endpoint = vertexEndpoint(project, model);
+  
   const callModel = async (contents: Array<Json>) => {
-    const response = await fetch(endpoint, {
+    const response = await vertexFetch(project, model, {
       method: "POST",
       headers: {
         authorization: `Bearer ${token}`,

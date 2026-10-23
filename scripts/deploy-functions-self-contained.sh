@@ -34,13 +34,17 @@ trap 'rm -rf "${work}"' EXIT
 cp functions/package.json functions/package-lock.json "${work}/"
 cp -R functions/lib "${work}/lib"
 printf 'node_modules\n' > "${work}/.gcloudignore"
-framework="$(node -p "require('./functions/node_modules/@google-cloud/functions-framework/package.json').version" 2>/dev/null || echo 3.5.1)"
+# Pinned, so a build is the build we tested: Node by exact version and image
+# digest (the same 22.22.0 the repo is developed on), and the functions
+# framework as a locked dependency in functions/package.json rather than
+# whatever npm resolved that day (2026-10-23, reliability wave D). Moving
+# Node is a deliberate change here, not a side effect of a rebuild.
 cat > "${work}/Dockerfile" <<EOF
-FROM node:22-slim
+FROM node:22.22.0-slim@sha256:dd9d21971ec4395903fa6143c2b9267d048ae01ca6d3ea96f16cb30df6187d94
 ENV NODE_ENV=production PORT=8080
 WORKDIR /workspace
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund && npm install --no-save --no-audit --no-fund @google-cloud/functions-framework@${framework}
+RUN npm ci --omit=dev --no-audit --no-fund
 COPY lib ./lib
 USER node
 CMD ["node", "node_modules/@google-cloud/functions-framework/build/src/main.js"]

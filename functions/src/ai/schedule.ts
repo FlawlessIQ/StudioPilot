@@ -1,3 +1,4 @@
+import { vertexFetch } from "./vertex-fetch.js";
 import { createHash, randomUUID } from "node:crypto";
 import { answersResolvedFor, resolveAnswers } from "../planning/resolved-answers.js";
 import { US_ENGLISH_PART } from "./language.js";
@@ -9,7 +10,6 @@ import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota, refundAiQuota } from "../saas/usage.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { productEvent } from "../operations/product-events.js";
-import { vertexEndpoint } from "./vertex-endpoint.js";
 import {
   jobPackageSnapshotIds,
   schedulePackageFact,
@@ -172,11 +172,11 @@ const retryDelay = (response: Response, attempt: number) => {
   return exponentialDelay(attempt);
 };
 
-async function fetchVertexWithRetry(url: string, init: RequestInit) {
+async function fetchVertexWithRetry(project: string, model: string, init: RequestInit) {
   for (let attempt = 0; attempt < vertexAttempts; attempt += 1) {
     let response: Response;
     try {
-      response = await fetch(url, init);
+      response = await vertexFetch(project, model, init);
     } catch (caught: unknown) {
       console.warn("vertex_ai_schedule_network_failed", {
         attempt: attempt + 1,
@@ -241,11 +241,10 @@ async function generate(
   const model = process.env.VERTEX_AI_SCHEDULE_MODEL;
   if (!project || !model) throw new Error("VERTEX_AI_SCHEDULE_NOT_CONFIGURED");
   const token = await accessToken();
-  const endpoint = vertexEndpoint(project, model);
   // Every turn goes through the retrying fetch, so the repair pass inherits
   // the same throttling recovery as the first attempt.
   const callModel = async (contents: Array<Record<string, unknown>>) => {
-    const response = await fetchVertexWithRetry(endpoint, {
+    const response = await fetchVertexWithRetry(project, model, {
       method: "POST",
       headers: {
         authorization: `Bearer ${token}`,

@@ -1,3 +1,4 @@
+import { vertexFetch } from "./vertex-fetch.js";
 import { cloudAccessToken } from "./vertex-token.js";
 import { scriptedVertexResponse } from "./vertex-script.js";
 import { vertexEndpoint } from "./vertex-endpoint.js";
@@ -78,16 +79,24 @@ export async function vertexGenerate(
 ): Promise<Response> {
   if (vertexMockMode()) return scriptedVertexResponse(body, method);
   const token = await cloudAccessToken();
-  const url = vertexUrl(method, purpose);
+  const project = process.env.VERTEX_AI_PROJECT_ID;
+  const model = vertexModelFor(purpose);
+  if (!project || !model) throw new Error("VERTEX_AI_COPILOT_NOT_CONFIGURED");
+  // A retired model falls back rather than failing Cue (vertex-fetch.ts).
   return retryTransient(() =>
-    fetch(url, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-type": "application/json",
+    vertexFetch(
+      project,
+      model,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
       },
-      body: JSON.stringify(body),
-    }),
+      method,
+    ),
   );
 }
 

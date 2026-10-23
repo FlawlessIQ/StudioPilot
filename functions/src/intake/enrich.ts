@@ -1,6 +1,6 @@
+import { vertexFetch } from "../ai/vertex-fetch.js";
 import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
-import { vertexEndpoint } from "../ai/vertex-endpoint.js";
 import { deterministicIntakeExtraction } from "../ai/intake-prefill.js";
 
 /**
@@ -50,7 +50,7 @@ async function modelExtraction(
   const project = process.env.VERTEX_AI_PROJECT_ID;
   const model = process.env.VERTEX_AI_EXTRACTION_MODEL;
   if (!project || !model) return null;
-  const response = await fetch(vertexEndpoint(project, model), {
+  const response = await vertexFetch(project, model, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify({
