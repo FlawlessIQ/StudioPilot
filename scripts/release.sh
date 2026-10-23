@@ -103,8 +103,16 @@ commit = sys.argv[1]
 token = subprocess.check_output(["gcloud", "auth", "print-access-token"]).decode().strip()
 base = "https://firebaseapphosting.googleapis.com/v1beta/projects/studiohub-prod/locations/us-east4/backends/studiohub"
 def get(path):
-    request = urllib.request.Request(f"{base}/{path}?pageSize=50", headers={"Authorization": f"Bearer {token}"})
-    return json.load(urllib.request.urlopen(request)).get(path, [])
+    # Every page: the API lists oldest first, so page one never holds the
+    # rollout just created (the first real run waited on it for 20 minutes).
+    out, page = [], ""
+    while True:
+        url = f"{base}/{path}?pageSize=100" + (f"&pageToken={page}" if page else "")
+        body = json.load(urllib.request.urlopen(urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})))
+        out += body.get(path, [])
+        page = body.get("nextPageToken")
+        if not page:
+            return out
 builds = {b["name"]: b for b in get("builds")}
 states = [r.get("state", "") for r in get("rollouts")
           if builds.get(r.get("build"), {}).get("source", {}).get("codebase", {}).get("hash", "").startswith(commit)]
