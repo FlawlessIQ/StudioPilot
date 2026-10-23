@@ -18,6 +18,23 @@ function str(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
+const DOCUMENT_CATEGORY_WORDS: Record<string, string> = {
+  coi: "Certificate of insurance",
+  contract: "Agreement",
+  invoice: "Invoice",
+};
+const DOCUMENT_PROVIDER_WORDS: Record<string, string> = {
+  cloud_storage: "StudioCue",
+  dropbox: "Dropbox",
+  google_drive: "Google Drive",
+};
+const DOCUMENT_VISIBILITY_WORDS: Record<string, string> = {
+  studio: "Your studio only",
+  client: "Your studio and the client",
+  crew: "Your studio and the crew",
+  shared: "Your studio, the client and the crew",
+};
+
 /**
  * A studio document, opened.
  *
@@ -84,9 +101,11 @@ export function LiveDocumentViewer({ id }: { id: string }) {
     str(record.name) ?? str(record.fileName) ?? str(record.kind) ?? "Document";
   const updated = str(record.updatedAt);
   const facts: Array<[string, string]> = [];
-  if (str(record.category)) facts.push(["Category", String(record.category)]);
-  if (str(record.provider)) facts.push(["Provider", String(record.provider)]);
-  if (str(record.visibility)) facts.push(["Visibility", String(record.visibility)]);
+  // In words, not the stored codes: the page read "coi", "dropbox",
+  // "shared" (prod walk, 2026-10-23).
+  if (str(record.category)) facts.push(["Kind", DOCUMENT_CATEGORY_WORDS[String(record.category)] ?? String(record.category)]);
+  if (str(record.provider)) facts.push(["Kept in", DOCUMENT_PROVIDER_WORDS[String(record.provider)] ?? String(record.provider)]);
+  if (str(record.visibility)) facts.push(["Who can see it", DOCUMENT_VISIBILITY_WORDS[String(record.visibility)] ?? String(record.visibility)]);
   if (record.version != null && record.version !== "")
     facts.push(["Version", String(record.version)]);
   if (updated) {

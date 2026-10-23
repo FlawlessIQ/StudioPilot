@@ -44,7 +44,7 @@ import { sendBookingCommand } from "@/lib/booking/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
-import { AssigneeSelect } from "@/components/tasks/task-assignee";
+import { AssigneeSelect, useDefaultTaskAssignee } from "@/components/tasks/task-assignee";
 import { assigneeFields } from "@/features/tasks/assignee";
 
 const DAY = new Intl.DateTimeFormat("en-US", {
@@ -618,7 +618,10 @@ function ThreadComposer({
   );
   const [value, setValue] = useState("");
   // Who a task added here is for; it used to be "a coordinator" always.
-  const [assignee, setAssignee] = useState("role:studio_coordinator");
+  // Until picked: a coordinator if the team has one, else whoever adds it.
+  const defaultAssignee = useDefaultTaskAssignee();
+  const [chosenAssignee, setAssignee] = useState<string | null>(null);
+  const assignee = chosenAssignee ?? defaultAssignee;
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState<string | null>(null);
   /**

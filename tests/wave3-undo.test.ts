@@ -315,3 +315,16 @@ test("every new refusal has copy", () => {
     assert.ok(errorCodeHasCopy(code), code);
   }
 });
+
+test("a new task is for a coordinator when there is one, else for whoever adds it", async () => {
+  const { defaultTaskAssignee } = await import("@/features/tasks/assignee");
+  const me = { userId: "me" };
+  const owner = { userId: "me", role: "studio_owner", status: "active" };
+  assert.equal(defaultTaskAssignee({ members: [owner], me }), "user:me");
+  assert.equal(
+    defaultTaskAssignee({ members: [owner, { userId: "c", role: "studio_coordinator", status: "active" }], me }),
+    "role:studio_coordinator",
+  );
+  // A coordinator can't read the team: the role is theirs.
+  assert.equal(defaultTaskAssignee({ members: null, me }), "role:studio_coordinator");
+});

@@ -22,11 +22,14 @@ test("the due date comes from the accepted proposal's payment schedule", () => {
   assert.match(source, /toLowerCase\(\)\.includes\("retainer"\)/);
 });
 
-test("today plus seven is only the fallback", () => {
+test("the studio's invoice terms, else today plus seven, are only the fallback", () => {
+  // A job the studio bills itself drafts on its own invoice terms
+  // (studio-invoice-issue.ts); the step must say the same date (2026-10-23).
   assert.match(
     source,
-    /agreedRetainerDueDate \?\? addCalendarDays\(todayLocalIso\(\), 7\)/,
+    /agreedRetainerDueDate \?\? addCalendarDays\(todayLocalIso\(\), studioDueDays \?\? 7\)/,
   );
+  assert.match(source, /jobBillingState\?\.method === "studio"\s*\?\s*normaliseStudioInvoiceSettings\(/);
   // And that fallback still goes through the calendar helpers, not toISOString.
   assert.doesNotMatch(source, /setDate\([^)]*\)[\s\S]{0,80}toISOString\(\)\.slice\(0, 10\)/);
 });

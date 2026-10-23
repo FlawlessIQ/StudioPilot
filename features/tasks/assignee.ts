@@ -64,3 +64,21 @@ export function assigneeLabel(value: string, options: readonly AssigneeOption[])
   if (!value) return null;
   return options.find((option) => option.value === value)?.label.replace(/ \(me\)$/, " (you)") ?? null;
 }
+
+/**
+ * Who a new task is for until the studio picks: a coordinator when the team
+ * has one, otherwise whoever is adding it. A one-person studio's tasks read
+ * "For Any coordinator" — a role nobody in it holds (prod walk, 2026-10-23).
+ * Without the team list (a coordinator adding), the role stays: it is theirs.
+ */
+export function defaultTaskAssignee(input: {
+  members: ReadonlyArray<Record<string, unknown>> | null;
+  me: { userId: string | null };
+}): string {
+  if (!input.members) return "role:studio_coordinator";
+  const hasCoordinator = input.members.some(
+    (member) => member.status === "active" && member.role === "studio_coordinator",
+  );
+  if (hasCoordinator || !input.me.userId) return "role:studio_coordinator";
+  return `user:${input.me.userId}`;
+}

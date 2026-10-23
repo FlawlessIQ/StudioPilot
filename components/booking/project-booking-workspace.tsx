@@ -3,7 +3,7 @@
 import { bookingBlockerLabel } from "@/features/booking/blocker-label";
 import { bookingGateNeeds, projectProfile, bookedOnceClause } from "@/features/job-kinds/job-kinds";
 import { SignedCopySharing } from "@/components/contracts/signed-copy-sharing";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { offeredSigningProvider } from "@/features/integrations/schema";
 import { CapabilityNote } from "@/components/integrations/capability-note";
 import { InfoHint } from "@/components/ui/info-hint";
@@ -80,6 +80,8 @@ import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { JobSalesTax } from "@/components/booking/job-sales-tax";
 import { JobBillingChoice } from "@/components/booking/job-billing-choice";
 import { useJobBilling } from "@/components/booking/use-job-billing";
+import { useTenantDocuments } from "@/components/live/tenant-records";
+import { normaliseStudioInvoiceSettings } from "@/features/billing/studio-invoice-settings";
 import { StudioDepositPanel } from "@/components/booking/studio-invoice-actions";
 import { BillingAddressSummary } from "@/components/clients/billing-address-summary";
 
@@ -172,6 +174,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
    */
   const [invoicingProvider, setInvoicingProvider] = useState<string | null>(null);
   const jobBillingState = useJobBilling(projectId);
+  const ownerOrAdmin = workspace.role === "studio_owner" || workspace.role === "studio_admin";
+  const { records: billingSettingsRecords } = useTenantDocuments("billingSettings", { enabled: ownerOrAdmin });
   /**
    * The email that carries the retainer invoice, when it has not reached the
    * couple ("awaiting_delivery"). A failed one can be sent again from here
@@ -190,6 +194,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
    */
   const nativeSigning = useNativeSigning();
 
+  // The job bar above this page reads the shared project list, not this
+  // page's own read, so it said "Awaiting deposit" under "Booked on Oct 23"
+  // until a reload (prod walk, 2026-10-23). When this read sees the state
+  // move, the list is read again.
+  const lastSeenState = useRef<string | null>(null);
   const load = useCallback(async () => {
     if (!workspace.tenantId) return;
     // Re-read: whatever changed under the last action is now in hand.
@@ -212,6 +221,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         id: projectSnapshot.id,
         ...projectSnapshot.data(),
       };
+      const seenState = String(projectSnapshot.get("state") ?? "");
+      if (lastSeenState.current !== null && lastSeenState.current !== seenState) {
+        refreshTenantRecords("projects");
+      }
+      lastSeenState.current = seenState;
       const [
         proposals,
         contracts,
@@ -549,9 +563,18 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
     const due = String(retainer?.dueDate ?? "").slice(0, 10);
     return /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null;
   }, [proposal]);
+  // With no agreed date, the studio billing it itself drafts on its own
+  // invoice terms (studio-invoice-issue.ts); this read seven days regardless,
+  // so the step said Oct 30 above an invoice due Nov 6 (prod walk, 2026-10-23).
+  const studioDueDays =
+    jobBillingState?.method === "studio"
+      ? normaliseStudioInvoiceSettings(
+          billingSettingsRecords?.find((record) => record.tenantId === workspace.tenantId) ?? null,
+        ).dueDays
+      : null;
   const dueDate = useMemo(
-    () => agreedRetainerDueDate ?? addCalendarDays(todayLocalIso(), 7),
-    [agreedRetainerDueDate],
+    () => agreedRetainerDueDate ?? addCalendarDays(todayLocalIso(), studioDueDays ?? 7),
+    [agreedRetainerDueDate, studioDueDays],
   );
   /**
    * The retainer the couple agreed, as "Paid another way" will record it.

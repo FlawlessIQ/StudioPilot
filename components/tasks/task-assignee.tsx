@@ -2,7 +2,7 @@
 
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { assigneeOptions, type AssigneeOption } from "@/features/tasks/assignee";
+import { assigneeOptions, defaultTaskAssignee, type AssigneeOption } from "@/features/tasks/assignee";
 
 /**
  * The people and roles a task can be for. Owners and admins read the team
@@ -16,6 +16,14 @@ export function useTaskAssignees(): AssigneeOption[] {
     members: records,
     me: { userId: workspace.userId, name: workspace.userName },
   });
+}
+
+/** Who a new task is for until the studio picks (defaultTaskAssignee). */
+export function useDefaultTaskAssignee(): string {
+  const workspace = useWorkspace();
+  const canReadTeam = workspace.role === "studio_owner" || workspace.role === "studio_admin";
+  const { records } = useTenantDocuments("memberships", { enabled: canReadTeam });
+  return defaultTaskAssignee({ members: canReadTeam ? records : null, me: { userId: workspace.userId } });
 }
 
 export function AssigneeSelect({

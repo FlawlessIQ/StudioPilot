@@ -9,7 +9,7 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { liveProjects } from "@/features/projects/put-away";
-import { AssigneeSelect } from "@/components/tasks/task-assignee";
+import { AssigneeSelect, useDefaultTaskAssignee } from "@/components/tasks/task-assignee";
 import { assigneeFields } from "@/features/tasks/assignee";
 
 const schema = z.object({
@@ -28,7 +28,10 @@ export function CreateTaskForm({ initialProjectId = "" }: { initialProjectId?: s
   const [outcome, setOutcome] = useState<{ persisted: boolean; reference: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Who it's for. Every task used to go to "a coordinator", whoever that was.
-  const [assignee, setAssignee] = useState("role:studio_coordinator");
+  // Until picked: a coordinator if the team has one, else whoever adds it.
+  const defaultAssignee = useDefaultTaskAssignee();
+  const [chosenAssignee, setAssignee] = useState<string | null>(null);
+  const assignee = chosenAssignee ?? defaultAssignee;
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
