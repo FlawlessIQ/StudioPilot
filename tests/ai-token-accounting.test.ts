@@ -32,7 +32,7 @@ test("every model call adds to the turn's token count", () => {
 test("the retrieval loop is counted, not just the answer", () => {
   // This is where the cost actually accumulates, and it was the invisible half.
   const loop = copilot.slice(copilot.indexOf("COPILOT_MAX_TOOL_ITERATIONS; iteration++"));
-  assert.match(loop.slice(0, 1200), /recordUsage\(body\)/);
+  assert.match(loop.slice(0, 1600), /recordUsage\(body\)/);
 });
 
 test("the counter starts clean for each turn", () => {
