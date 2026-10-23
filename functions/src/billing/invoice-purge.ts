@@ -1,9 +1,17 @@
 import { createHash } from "node:crypto";
-import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
+import type { DocumentSnapshot, Firestore, Query, QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import { logger } from "firebase-functions";
 import { z } from "zod";
 import { hasFinalBalance, projectProfile } from "../job-kinds/job-kinds.js";
-import { INVOICE_PURGE_PROTECTED, invoiceDeletePlan, scrubMoney, type SettledKind } from "./invoice-purge-policy.js";
+import {
+  INVOICE_PURGE_KEPT,
+  INVOICE_PURGE_OWNED,
+  invoiceDeletePlan,
+  invoiceOwnsRecord,
+  scrubMoney,
+  type SettledKind,
+} from "./invoice-purge-policy.js";
 import { PAYMENT_REMINDER } from "./payment-reminders.js";
 
 /**
@@ -14,10 +22,11 @@ import { PAYMENT_REMINDER } from "./payment-reminders.js";
  * (projects/purge-command.ts):
  * 1. The job's "settled" note is written first, so a sweep that dies part
  *    way never leaves a booked or closed job looking unpaid.
- * 2. Everything that names the invoice is found by discovery — every
- *    collection, `invoiceId ==` — and tenant-checked before it's deleted;
- *    its PDFs go from Storage by prefix; its audit events are kept but have
- *    their money removed.
+ * 2. Its own records — the collections in INVOICE_PURGE_OWNED, `invoiceId ==`
+ *    — are tenant-checked and deleted; its PDFs go from Storage by prefix;
+ *    its audit events are kept but have their money removed; its booking
+ *    plan is unlinked. Anything else that names it is kept, and reported:
+ *    discovery reads every other collection only to say what it left.
  * 3. The invoice itself goes last, so a retry can always find what's left.
  * One tombstone audit event says it happened, with no amounts.
  */
@@ -45,51 +54,111 @@ type Context = {
 const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 const normalName = (value: unknown) => text(value).toLowerCase().replace(/\s+/g, " ");
 
-/** A provider or autopay is working on this invoice right now. */
-export async function invoiceInFlight(db: Db, tenantId: string, invoice: DocumentSnapshot): Promise<boolean> {
-  if (invoice.get("providerState") === "queued") return true;
-  const [jobs, charges] = await Promise.all([
-    db.collection("providerJobs").where("invoiceId", "==", invoice.id).limit(20).get(),
-    db.collection("autopayCharges").where("invoiceId", "==", invoice.id).limit(20).get(),
-  ]);
-  const busy = (status: unknown) => ["queued", "running", "processing", "pending", "retry_scheduled"].includes(String(status));
-  return (
-    jobs.docs.some((job) => job.get("tenantId") === tenantId && busy(job.get("status"))) ||
-    charges.docs.some((charge) => charge.get("tenantId") === tenantId && busy(charge.get("status")))
-  );
-}
+const PAGE = 200;
+/** Discovery only reports, so it reads a little of each collection. */
+const REPORT_LIMIT = 50;
 
-/** Every collection the sweep may look in. */
-export async function invoiceSweepCollections(db: Db): Promise<string[]> {
-  const collections = await db.listCollections();
-  return collections.map((item) => item.id).filter((name) => !INVOICE_PURGE_PROTECTED.includes(name)).sort();
+/** One page of a collection's records naming this invoice, ours only, in id order. */
+async function pageNaming(db: Db, collection: string, tenantId: string, invoiceId: string, after?: QueryDocumentSnapshot) {
+  let query: Query = db.collection(collection).where("invoiceId", "==", invoiceId).orderBy("__name__").limit(PAGE);
+  if (after) query = query.startAfter(after);
+  const snapshot = await query.get();
+  return {
+    docs: snapshot.docs.filter((item) => item.get("tenantId") === tenantId),
+    last: snapshot.docs.at(-1),
+    exhausted: snapshot.size < PAGE,
+  };
 }
 
 /**
- * Delete everything that names this invoice, scrub its audit trail, then
- * the invoice. Idempotent: a second run finds nothing and deletes nothing.
+ * Still being worked on: a provider job not yet done, or an autopay charge
+ * that hasn't settled — `charged` is a card charged whose payment isn't in
+ * the books yet, and deleting then would lose the only record tying the two.
+ */
+const BUSY = new Set(["queued", "running", "processing", "pending", "retry_scheduled", "charged"]);
+
+/**
+ * A provider or autopay is working on this invoice right now. Reads every
+ * job and charge that names it, not the first few: a bill synced, resent and
+ * reconciled for months has dozens, and the running one can be any of them.
+ */
+export async function invoiceInFlight(db: Db, tenantId: string, invoice: DocumentSnapshot): Promise<boolean> {
+  if (invoice.get("providerState") === "queued") return true;
+  for (const collection of ["providerJobs", "autopayCharges"]) {
+    let cursor: QueryDocumentSnapshot | undefined;
+    for (;;) {
+      const page = await pageNaming(db, collection, tenantId, invoice.id, cursor);
+      if (page.docs.some((item) => BUSY.has(String(item.get("status"))))) return true;
+      cursor = page.last;
+      if (page.exhausted || !cursor) break;
+    }
+  }
+  return false;
+}
+
+/** Every collection that may still name the invoice once its own records are gone. */
+export async function invoiceSweepCollections(db: Db): Promise<string[]> {
+  const collections = await db.listCollections();
+  return collections
+    .map((item) => item.id)
+    .filter((name) => !INVOICE_PURGE_OWNED.includes(name) && !INVOICE_PURGE_KEPT.includes(name))
+    .sort();
+}
+
+export type InvoiceReferenceKept = { collection: string; count: number };
+
+/**
+ * Delete the invoice's own records, scrub its audit trail, then the invoice.
+ * Whatever else names it is kept and returned in `kept` (and logged).
+ * Idempotent: a second run finds nothing and deletes nothing.
  */
 export async function sweepInvoiceRecords(
   db: Db,
   input: { tenantId: string; projectId: string; invoiceId: string; actorId: string; now: string; storage?: boolean },
-): Promise<{ deleted: number; scrubbed: number; files: number }> {
+): Promise<{ deleted: number; scrubbed: number; files: number; kept: InvoiceReferenceKept[] }> {
   const { tenantId, invoiceId } = input;
   let deleted = 0;
-  // 1. Discovery: anything carrying this invoice's id.
-  for (const collection of await invoiceSweepCollections(db)) {
+  const kept: InvoiceReferenceKept[] = [];
+  // 1. Its own records, from the allow list only.
+  for (const collection of INVOICE_PURGE_OWNED) {
+    let others = 0;
+    let cursor: QueryDocumentSnapshot | undefined;
     for (;;) {
-      const page = await db.collection(collection).where("invoiceId", "==", invoiceId).limit(200).get();
-      const ours = page.docs.filter((item) => item.get("tenantId") === tenantId);
-      if (!ours.length) break;
-      const batch = db.batch();
-      for (const item of ours) batch.delete(item.ref);
-      await batch.commit();
-      deleted += ours.length;
-      if (page.size < 200) break;
+      const page = await pageNaming(db, collection, tenantId, invoiceId, cursor);
+      const ours = page.docs.filter((item) => invoiceOwnsRecord(collection, item.id, invoiceId));
+      others += page.docs.length - ours.length;
+      if (ours.length) {
+        const batch = db.batch();
+        for (const item of ours) batch.delete(item.ref);
+        await batch.commit();
+        deleted += ours.length;
+      }
+      cursor = page.last;
+      if (page.exhausted || !cursor) break;
     }
+    // A document that names the invoice but isn't its PDF is a file the studio keeps.
+    if (others) kept.push({ collection, count: others });
   }
-  // The booking plan stays (INVOICE_PURGE_PROTECTED); it just stops naming
-  // a bill that is gone, so the next deposit is the one it waits on.
+  // Everything else is only looked at, so a new reference is noticed rather
+  // than deleted along with the bill.
+  for (const collection of await invoiceSweepCollections(db)) {
+    const found = await db.collection(collection).where("invoiceId", "==", invoiceId).limit(REPORT_LIMIT).get();
+    const count = found.docs.filter((item) => item.get("tenantId") === tenantId).length;
+    if (count) kept.push({ collection, count });
+  }
+  for (const reference of kept) {
+    logger.warn("invoicePurgeKeptReference", {
+      studiocueOperationalError: true,
+      code: "INVOICE_PURGE_UNKNOWN_REFERENCE",
+      tenantId,
+      projectId: input.projectId,
+      invoiceId,
+      collection: reference.collection,
+      count: reference.count,
+    });
+  }
+  // The booking plan stays (INVOICE_PURGE_KEPT); it just stops naming a
+  // bill that is gone, so the next deposit is the one it waits on.
   const plans = await db.collection("bookingOrchestrations").where("invoiceId", "==", invoiceId).limit(20).get();
   for (const plan of plans.docs) {
     if (plan.get("tenantId") !== tenantId) continue;
@@ -136,7 +205,7 @@ export async function sweepInvoiceRecords(
     await invoice.ref.delete();
     deleted += 1;
   }
-  return { deleted, scrubbed, files };
+  return { deleted, scrubbed, files, kept };
 }
 
 export async function deleteInvoiceRecords(

@@ -42,8 +42,10 @@ async function seed(db: FirebaseFirestore.Firestore) {
     // …and another studio's record that happens to share its id: never ours to delete.
     write(`documents/theirs`, { tenantId: THEIRS, projectId: "other", invoiceId: DEPOSIT }),
     write(`auditEvents/theirs`, { tenantId: THEIRS, entityId: DEPOSIT, before: { amountCents: 1 } }),
-    // Never swept.
+    // Never swept: idempotency, proof of payment, and anything not on the allow list.
     write(`commandExecutions/${OURS}_k`, { tenantId: OURS, invoiceId: DEPOSIT }),
+    write(`autopayCharges/autopay_${DEPOSIT}_1`, { tenantId: OURS, projectId: JOB, invoiceId: DEPOSIT, status: "succeeded" }),
+    write(`bookingExceptions/retainer_${JOB}`, { tenantId: OURS, projectId: JOB, invoiceId: DEPOSIT, status: "approved" }),
   ]);
 }
 
@@ -103,6 +105,8 @@ test("the whole job: settled notes first, everything that names each bill, the b
     assert.ok((await db.doc("documents/theirs").get()).exists);
     assert.deepEqual((await db.doc("auditEvents/theirs").get()).get("before"), { amountCents: 1 });
     assert.ok((await db.doc(`commandExecutions/${OURS}_k`).get()).exists);
+    assert.ok((await db.doc(`autopayCharges/autopay_${DEPOSIT}_1`).get()).exists, "proof of payment stays");
+    assert.ok((await db.doc(`bookingExceptions/retainer_${JOB}`).get()).exists, "an unknown reference stays");
     // Our audit stays, without the money; one tombstone per bill, without amounts.
     const audit = (await db.doc("auditEvents/a1").get()).data()!;
     assert.deepEqual(audit.before, { status: "sent" });
@@ -111,11 +115,12 @@ test("the whole job: settled notes first, everything that names each bill, the b
     assert.equal(tombstones.size, 2);
     for (const tombstone of tombstones.docs) assert.doesNotMatch(JSON.stringify(tombstone.data()), /Cents/);
 
-    // A second run finds nothing and deletes nothing.
+    // A second run finds nothing and deletes nothing, and says what it left.
     assert.deepEqual(await sweepInvoiceRecords(db, { tenantId: OURS, projectId: JOB, invoiceId: DEPOSIT, actorId: "owner", now: "x", storage: false }), {
       deleted: 0,
       scrubbed: 0,
       files: 0,
+      kept: [{ collection: "bookingExceptions", count: 1 }],
     });
   } finally {
     await deleteApp(app);

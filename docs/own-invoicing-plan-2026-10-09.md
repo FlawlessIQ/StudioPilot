@@ -142,11 +142,15 @@ The studio can delete an invoice record at any time during or after the job:
 This is a **third hard-delete exception** beside tenant deletion and the job purge
 ([[hard-delete-is-one-exception]]), so it follows the same rules:
 
-- **Discovery, not a list.** It finds everything carrying the `invoiceId`: the
-  invoice doc, PDF revisions in Storage, the `documents` rows, `pdfJobs`, queued
-  `emailJobs` for it, `providerJobs`, `autopayCharges` and payment reminders. Every
-  candidate is tenant-checked first. Protected collections (`commandExecutions`,
-  `webhookEvents`) are left alone.
+- **An allow list, not discovery.** It deletes only the invoice's own records:
+  the invoice doc, PDF revisions in Storage, its PDF's `documents/studio_invoice_<id>`
+  row, `pdfJobs`, `emailJobs` and `providerJobs` for it, and its payment reminders
+  (`INVOICE_PURGE_OWNED`). Every candidate is tenant-checked first. Anything else
+  that carries the `invoiceId` — `autopayCharges` (proof of payment), the booking
+  plan (unlinked), a booking exception, a collection added later — is kept, and
+  any reference not already known is logged as `invoicePurgeKeptReference`.
+  Changed 2026-10-23: deleting by discovery deleted a job's booking plan on
+  2026-10-22.
 - **Resumable.** The invoice doc is deleted last.
 - **Owner/admin only.** The confirm sheet says what goes and what stays. It offers
   "Download the PDFs first", and the studio must type the job name for a whole-job

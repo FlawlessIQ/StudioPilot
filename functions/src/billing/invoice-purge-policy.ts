@@ -119,24 +119,50 @@ export function scrubMoney(value: unknown): unknown {
 }
 
 /**
- * Collections the sweep never touches: idempotency, counters, the job and
- * its booking plan, the audit trail (scrubbed, not deleted), and the invoice
- * itself (last).
+ * The collections whose records belong to an invoice and go with it. An
+ * allow list, not a deny list: the sweep used to delete whatever named the
+ * invoice anywhere except a few protected collections, and that deleted a
+ * job's booking plan — when the replacement deposit was paid nothing booked
+ * the job (GR, Michelle & Kyle, 2026-10-22) — and would have deleted autopay
+ * charges, the proof a card was charged. A record anywhere else that names
+ * the invoice is kept and reported (invoice-purge.ts), so a new reference is
+ * noticed, never silently deleted.
  *
- * `bookingOrchestrations` is the job's booking plan, and it names the deposit
- * it waits on. Deleting that deposit deleted the plan with it, so when the
- * replacement was paid nothing booked the job (GR, Michelle & Kyle,
- * 2026-10-22). The sweep unlinks the plan instead (invoice-purge.ts).
+ * Each is here because nothing but the invoice reads it:
+ * - `emailJobs`: the invoice's own emails (sending it, its receipts). They
+ *   carry its amounts and number.
+ * - `pdfJobs`: renders of its PDF, `pdfJobs/invoice_<id>_r<n>`.
+ * - `providerJobs`: work done on it at QuickBooks or Stripe — create, sync,
+ *   void, reconcile, record a payment, charge a saved card. A job still
+ *   running refuses the delete (INVOICE_IN_FLIGHT) before anything goes.
+ * - `documents`: only its PDF's file record, `documents/studio_invoice_<id>`
+ *   (invoiceOwnsRecord). Any other document is a file the studio keeps.
  */
-export const INVOICE_PURGE_PROTECTED: readonly string[] = [
+export const INVOICE_PURGE_OWNED: readonly string[] = ["emailJobs", "pdfJobs", "providerJobs", "documents"];
+
+/**
+ * Collections known to name an invoice that the sweep keeps, so they are
+ * not reported as new:
+ * - `auditEvents`: the audit trail stays, scrubbed of its money.
+ * - `bookingOrchestrations`: the job's booking plan, unlinked, never deleted.
+ * - `invoiceReferences`: the invoice itself, deleted last by id.
+ * - `autopayCharges`: proof a card was charged; money taken is never forgotten.
+ * - `commandExecutions`, `webhookEvents`: idempotency, so a retry still finds
+ *   what it did.
+ */
+export const INVOICE_PURGE_KEPT: readonly string[] = [
+  "auditEvents",
+  "bookingOrchestrations",
+  "invoiceReferences",
+  "autopayCharges",
   "commandExecutions",
   "webhookEvents",
-  "invoiceCounters",
-  "projects",
-  "bookingOrchestrations",
-  "auditEvents",
-  "invoiceReferences",
-  "tenants",
-  "memberships",
-  "users",
 ];
+
+/** Whether this record, which names the invoice, belongs to it and goes with it. */
+export function invoiceOwnsRecord(collection: string, id: string, invoiceId: string): boolean {
+  if (!INVOICE_PURGE_OWNED.includes(collection)) return false;
+  // Its PDF's file record (billing/studio-invoice-pdf.ts invoicePdfDocumentId), nothing else.
+  if (collection === "documents") return id === `studio_invoice_${invoiceId}`;
+  return true;
+}
