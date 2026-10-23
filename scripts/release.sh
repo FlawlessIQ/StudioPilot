@@ -36,6 +36,9 @@ with_app=1
 
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 fail() { printf '\n\033[31mRELEASE STOPPED: %s\033[0m\n' "$*" >&2; exit 1; }
+# Never stop without saying where (the first run of this script stopped
+# silently at step 3).
+trap 'printf "\n\033[31mRELEASE STOPPED at line %s: %s\033[0m\n" "${LINENO}" "${BASH_COMMAND}" >&2' ERR
 
 step "0. Node 22"
 if [ -d "${HOME}/.nvm/versions/node" ]; then
@@ -66,7 +69,10 @@ npm run lint
 step "3. Functions"
 [ -f functions/.env.studiohub-prod ] || fail "functions/.env.studiohub-prod is missing (copy it from the main checkout)."
 deployed="$(gcloud functions list --project="${project_id}" --format='value(name.basename())' | sort -u)"
-in_code="$(node --input-type=module -e "const m = await import('./functions/lib/index.js'); console.log(Object.keys(m).join('\n'))" 2>/dev/null | sort -u)"
+# Loading the bundle declares every trigger, and a Storage trigger needs to
+# know the project's bucket.
+in_code="$(GCLOUD_PROJECT="${project_id}" FIREBASE_CONFIG="{\"projectId\":\"${project_id}\",\"storageBucket\":\"${project_id}.firebasestorage.app\"}" \
+  node --input-type=module -e "const m = await import('./functions/lib/index.js'); console.log(Object.keys(m).join('\n'))" 2>/dev/null | sort -u)"
 [ -n "${in_code}" ] || fail "could not list the functions in functions/lib/index.js"
 new_functions="$(comm -13 <(printf '%s\n' "${deployed}") <(printf '%s\n' "${in_code}") | grep . || true)"
 if [ -n "${new_functions}" ]; then
