@@ -31,6 +31,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { tradeVocab } from "@/features/trades/trades";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { dataIsLive } from "@/lib/runtime-mode";
 import { requestMessageDraft } from "@/lib/ai/message-draft-client";
 import type {
   Conversation,
@@ -195,7 +196,10 @@ export function MessageInbox({
   const tenantId = workspace.tenantId;
 
   const [threads, setThreads] = useState<ThreadGroup[]>([]);
-  const [threadsLoading, setThreadsLoading] = useState(true);
+  // Mock mode has no Firestore to read: the inbox is empty, not loading. It
+  // used to call getFirebaseClient() regardless, which throws without a
+  // Firebase config, so /studio/messages crashed in every mock build.
+  const [threadsLoading, setThreadsLoading] = useState(dataIsLive);
   const [activeId, setActiveId] = useState<string | null>(null);
   // The thread open before the studio picks one, chosen once when the list
   // first arrives: the newest *unread* one. Pinned, because opening it marks it
@@ -278,7 +282,7 @@ export function MessageInbox({
 
   // Live, not one-shot: an open tab has to notice a client writing in.
   useEffect(() => {
-    if (!tenantId) return;
+    if (!dataIsLive || !tenantId) return;
     const { firestore } = getFirebaseClient();
     const unsubscribe = onSnapshot(
       query(
@@ -315,7 +319,7 @@ export function MessageInbox({
   // needs the project and contact lists, and the previous screen paid for them
   // on every visit.
   useEffect(() => {
-    if (!composing || !tenantId || projects.length) return;
+    if (!dataIsLive || !composing || !tenantId || projects.length) return;
     const { firestore } = getFirebaseClient();
     void (async () => {
       const [projectSnapshot, contactSnapshot] = await Promise.all([

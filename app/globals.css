@@ -21122,7 +21122,10 @@ label {
     border-radius: 12px;
     display: block;
     min-height: 0;
-    padding: 10px 12px;
+    /* Compact, but never under the 12px panel floor: at 10px the tile's
+       label sat 11px from its top border
+       (e2e/portal-spacing-regressions.spec.ts). */
+    padding: 12px;
   }
   .ds-root .report-page .report-metric-icon,
   .ds-root .report-page .report-performance-grid > article > svg,

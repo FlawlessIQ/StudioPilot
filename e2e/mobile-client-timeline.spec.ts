@@ -34,11 +34,13 @@ test("a change request starts from the moment it is about", async ({ page }) => 
   await expect(send).toBeDisabled();
   await sheet.getByRole("textbox", { name: /What should change/ }).fill("Could we start at 5:30 instead?");
   await send.click();
-  await expect(page.getByText(/You asked for changes to version 3/)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Approve timeline" })).toHaveCount(0);
+  // Mock mode reaches no studio, and the portal only says an answer was sent
+  // when it reached one (610723c6): the sheet says so and nothing is recorded.
+  await expect(sheet.getByRole("alert")).toHaveText("This is a preview, so nothing was sent to your studio.");
+  await expect(page.getByText(/You asked for changes to version 3/)).toHaveCount(0);
 });
 
-test("approving asks once more, then says what was approved", async ({ page }) => {
+test("approving asks once more, and a preview never claims it was approved", async ({ page }) => {
   await page.goto("/client/schedule");
   await page.getByRole("button", { name: "Approve timeline" }).click();
   const sheet = page.getByRole("dialog");
@@ -46,5 +48,9 @@ test("approving asks once more, then says what was approved", async ({ page }) =
   await expect(sheet).toHaveCount(0);
   await page.getByRole("button", { name: "Approve timeline" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Approve version 3" }).click();
-  await expect(page.getByText(/You approved version 3/)).toBeVisible();
+  // A preview approves nothing (see above), and says so.
+  await expect(page.getByRole("dialog").getByRole("alert")).toHaveText(
+    "This is a preview, so nothing was sent to your studio.",
+  );
+  await expect(page.getByText(/You approved version 3/)).toHaveCount(0);
 });

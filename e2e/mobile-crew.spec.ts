@@ -36,7 +36,9 @@ test("jobs are compact rows; an offer is answered on its own screen, and decline
   await page.getByRole("link", { name: /Nguyen & Park wedding/ }).click();
   await expect(page).toHaveURL(/\/crew\/pending\?assignment=demo-offer/);
   await expect(page.getByText("$850.00")).toBeVisible();
-  await expect(page.getByText(/days left/)).toBeVisible();
+  // The offer closes two days out at 5 PM New York, so after 5 PM ET it
+  // reads "45 hours left", not "2 days left".
+  await expect(page.getByText(/^\d+ (days|hours) left$/)).toBeVisible();
 
   await page.locator(".kit-actions").getByRole("button", { name: "Decline" }).click();
   const sheet = page.getByRole("dialog");
@@ -58,7 +60,8 @@ test("the job is one screen: day sheet, checklist with a camera, and the run of 
   // The run of show is confirmed against a version, on the day sheet.
   await expect(checklist.locator("li").filter({ hasText: "Read the run of show" }).getByRole("link", { name: "Read and confirm" })).toBeVisible();
   await checklist.getByRole("button", { name: "I'll bring it" }).click();
-  await expect(checklist.getByText("Done")).toBeVisible();
+  // exact: the checklist's ⓘ hint (22274361) also mentions what is done.
+  await expect(checklist.getByText("Done", { exact: true })).toBeVisible();
 });
 
 test("the day sheet reads in the wedding's zone, with who not to photograph and the formals", async ({ page }) => {
@@ -70,7 +73,8 @@ test("the day sheet reads in the wedding's zone, with who not to photograph and 
   await expect(page.getByText(/uncle Mark/)).toBeVisible();
   await expect(page.getByText("Family formals").first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Go" })).toHaveAttribute("href", /google\.com\/maps/);
-  await expect(page.getByRole("link", { name: "Call" })).toHaveAttribute("href", /^tel:/);
+  // The studio's own line; the wedding's vendor team has Call links too (e8cd9a3e).
+  await expect(page.getByLabel("Who to call").getByRole("link", { name: "Call" })).toHaveAttribute("href", /^tel:/);
   await page.locator(".kit-actions").getByRole("button", { name: "I've read version 2" }).click();
   await expect(page.locator(".kit-actions")).toContainText("You've read version 2");
 });

@@ -93,7 +93,14 @@ async function panelInsetOffenders(page: Page, route: string, minimum = 12) {
 
 async function expectShellGutter(page: Page, route: string) {
   await page.goto(route);
-  const geometry = await page.locator(".ds-content").evaluate((content) => {
+  // A page that awaits its searchParams streams in: at the load event its
+  // shell can still sit in React's hidden Suspense holder, zero-sized, so the
+  // first route on a cold server measured a 0px gutter.
+  // The studio's design-system shell, or the mobile kit the couple's and
+  // crew's screens were rebuilt on (2026-09-29), which has no `.ds-content`.
+  const shell = page.locator(".ds-content, .kit-main").first();
+  await expect(shell).toBeVisible();
+  const geometry = await shell.evaluate((content) => {
     const contentRect = content.getBoundingClientRect();
     const style = getComputedStyle(content);
     const first = Array.from(content.children).find((child) => {
@@ -128,22 +135,31 @@ async function expectShellGutter(page: Page, route: string) {
 test("event-day content cards preserve readable interior margins", async ({
   page,
 }) => {
+  // The brief shows the nearest upcoming event, and the demo jobs
+  // (config/crm-demo-data.ts) are dated Aug–Sep 2026. Read it the week before
+  // the first one, so the dates passing cannot leave only the empty state.
+  await page.clock.setFixedTime(new Date("2026-08-10T10:00:00"));
   await page.goto("/studio/event-day");
-  await expectInset(page, ".event-day-timeline", 20);
-  await expectInset(page, ".event-day-ask", 20);
+  // The phone brief is deliberately compact (245bcdb8: 14px 16px at 640px and
+  // under), still inset from the border; wider windows keep the full 20px+.
+  const phone = (page.viewportSize()?.width ?? 1280) <= 640;
+  const inset = phone ? 14 : 20;
+  const edge = phone ? 14 : 18;
+  await expectInset(page, ".event-day-timeline", inset);
+  await expectInset(page, ".event-day-ask", inset);
 
-  const contained = await page.evaluate(() => {
+  const contained = await page.evaluate((min) => {
     const card = document.querySelector(".event-day-ask")!.getBoundingClientRect();
     const form = document.querySelector(".event-day-ask form")!.getBoundingClientRect();
     const prompts = document
       .querySelector(".event-day-quick-questions")!
       .getBoundingClientRect();
     return {
-      form: form.left >= card.left + 18 && form.right <= card.right - 18,
+      form: form.left >= card.left + min && form.right <= card.right - min,
       prompts:
-        prompts.left >= card.left + 18 && prompts.right <= card.right - 18,
+        prompts.left >= card.left + min && prompts.right <= card.right - min,
     };
-  });
+  }, edge);
   expect(contained.form).toBe(true);
   expect(contained.prompts).toBe(true);
 });
@@ -153,9 +169,9 @@ test("content-bearing studio panels no longer touch their borders", async ({
 }) => {
   await page.goto("/studio/invoices");
   await expectInset(page, ".final-invoice-empty", 18);
-
-  await page.goto("/studio");
-  await expectInset(page, ".studio-focus-hero", 20);
+  // The dashboard's `.studio-focus-hero` went with StudioDashboard (setup v2,
+  // 363a336a). Today's panels are measured by "every panel insets its own
+  // content" below.
 });
 
 test("every panel insets its own content", async ({ page }) => {
