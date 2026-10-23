@@ -125,11 +125,32 @@ export const projectVendorSchema = auditFieldsSchema.extend({
    * entry is theirs to change; the studio can change any.
    */
   source: z.enum(["studio", "couple"]).optional(),
+  /**
+   * The couple took a vendor they listed off their list after the studio had
+   * worked on it (couple-team.ts `coupleRemovalFor`): kept, with everything
+   * the studio added, until the studio keeps them on or takes them off.
+   * Absent or null on every other entry.
+   */
+  removedByClientAt: z.string().datetime().nullable().optional(),
+  removedByClientBy: z.string().nullable().optional(),
+  /** The first save by someone at the studio, on an entry the couple listed. */
+  studioTouchedAt: z.string().datetime().nullable().optional(),
 });
 export type ProjectVendor = z.infer<typeof projectVendorSchema>;
 
 /** The deterministic document id for an entry. */
 export const projectVendorDocId = (projectId: string, entryId: string) => `${projectId}_${entryId}`;
+
+/**
+ * Taken off by the couple, kept for the studio to decide. Such an entry is
+ * shown to the studio, labeled, and left out of everything that reaches a
+ * vendor or counts the team — timeline sends, the contact sheet, the crew's
+ * view, arrivals on the run of show, payments to hand out, the vendor
+ * credits and readiness — until the studio keeps them on.
+ */
+export function removedByClient(entry: { [key: string]: unknown; removedByClientAt?: unknown } | null | undefined): boolean {
+  return typeof entry?.removedByClientAt === "string" && entry.removedByClientAt.trim() !== "";
+}
 
 // ─── Where a vendor stands with the timeline ────────────────────────────────
 
@@ -195,15 +216,18 @@ export type TeamEntryLike = {
   balanceDueCents?: unknown;
   tipCents?: unknown;
   archivedAt?: unknown;
+  removedByClientAt?: unknown;
 };
 
 export type VendorTeamProgress = {
-  /** Entries on the team, declined ones left out. */
+  /** Entries on the team, declined ones (and ones the client took off) left out. */
   total: number;
   needed: number;
   considering: number;
   booked: number;
   declined: number;
+  /** Taken off by the client and kept for the studio to decide (`removedByClient`): counted nowhere else. */
+  removedByClient: number;
   /** Booked vendors' totals, what the light budget compares. */
   bookedCostCents: number;
   /** What the couple still owes booked vendors, and the tips to hand out. */
@@ -238,7 +262,7 @@ export function vendorTeamProgress(
   shares: readonly TimelineShareLike[],
   currentVersion: number | null,
 ): VendorTeamProgress {
-  const current = entries.filter((entry) => !entry.archivedAt);
+  const current = entries.filter((entry) => !entry.archivedAt && !removedByClient(entry));
   const status = (entry: TeamEntryLike) => vendorTeamStatusSchema.safeParse(entry.status).data ?? "needed";
   const booked = current.filter((entry) => status(entry) === "booked");
   const byVendor = sharesByVendor(shares);
@@ -261,6 +285,7 @@ export function vendorTeamProgress(
     considering: count("considering"),
     booked: booked.length,
     declined: count("declined"),
+    removedByClient: entries.filter((entry) => !entry.archivedAt && removedByClient(entry)).length,
     bookedCostCents: booked.reduce((sum, entry) => sum + cents(entry.costCents), 0),
     balanceDueCents: booked.reduce((sum, entry) => sum + cents(entry.balanceDueCents), 0),
     tipCents: booked.reduce((sum, entry) => sum + cents(entry.tipCents), 0),
@@ -412,7 +437,7 @@ export function vendorArrivalLines<T extends { id: string; startAt: string }>(
   for (const entry of entries) {
     const entryId = text(entry.entryId);
     const vendorId = text(entry.vendorId);
-    if (!entryId || !vendorId || entry.archivedAt || entry.status !== "booked") continue;
+    if (!entryId || !vendorId || entry.archivedAt || removedByClient(entry) || entry.status !== "booked") continue;
     const arrival = clockOf(entry.arrivalTime);
     const loadIn = clockOf(entry.loadInTime);
     const clock = arrival && loadIn ? (arrival <= loadIn ? arrival : loadIn) : (arrival ?? loadIn);
@@ -491,7 +516,7 @@ export type CrewVendorContact = {
 export function crewVendorContactsFrom(entries: ReadonlyArray<Record<string, unknown>>): CrewVendorContact[] {
   const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
   return entries
-    .filter((entry) => !entry.archivedAt && entry.status === "booked" && text(entry.company))
+    .filter((entry) => !entry.archivedAt && !entry.removedByClientAt && entry.status === "booked" && text(entry.company))
     .map((entry) => ({
       entryId: text(entry.entryId),
       category: text(entry.category) || "other",
@@ -530,7 +555,10 @@ export type ContactSheetRow = {
 export function vendorContactSheet(entries: ReadonlyArray<Record<string, unknown>>): ContactSheetRow[] {
   const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
   return entries
-    .filter((entry) => !entry.archivedAt && entry.status === "booked" && text(entry.company) && (text(entry.phone) || text(entry.email)))
+    .filter(
+      (entry) =>
+        !entry.archivedAt && !removedByClient(entry) && entry.status === "booked" && text(entry.company) && (text(entry.phone) || text(entry.email)),
+    )
     .map((entry) => ({
       vendorId: text(entry.vendorId) || null,
       category: vendorCategoryLabel(entry.category),
@@ -552,7 +580,7 @@ export function vendorContactSheet(entries: ReadonlyArray<Record<string, unknown
  */
 export function noEmailPublishWarning(entries: readonly TeamEntryLike[]): string | null {
   const missing = entries.filter(
-    (entry) => !entry.archivedAt && entry.status === "booked" && !String(entry.email ?? "").includes("@"),
+    (entry) => !entry.archivedAt && !removedByClient(entry) && entry.status === "booked" && !String(entry.email ?? "").includes("@"),
   );
   if (!missing.length) return null;
   return missing.length === 1

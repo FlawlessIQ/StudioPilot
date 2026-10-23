@@ -148,6 +148,21 @@ export const vendorTeamCommands = [
     }),
   }),
   z.object({
+    /**
+     * Keep a vendor the client took off their list (server/vendors/couple-team.ts
+     * marks `removedByClientAt` rather than deleting the studio's work on
+     * them): back on the team, into the sends again. "Take off this job" is
+     * removeVendorTeamEntry, as for any entry.
+     */
+    type: z.literal("keepVendorTeamEntry"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string().min(1),
+      entryId: z.string().min(1),
+    }),
+  }),
+  z.object({
     /** The couple's budget for the light budget line (decision 4). Null clears it. */
     type: z.literal("setProjectBudget"),
     tenantId: z.string(),
@@ -262,7 +277,7 @@ export type TimelineSendPlanEntry = {
   scope: "vendor" | "full";
 };
 
-type PlanEntry = { entryId: string; vendorId: string | null; status: string; category: string; archivedAt?: unknown };
+type PlanEntry = { entryId: string; vendorId: string | null; status: string; category: string; archivedAt?: unknown; removedByClientAt?: unknown };
 type PlanVendor = { exists: boolean; archived: boolean; email: string | null; company: string };
 type PlanShare = { status: string; revokedAt: unknown; scheduleId: string | null; scope: string | null };
 
@@ -284,7 +299,9 @@ export function planVendorTimelineSends(input: {
   const seen = new Set<string>();
   const plan: TimelineSendPlanEntry[] = [];
   for (const entry of input.entries) {
-    if (entry.archivedAt || entry.status !== "booked" || !entry.vendorId || seen.has(entry.vendorId)) continue;
+    // Taken off by the couple and kept for the studio to decide: nothing goes
+    // to them until the studio keeps them on (keepVendorTeamEntry).
+    if (entry.archivedAt || entry.removedByClientAt || entry.status !== "booked" || !entry.vendorId || seen.has(entry.vendorId)) continue;
     seen.add(entry.vendorId);
     const vendor = input.vendors.get(entry.vendorId);
     const share = input.shares.get(entry.vendorId);
@@ -327,7 +344,7 @@ export type CrewVendorContact = {
 export function crewVendorContactsFrom(entries: readonly DocumentData[]): CrewVendorContact[] {
   const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
   return entries
-    .filter((entry) => !entry.archivedAt && entry.status === "booked" && text(entry.company))
+    .filter((entry) => !entry.archivedAt && !entry.removedByClientAt && entry.status === "booked" && text(entry.company))
     .map((entry) => ({
       entryId: text(entry.entryId),
       category: text(entry.category) || "other",
@@ -622,7 +639,16 @@ async function addOrUpdateEntry(
         source: "studio",
       });
     } else {
-      transaction.update(reference, { ...values, updatedAt: context.now, updatedBy: context.actorId });
+      // The first studio save on an entry the couple listed is stamped, so a
+      // later "the couple took it off" knows the studio worked on it
+      // (features/vendors/couple-team.ts studioWorkOnCoupleEntry). A save
+      // never clears a removal by the couple: keeping them on is its own press.
+      transaction.update(reference, {
+        ...values,
+        ...(current.get("studioTouchedAt") ? {} : { studioTouchedAt: context.now }),
+        updatedAt: context.now,
+        updatedBy: context.actorId,
+      });
     }
     // The first time a team is started, the couple's budget from their
     // inquiry, once (budgetPrefillCents says when that is safe to read).
@@ -723,6 +749,58 @@ async function removeEntry(
   return { entryId: parsed.input.entryId, removed: true, revokedShare: removed.revoked };
 }
 
+async function keepEntry(
+  db: Firestore,
+  parsed: Extract<VendorTeamCommand, { type: "keepVendorTeamEntry" }>,
+  context: VendorTeamContext,
+): Promise<Record<string, unknown>> {
+  const { tenantId, idempotencyKey } = parsed;
+  const projectId = parsed.input.projectId;
+  const reference = db.doc(`projectVendors/${projectId}_${parsed.input.entryId}`);
+  const kept = await db.runTransaction(async (transaction) => {
+    const current = await transaction.get(reference);
+    if (!current.exists || current.get("tenantId") !== tenantId || current.get("projectId") !== projectId)
+      throw new Error("VENDOR_TEAM_ENTRY_NOT_FOUND");
+    // Already on the team: pressing twice changes nothing.
+    if (!current.get("removedByClientAt")) return false;
+    const vendorId = str(current.get("vendorId")) || null;
+    const vendor = vendorId ? await transaction.get(db.doc(`vendors/${vendorId}`)) : null;
+    transaction.update(reference, {
+      removedByClientAt: null,
+      removedByClientBy: null,
+      studioTouchedAt: current.get("studioTouchedAt") ?? context.now,
+      updatedAt: context.now,
+      updatedBy: context.actorId,
+    });
+    // On the job again while they are on its team (job facts and invites read `projectIds`).
+    if (vendor?.exists && vendor.get("tenantId") === tenantId && current.get("status") !== "declined") {
+      transaction.update(vendor.ref, { projectIds: FieldValue.arrayUnion(projectId), updatedAt: context.now, updatedBy: context.actorId });
+    }
+    transaction.update(db.doc(`projects/${projectId}`), { vendorTeamUpdatedAt: context.now });
+    const auditId = stableId("audit_vendor_team", tenantId, idempotencyKey);
+    transaction.set(
+      db.doc(`auditEvents/${auditId}`),
+      auditEvent({
+        id: auditId,
+        tenantId,
+        projectId,
+        actorId: context.actorId,
+        action: "vendor_team.entry_kept_after_client_removal",
+        entityType: "project_vendor",
+        entityId: reference.id,
+        now: context.now,
+        before: { removedByClientAt: current.get("removedByClientAt") ?? null, removedByClientBy: current.get("removedByClientBy") ?? null },
+        after: { removedByClientAt: null },
+        userAgent: context.userAgent,
+        correlationId: idempotencyKey,
+      }),
+    );
+    return true;
+  });
+  if (kept) await rebuildCrewVendorContacts(db, tenantId, projectId, context.now);
+  return { entryId: parsed.input.entryId, kept };
+}
+
 async function setBudget(
   db: Firestore,
   parsed: Extract<VendorTeamCommand, { type: "setProjectBudget" }>,
@@ -794,6 +872,7 @@ async function sendTimeline(
       status: str(entry.get("status")),
       category: str(entry.get("category")),
       archivedAt: entry.get("archivedAt"),
+      removedByClientAt: entry.get("removedByClientAt") ?? null,
     }));
     const vendorIds = [...new Set(entries.filter((entry) => entry.status === "booked" && entry.vendorId).map((entry) => entry.vendorId!))];
     const vendorDocs = vendorIds.length ? await transaction.getAll(...vendorIds.map((id) => db.doc(`vendors/${id}`))) : [];
@@ -1148,6 +1227,8 @@ export async function runVendorTeamCommand(
       return addOrUpdateEntry(db, parsed, context);
     case "removeVendorTeamEntry":
       return removeEntry(db, parsed, context);
+    case "keepVendorTeamEntry":
+      return keepEntry(db, parsed, context);
     case "setProjectBudget":
       return setBudget(db, parsed, context);
     case "sendTimelineToVendorTeam":

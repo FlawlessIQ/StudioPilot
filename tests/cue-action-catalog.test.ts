@@ -142,6 +142,8 @@ const REACHED: Record<string, string> = {
   // A wedding's vendor team: the job's own panel, mounted whole by the vendor_team card.
   addVendorTeamEntry: "VendorTeamPanel", updateVendorTeamEntry: "VendorTeamPanel",
   removeVendorTeamEntry: "VendorTeamPanel", setProjectBudget: "VendorTeamPanel",
+  // "Keep them on" a vendor the client took off their list, in the same sheet.
+  keepVendorTeamEntry: "VendorTeamPanel",
   sendTimelineToVendorTeam: "VendorTeamPanel",
   // A planner's vendor credits, after the day (planner journey, Phase 2).
   sendVendorCredits: "VendorTeamPanel",

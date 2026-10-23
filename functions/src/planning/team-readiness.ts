@@ -24,7 +24,8 @@ export function teamReadiness(
   shares: readonly Row[],
   currentVersion: number | null,
 ): { vendorTeamComplete: boolean; vendorsConfirmed: boolean } {
-  const current = entries.filter((entry) => !entry.archivedAt);
+  // Taken off by the couple and kept for the studio to decide: counted nowhere (vendorTeamProgress).
+  const current = entries.filter((entry) => !entry.archivedAt && !entry.removedByClientAt);
   const status = (entry: Row) => (["needed", "considering", "booked", "declined"].includes(String(entry.status)) ? String(entry.status) : "needed");
   const booked = current.filter((entry) => status(entry) === "booked");
   const open = current.filter((entry) => status(entry) === "needed" || status(entry) === "considering").length;

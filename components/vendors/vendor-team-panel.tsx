@@ -16,6 +16,7 @@ import {
   VENDOR_TEAM_STATUS_LABELS,
   VENDOR_TIMELINE_LABELS,
   budgetLine,
+  removedByClient,
   sharesByVendor,
   timelineStateFor,
   timelineSummary,
@@ -207,8 +208,9 @@ export function VendorTeamPanel({
     );
   }
 
-  // Who the send reaches, said before it goes.
-  const booked = entries.filter((entry) => entry.status === "booked" && text(entry.vendorId) && !entry.archivedAt);
+  // Who the send reaches, said before it goes. Not a vendor the client took
+  // off their list: nothing goes to them until the studio keeps them on.
+  const booked = entries.filter((entry) => entry.status === "booked" && text(entry.vendorId) && !entry.archivedAt && !removedByClient(entry));
   const stateOf = (entry: TeamRecord) => timelineStateFor(byVendor.get(text(entry.vendorId)), team.currentVersion);
   const emailed = (entry: TeamRecord) => text(entry.email).includes("@");
   const firstTime = booked.filter((entry) => stateOf(entry) === "not_sent" && emailed(entry));
@@ -419,7 +421,9 @@ export function VendorTeamPanel({
         <ul className="vendor-team-rows">
           {rows.map((entry) => {
             const status = (VENDOR_TEAM_STATUS_LABELS as Record<string, string>)[text(entry.status)] ? (text(entry.status) as VendorTeamStatus) : "needed";
-            const timeline = status === "booked" && text(entry.vendorId) ? stateOf(entry) : null;
+            // Taken off by the client, kept for the studio to decide: said on the row, and out of the sends.
+            const removed = removedByClient(entry);
+            const timeline = status === "booked" && text(entry.vendorId) && !removed ? stateOf(entry) : null;
             const when = arrivalWords(entry);
             return (
               <li key={entry.id}>
@@ -433,7 +437,8 @@ export function VendorTeamPanel({
                     </small>
                   </span>
                   <span className="vendor-team-row-facts">
-                    <StatusBadge tone={STATUS_TONE[status]}>{VENDOR_TEAM_STATUS_LABELS[status]}</StatusBadge>
+                    {removed ? <StatusBadge tone="warning">{`Removed by ${client}`}</StatusBadge> : null}
+                    <StatusBadge tone={removed ? "neutral" : STATUS_TONE[status]}>{VENDOR_TEAM_STATUS_LABELS[status]}</StatusBadge>
                     {when ? (
                       <span className="vendor-team-row-time">
                         <Clock3 aria-hidden size={13} /> {when}

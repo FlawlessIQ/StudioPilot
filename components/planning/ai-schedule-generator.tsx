@@ -62,7 +62,7 @@ import { scheduleCrewOptions } from "@/features/schedules/crew-options";
 import { crewLabels, sortLabels } from "@/features/schedules/crew-labels";
 import { useVendorTeam } from "@/components/vendors/use-vendor-team";
 import { jobAnswerRecord } from "@/features/questionnaires/resolved-answers";
-import { noEmailPublishWarning, vendorArrivalLines, vendorCategoryLabel } from "@/features/vendors/team";
+import { noEmailPublishWarning, removedByClient, vendorArrivalLines, vendorCategoryLabel } from "@/features/vendors/team";
 import { currentJobSnapshots, jobCoverageMinutes } from "@/features/packages/job-packages";
 import { InfoHint } from "@/components/ui/info-hint";
 import { VendorReshareBanner } from "@/components/planning/vendor-reshare-banner";
@@ -366,6 +366,8 @@ export function AiScheduleGenerator({
             typeof entry.vendorId === "string" &&
             entry.vendorId &&
             !entry.archivedAt &&
+            // Not one the client took off their list (kept for the studio to decide).
+            !removedByClient(entry) &&
             ["booked", "considering"].includes(String(entry.status)),
         )
         .map((entry) => ({
@@ -381,6 +383,7 @@ export function AiScheduleGenerator({
       typeof entry.vendorId === "string" &&
       entry.vendorId &&
       !entry.archivedAt &&
+      !removedByClient(entry) &&
       (clockOf(entry.arrivalTime) || clockOf(entry.loadInTime)),
   ).length;
   /** Who the questions would go to, and whether there is anyone to send to. */
@@ -819,6 +822,7 @@ export function AiScheduleGenerator({
     (entry) =>
       entry.status === "booked" &&
       !entry.archivedAt &&
+      !removedByClient(entry) &&
       typeof entry.vendorId === "string" &&
       entry.vendorId &&
       String(entry.email ?? "").includes("@") &&

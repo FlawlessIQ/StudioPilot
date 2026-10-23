@@ -7,15 +7,18 @@ import {
   coupleVendorAsk,
   coupleVendorKey,
   coupleVendorKinds,
+  coupleRemovalFor,
   dedupeCoupleVendors,
   normalizeEmail,
+  removedCoupleEntryFor,
+  studioWorkOnCoupleEntry,
   vendorSuggestionsFromAnswers,
   type CoupleVendorSubmission,
   type CoupleVendorTeamRecord,
   type CoupleVendorTeamView,
   type CoupleVendorView,
 } from "@/features/vendors/couple-team";
-import { crewVendorContactsFrom } from "@/features/vendors/team";
+import { crewVendorContactsFrom, removedByClient } from "@/features/vendors/team";
 import type { VendorType } from "@/features/vendors/schema";
 
 /**
@@ -24,7 +27,12 @@ import type { VendorType } from "@/features/vendors/schema";
  * has already checked they are a client on this job.
  *
  * What the couple sends replaces what the couple sent before — rows they
- * took out come off the team — and never touches the studio's own entries:
+ * took out come off the team, unless the studio has worked on them (a cost,
+ * a balance, the contract or certificate in, notes, a save, a timeline link
+ * sent): those are never deleted, only marked `removedByClientAt` and kept
+ * for the studio to decide, and listing the vendor again clears the mark
+ * (features/vendors/couple-team.ts coupleRemovalFor, removedCoupleEntryFor).
+ * It never touches the studio's own entries:
  * the studio's planner, or a florist it added, stays exactly as the studio
  * left it. A vendor the studio already has (same email) is linked, not
  * copied, and its directory details are left alone; a new one joins the
@@ -100,9 +108,12 @@ export async function coupleVendorTeamFor(
     trade: tenant.get("trade") ?? null,
   });
   // Booked vendors only: a florist the planner is still weighing up isn't
-  // someone the couple has.
+  // someone the couple has, and one they took off (kept for the studio) is
+  // off their list.
   const vendors = team.docs
-    .filter((entry) => !entry.get("archivedAt") && entry.get("status") === "booked" && text(entry.get("company")))
+    .filter(
+      (entry) => !entry.get("archivedAt") && !removedByClient(entry.data()) && entry.get("status") === "booked" && text(entry.get("company")),
+    )
     .map(viewOf)
     .sort((left, right) => Number(right.addedByCouple) - Number(left.addedByCouple) || left.company.localeCompare(right.company));
   return {
@@ -120,6 +131,8 @@ export type CoupleVendorSaveResult = {
   added: number;
   updated: number;
   removed: number;
+  /** Of those removed, the ones the studio had worked on: kept and marked for the studio, not deleted. */
+  keptForStudio: number;
   /** Vendors the studio already had on the job: linked, not added twice. */
   alreadyListed: string[];
 };
@@ -202,6 +215,7 @@ export async function submitCoupleVendorTeam(
 
     const live = team.docs.filter((entry) => !entry.get("archivedAt"));
     const coupleEntries = new Map(live.filter((entry) => entry.get("source") === "couple").map((entry) => [text(entry.get("entryId")) || entry.id, entry]));
+    const coupleEntryList = [...coupleEntries.entries()].map(([entryId, entry]) => ({ id: entryId, data: entry.data() ?? {}, entry }));
     const studioVendorIds = new Set(live.filter((entry) => entry.get("source") !== "couple").map((entry) => text(entry.get("vendorId"))).filter(Boolean));
 
     type Planned = {
@@ -227,6 +241,9 @@ export async function submitCoupleVendorTeam(
       const existing =
         (row.entryId ? coupleEntries.get(row.entryId) : undefined) ??
         coupleEntries.get(stableId("pv", tenantId, `couple:${projectId}:${key}`)) ??
+        // Listed again after taking them off: the entry kept for the studio
+        // comes back, with everything on it, rather than a second one.
+        removedCoupleEntryFor(row, coupleEntryList)?.entry ??
         null;
       const entryId = existing ? text(existing.get("entryId")) || existing.id : stableId("pv", tenantId, `couple:${projectId}:${key}`);
       const email = normalizeEmail(row.email);
@@ -257,7 +274,7 @@ export async function submitCoupleVendorTeam(
         alreadyListed.push(row.company);
         continue;
       }
-      if (planned.some((item) => item.vendorId === vendorId)) continue;
+      if (planned.some((item) => item.vendorId === vendorId || item.entryId === entryId)) continue;
       planned.push({ entryId, vendorId, createVendor, updateVendorDetails, existing, row });
     }
 
@@ -267,13 +284,54 @@ export async function submitCoupleVendorTeam(
     // times — is the studio's now, and a save that didn't include it must not
     // delete it (coupleVendorTeamFor shows booked entries only).
     const removed = [...coupleEntries.entries()].filter(
-      ([entryId, entry]) => !keptEntryIds.has(entryId) && entry.get("status") === "booked" && Boolean(text(entry.get("company"))),
+      ([entryId, entry]) =>
+        !keptEntryIds.has(entryId) && entry.get("status") === "booked" && Boolean(text(entry.get("company"))) && !removedByClient(entry.data()),
     );
-    const removedShares = removed.length
-      ? await transaction.getAll(
-          ...removed.map(([, entry]) => db.doc(`scheduleShares/${shareIdFor(tenantId, projectId, text(entry.get("vendorId")) || "none")}`)),
-        )
-      : [];
+    // Whether someone at the studio last saved each couple entry, for entries
+    // from before `studioTouchedAt` was stamped: the couple's own saves carry a
+    // client's uid; anyone else (a studio member, a member since removed) is
+    // the studio, and the studio's work is kept rather than lost.
+    const writers = [
+      ...new Set(
+        coupleEntryList
+          .filter(({ data }) => !text(data.studioTouchedAt))
+          .map(({ data }) => text(data.updatedBy))
+          .filter((writer) => writer && writer !== uid),
+      ),
+    ];
+    const [removedShares, writerMemberships] = await Promise.all([
+      removed.length
+        ? transaction.getAll(
+            ...removed.map(([, entry]) => db.doc(`scheduleShares/${shareIdFor(tenantId, projectId, text(entry.get("vendorId")) || "none")}`)),
+          )
+        : Promise.resolve([] as DocumentSnapshot[]),
+      writers.length
+        ? transaction.getAll(...writers.map((writer) => db.doc(`memberships/${tenantId}_${writer}`)))
+        : Promise.resolve([] as DocumentSnapshot[]),
+    ]);
+    const clientWriters = new Set(
+      writers.filter((_, index) => {
+        const membership = writerMemberships[index];
+        return Boolean(membership?.exists && membership.get("tenantId") === tenantId && membership.get("role") === "client");
+      }),
+    );
+    const updatedByStudio = (entry: DocumentSnapshot) => {
+      const writer = text(entry.get("updatedBy"));
+      return writers.includes(writer) && !clientWriters.has(writer);
+    };
+    const liveShare = (share: DocumentSnapshot | undefined) =>
+      Boolean(share?.exists && share.get("tenantId") === tenantId && share.get("status") !== "revoked" && !share.get("revokedAt"));
+    const removals = removed.map(([entryId, entry], index) => {
+      const context = { updatedByStudio: updatedByStudio(entry), liveShare: liveShare(removedShares[index]) };
+      return {
+        entryId,
+        entry,
+        share: removedShares[index],
+        updatedByStudio: context.updatedByStudio,
+        action: coupleRemovalFor(entry.data() ?? {}, context),
+        reasons: studioWorkOnCoupleEntry(entry.data() ?? {}, context),
+      };
+    });
 
     // ── Writes ──
     let added = 0;
@@ -328,7 +386,18 @@ export async function submitCoupleVendorTeam(
         : { ...details, contactName: details.contactName || null };
       const reference = db.doc(`projectVendors/${projectId}_${item.entryId}`);
       if (item.existing) {
-        transaction.update(reference, { category: item.row.category, vendorId: item.vendorId, ...snapshot, updatedAt: now, updatedBy: uid });
+        transaction.update(reference, {
+          category: item.row.category,
+          vendorId: item.vendorId,
+          ...snapshot,
+          // Listed again: back on their list, and the studio's work on it with it.
+          ...(removedByClient(item.existing.data()) ? { removedByClientAt: null, removedByClientBy: null } : {}),
+          // The couple's save is about to take the last writer's name: a
+          // studio member's earlier save is kept as the stamp it stands for.
+          ...(updatedByStudio(item.existing) ? { studioTouchedAt: text(item.existing.get("updatedAt")) || now } : {}),
+          updatedAt: now,
+          updatedBy: uid,
+        });
         updated += 1;
       } else {
         transaction.create(reference, {
@@ -361,15 +430,29 @@ export async function submitCoupleVendorTeam(
         added += 1;
       }
     }
-    for (const [index, [, entry]] of removed.entries()) {
-      transaction.delete(entry.ref);
+    for (const removal of removals) {
+      const { entry, share } = removal;
+      if (removal.action === "already_marked") continue;
+      if (removal.action === "delete") transaction.delete(entry.ref);
+      // The studio worked on it: never deleted. Marked and kept, every field
+      // the studio added untouched, for the studio to keep on or take off.
+      else
+        transaction.update(entry.ref, {
+          removedByClientAt: now,
+          removedByClientBy: uid,
+          ...(removal.updatedByStudio && !text(entry.get("studioTouchedAt")) ? { studioTouchedAt: text(entry.get("updatedAt")) || now } : {}),
+          updatedAt: now,
+          updatedBy: uid,
+        });
       const vendorId = text(entry.get("vendorId"));
       if (vendorId) transaction.update(db.doc(`vendors/${vendorId}`), { projectIds: FieldValue.arrayRemove(projectId), updatedAt: now, updatedBy: uid });
-      // Off the day, so their link to its schedule stops opening (vendor-team.ts removeEntry).
-      const share = removedShares[index];
+      // Off the couple's day, so their link to its schedule stops opening
+      // (vendor-team.ts removeEntry); kept on by the studio, they get a new one with the next send.
       if (share?.exists && share.get("tenantId") === tenantId && share.get("status") !== "revoked")
         transaction.update(share.ref, { status: "revoked", revokedAt: now, revokedReason: "removed_by_client", updatedAt: now, updatedBy: uid });
     }
+    const marked = removals.filter((removal) => removal.action === "mark");
+    const removedCount = removals.filter((removal) => removal.action !== "already_marked").length;
 
     const answer = input.submission.answer;
     const fields = {
@@ -397,14 +480,21 @@ export async function submitCoupleVendorTeam(
       entityId: projectId,
       timestamp: now,
       before: record.exists ? { answer: record.get("answer") ?? null, count: record.get("count") ?? null } : null,
-      after: { answer, count: planned.length, added, updated, removed: removed.length },
+      after: {
+        answer,
+        count: planned.length,
+        added,
+        updated,
+        removed: removedCount,
+        keptForStudio: marked.map((removal) => ({ entryId: removal.entryId, reasons: removal.reasons })),
+      },
       ipAddress: null,
       userAgent: null,
       correlationId: auditId,
       automationRunId: null,
       providerEventId: null,
     });
-    return { added, updated, removed: removed.length, alreadyListed };
+    return { added, updated, removed: removedCount, keptForStudio: marked.length, alreadyListed };
   });
 
   // The crew's view of the job's vendors, from the team as it now stands.

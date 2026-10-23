@@ -177,6 +177,7 @@ export type SectionEntry = {
   phone?: unknown;
   arrivalTime?: unknown;
   archivedAt?: unknown;
+  removedByClientAt?: unknown;
 };
 
 const words = (value: unknown) => (typeof value === "string" ? value.trim() : "");
@@ -188,7 +189,11 @@ const words = (value: unknown) => (typeof value === "string" ? value.trim() : ""
  */
 export function vendorSectionLines(entries: readonly SectionEntry[]): string {
   return entries
-    .filter((entry) => !entry.archivedAt && (entry.status === "booked" || entry.status === "considering") && words(entry.company))
+    // Not one the couple took off their list: the section is read back to them.
+    .filter(
+      (entry) =>
+        !entry.archivedAt && !entry.removedByClientAt && (entry.status === "booked" || entry.status === "considering") && words(entry.company),
+    )
     .map((entry) => {
       // The kind first, so the line reads back as the same vendor: "DJ (Dinner and dancing)".
       const category = SECTION_CATEGORY_WORDS[words(entry.category) as SectionCategory] || "Vendor";

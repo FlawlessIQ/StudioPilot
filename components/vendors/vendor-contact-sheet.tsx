@@ -5,7 +5,7 @@ import { ArrowLeft, Printer } from "lucide-react";
 import { useVendorTeam, type TeamRecord } from "@/components/vendors/use-vendor-team";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { spokenClock } from "@/features/schedules/day-clock";
-import { displayPhone, vendorCategoryLabel, vendorTeamProgress } from "@/features/vendors/team";
+import { displayPhone, removedByClient, vendorCategoryLabel, vendorTeamProgress } from "@/features/vendors/team";
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 const dollars = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2, minimumFractionDigits: 0 });
@@ -31,7 +31,8 @@ export function VendorContactSheet({ projectId }: { projectId: string }) {
   if (team.loading) return <p className="form-notice">Loading the vendor team…</p>;
   if (team.error) return <p className="form-error">{team.error}</p>;
   const booked = team.entries
-    .filter((entry) => entry.status === "booked" && !entry.archivedAt)
+    // Not one the client took off their list (kept on the job's team for the studio to decide).
+    .filter((entry) => entry.status === "booked" && !entry.archivedAt && !removedByClient(entry))
     .sort((left, right) =>
       (text(left.arrivalTime) || text(left.loadInTime) || "99:99").localeCompare(text(right.arrivalTime) || text(right.loadInTime) || "99:99"),
     );

@@ -946,7 +946,8 @@ async function runOfShowFor(db:FirebaseFirestore.Firestore,schedule:DocumentSnap
   ]);
   const contacts=team.docs
     .map(entry=>entry.data())
-    .filter(entry=>!entry.archivedAt&&entry.status==="booked")
+    // Not one the couple took off their list (kept for the studio to decide).
+    .filter(entry=>!entry.archivedAt&&!entry.removedByClientAt&&entry.status==="booked")
     .map(entry=>({
       company:String(entry.company??""),
       role:[vendorTeamCategoryLabel(entry.category),String(entry.contactName??"").trim()].filter(Boolean).join(" · "),

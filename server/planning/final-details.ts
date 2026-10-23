@@ -94,7 +94,8 @@ async function vendorTeamFor(
     required: Boolean(ask?.available) && answered === "unanswered",
     none: answered === "none",
     vendors: team.docs
-      .filter((entry) => !entry.get("archivedAt") && entry.get("status") === "booked" && text(entry.get("company")))
+      // Not one the couple took off their list (kept for the studio to decide).
+      .filter((entry) => !entry.get("archivedAt") && !entry.get("removedByClientAt") && entry.get("status") === "booked" && text(entry.get("company")))
       .map((entry) => ({
         category: vendorCategoryLabel(entry.get("category")),
         company: text(entry.get("company")),

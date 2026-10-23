@@ -11,6 +11,7 @@ import { sendPlanningCommand } from "@/lib/planning/command-client";
 import {
   VENDOR_TEAM_CATEGORIES,
   VENDOR_TEAM_STATUS_LABELS,
+  removedByClient,
   vendorCategoryLabel,
   vendorTeamStatusSchema,
   type VendorTeamStatus,
@@ -30,6 +31,11 @@ function toCents(value: FormDataEntryValue | null): number | null {
 }
 const clock = (value: FormDataEntryValue | null) => (/^\d{2}:\d{2}$/.test(String(value ?? "")) ? String(value) : null);
 const words = (value: FormDataEntryValue | null) => String(value ?? "").trim() || null;
+/** "October 22", for when the client took a vendor off their list. */
+function dayOf(value: unknown): string {
+  const time = typeof value === "string" ? Date.parse(value) : Number.NaN;
+  return Number.isFinite(time) ? new Date(time).toLocaleDateString("en-US", { month: "long", day: "numeric" }) : "";
+}
 
 /**
  * Adding a vendor to a job's team, or changing one (the job's Vendor team).
@@ -178,6 +184,30 @@ export function VendorTeamSheet({
     }
   }
 
+  // The client took them off their list after the studio had worked on them
+  // (server/vendors/couple-team.ts): kept, with everything on it, until the
+  // studio keeps them on or takes them off.
+  const removedByThem = !adding && removedByClient(entry);
+
+  async function keep() {
+    setBusy(true);
+    setError(null);
+    try {
+      const outcome = await sendPlanningCommand("keepVendorTeamEntry", { projectId, entryId: text(entry?.entryId) });
+      if (outcome.persisted) refreshTenantRecords("vendors", "projects");
+      onSaved(
+        outcome.persisted
+          ? `${text(entry?.company) || vendorCategoryLabel(category)} stays on the team. Send them the timeline again when you're ready.`
+          : "Preview mode — nothing was saved.",
+      );
+      onClose();
+    } catch (caught: unknown) {
+      setError(friendlyError(caught, "That couldn't be saved. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function remove() {
     setBusy(true);
     setError(null);
@@ -213,6 +243,23 @@ export function VendorTeamSheet({
               : "Changes to their name, email or phone change them in your vendors too."}
           </p>
         </header>
+        {removedByThem ? (
+          <div aria-label={`Removed by ${client}`} className="vendor-team-send-confirm" role="group">
+            <p>
+              <strong>{`Removed by ${client}${dayOf(entry?.removedByClientAt) ? ` on ${dayOf(entry?.removedByClientAt)}` : ""}.`}</strong>{" "}
+              {`They took ${text(entry?.company) || "this vendor"} off their vendor list. Everything you added is kept, but they get no timeline, schedule link or vendor email from this job until you keep them on.`}
+            </p>
+            <div className="vendor-team-send-actions">
+              <button className="button button-dark" disabled={busy} onClick={() => void keep()} type="button">
+                {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : null}
+                Keep them on the team
+              </button>
+              <button className="button button-light" disabled={busy} onClick={() => setConfirmingRemove(true)} type="button">
+                Take off this job
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="record-sheet-fields">
           <label>
             What they do

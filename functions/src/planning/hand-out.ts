@@ -9,6 +9,7 @@ export type HandOutEntry = {
   [key: string]: unknown;
   status?: unknown;
   archivedAt?: unknown;
+  removedByClientAt?: unknown;
   company?: unknown;
   category?: unknown;
   roleLabel?: unknown;
@@ -61,7 +62,8 @@ export function paymentsToHandOut(entries: readonly HandOutEntry[], eventDate: s
     .sort((left, right) => arrives(left.entry).localeCompare(arrives(right.entry)) || words(left.entry.createdAt).localeCompare(words(right.entry.createdAt)) || left.index - right.index)
     .map(({ entry }) => entry);
   for (const entry of ordered) {
-    if (entry.archivedAt || entry.status !== "booked") continue;
+    // Taken off by the couple (kept for the studio to decide): no envelope.
+    if (entry.archivedAt || entry.removedByClientAt || entry.status !== "booked") continue;
     const due = words(entry.balanceDueDate).slice(0, 10);
     // Due before the day: the couple pays it ahead, not from an envelope.
     const onTheDay = !due || !day || due >= day;

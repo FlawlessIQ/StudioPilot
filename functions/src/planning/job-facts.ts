@@ -362,7 +362,7 @@ export function jobFactSheet(input: {
 
   // The vendor team, one per line, for the Final details vendor section
   // (vendor-section.ts): the couple corrects what is booked and adds the rest.
-  const team = (input.team ?? []).filter((entry) => !entry.data.archivedAt);
+  const team = (input.team ?? []).filter((entry) => !entry.data.archivedAt && !entry.data.removedByClientAt);
   if (team.length) put("vendor_team", vendorSectionLines(team.map((entry) => entry.data)), "booking", "projectVendors", team[0]!.id, "team");
 
   // The run of show, when there is one.

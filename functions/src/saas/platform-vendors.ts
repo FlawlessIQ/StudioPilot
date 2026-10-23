@@ -62,7 +62,7 @@ export function sightingFrom(input: {
   at: string;
 }): VendorSighting | null {
   const { entry } = input;
-  if (entry.archivedAt || entry.status !== "booked") return null;
+  if (entry.archivedAt || entry.removedByClientAt || entry.status !== "booked") return null;
   const email = text(entry.email || input.vendor?.email).toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || isReservedTestAddress(email)) return null;
   const tenantId = text(entry.tenantId);
@@ -152,7 +152,7 @@ export async function recordTeamEntry(db: Firestore, entry: DocumentData, at: st
   const tenantId = text(entry.tenantId);
   const projectId = text(entry.projectId);
   const vendorId = text(entry.vendorId);
-  if (!tenantId || !projectId || entry.status !== "booked" || entry.archivedAt) return false;
+  if (!tenantId || !projectId || entry.status !== "booked" || entry.archivedAt || entry.removedByClientAt) return false;
   const [project, vendor, tenant] = await Promise.all([
     db.doc(`projects/${projectId}`).get(),
     vendorId ? db.doc(`vendors/${vendorId}`).get() : Promise.resolve(null),

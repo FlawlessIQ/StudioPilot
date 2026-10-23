@@ -285,3 +285,104 @@ export function vendorSuggestionsFromAnswers(
 /** What the couple is told the list is for — the reason they'd fill it in. */
 export const COUPLE_VENDOR_WHY =
   "Everyone working your day gets the same schedule, with each other's names and numbers on it — so the day runs smoothly and nobody has to chase anyone.";
+
+// ─── When the couple takes a vendor off their list ──────────────────────────
+
+/**
+ * What only the studio writes on a team entry. The couple's portal creates
+ * every one of these empty (server/vendors/couple-team.ts) and never sets
+ * them, so any of them set means the studio worked on the entry.
+ */
+export const STUDIO_ONLY_ENTRY_FIELDS = [
+  "roleLabel",
+  "arrivalTime",
+  "loadInTime",
+  "strikeTime",
+  "contractReceived",
+  "coiReceived",
+  "costCents",
+  "balanceDueCents",
+  "balanceDueDate",
+  "tipCents",
+  "notes",
+] as const;
+
+function fieldSet(value: unknown): boolean {
+  if (typeof value === "string") return value.trim() !== "";
+  if (typeof value === "number") return Number.isFinite(value);
+  return value === true;
+}
+
+/**
+ * Why a couple-listed entry is the studio's work too, or nothing when it is
+ * still exactly what the couple sent: a studio-only field set (its cost, the
+ * balance due, the contract or certificate in, its times, notes), a save by
+ * someone at the studio (`studioTouchedAt`, or `updatedByStudio` — the last
+ * writer is a studio member, for entries from before the stamp), a status
+ * the studio changed, or a live timeline link the studio sent them.
+ */
+export function studioWorkOnCoupleEntry(
+  entry: Record<string, unknown>,
+  context: { updatedByStudio?: boolean; liveShare?: boolean } = {},
+): string[] {
+  const reasons: string[] = STUDIO_ONLY_ENTRY_FIELDS.filter((field) => fieldSet(entry[field]));
+  if (entry.status !== undefined && entry.status !== "booked") reasons.push("status");
+  if (fieldSet(entry.studioTouchedAt) || context.updatedByStudio) reasons.push("studio_edit");
+  if (context.liveShare) reasons.push("timeline_link");
+  return reasons;
+}
+
+export type CoupleRemoval = "delete" | "mark" | "already_marked";
+
+/**
+ * A couple-listed vendor no longer on the couple's list. Untouched, it comes
+ * off the team as before. Touched by the studio, it is never deleted: it is
+ * marked `removedByClientAt` and kept, so the cost, the balance, the
+ * contract and certificate flags and the notes stay where the studio left
+ * them, and the studio decides — keep them on, or take them off. Already
+ * marked, it is left as it was (the first removal's date stands).
+ */
+export function coupleRemovalFor(
+  entry: Record<string, unknown>,
+  context: { updatedByStudio?: boolean; liveShare?: boolean } = {},
+): CoupleRemoval {
+  if (fieldSet(entry.removedByClientAt)) return "already_marked";
+  return studioWorkOnCoupleEntry(entry, context).length ? "mark" : "delete";
+}
+
+const companyWords = (value: unknown) =>
+  typeof value === "string" ? value.trim().toLowerCase().replace(/\s+/g, " ") : "";
+const stringOrNull = (value: unknown) => (typeof value === "string" ? value : null);
+
+/**
+ * The entry a row brings back: a couple-listed vendor the couple took off
+ * (kept for the studio, `removedByClientAt`) and has now listed again — the
+ * same email, the same phone, the same key, or the same business by kind. Re-adding clears
+ * the mark on that entry rather than adding the vendor a second time.
+ */
+export function removedCoupleEntryFor<T extends { id: string; data: Record<string, unknown> }>(
+  row: Pick<CoupleVendorRow, "category" | "company" | "email" | "phone">,
+  entries: readonly T[],
+): T | null {
+  const email = normalizeEmail(row.email);
+  const key = coupleVendorKey(row);
+  const company = companyWords(row.company);
+  const removed = entries.filter(
+    (entry) => entry.data.source === "couple" && fieldSet(entry.data.removedByClientAt) && !entry.data.archivedAt,
+  );
+  const keyOf = (data: Record<string, unknown>) =>
+    coupleVendorKey({
+      category: (VENDOR_TYPES as readonly string[]).includes(String(data.category)) ? (data.category as VendorType) : "other",
+      company: stringOrNull(data.company) ?? "",
+      email: stringOrNull(data.email),
+      phone: stringOrNull(data.phone),
+    });
+  const phone = normalizePhone(row.phone);
+  return (
+    removed.find((entry) => email !== "" && normalizeEmail(entry.data.email) === email) ??
+    removed.find((entry) => phone.length >= 7 && normalizePhone(entry.data.phone) === phone) ??
+    removed.find((entry) => keyOf(entry.data) === key) ??
+    removed.find((entry) => company !== "" && entry.data.category === row.category && companyWords(entry.data.company) === company) ??
+    null
+  );
+}

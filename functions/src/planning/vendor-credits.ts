@@ -91,7 +91,8 @@ export function vendorCredits(input: {
     return index < 0 ? ORDER.length : index;
   };
   const booked = input.entries
-    .filter((entry) => !entry.archivedAt && entry.status === "booked")
+    // A vendor the couple took off their list is not one they'd credit.
+    .filter((entry) => !entry.archivedAt && !entry.removedByClientAt && entry.status === "booked")
     .map((entry) => {
       const vendor = input.vendors.get(words(entry.vendorId));
       const category = words(entry.category) || "other";
