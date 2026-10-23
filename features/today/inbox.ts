@@ -1920,7 +1920,11 @@ export function todayInbox(input: TodayInput): TodayInbox {
     // A planner's checklist item reaches Today on the day it falls due, not
     // the day after (features/planning/planning-checklist.ts).
     const checklist = isPlanningChecklistTask(task);
-    if (!due || (checklist ? due > today : due >= today) || done) continue;
+    // A problem the hourly safety sweep found (functions/src/operations/
+    // integrity-sweep.ts: a paid deposit that didn't book the job, …) is
+    // shown the hour it is found, not the day after it is due.
+    const onTheDay = checklist || text(task.source) === "integrity_check";
+    if (!due || (onTheDay ? due > today : due >= today) || done) continue;
     if (!jobStillOpen(task.projectId)) continue;
     // The change request already has its card above, with the couple's words.
     if (
@@ -1952,7 +1956,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
       title: text(task.title) || "Overdue task",
       detail: nameFor(task.projectId) ?? "Studio task",
       dueDate: due,
-      extraFacts: [checklist && due === today ? "due today" : `was due ${formatDueDate(due)}`],
+      extraFacts: [
+        checklist && due === today ? "due today" : onTheDay && due === today ? "found today" : `was due ${formatDueDate(due)}`,
+      ],
       // The task list, filtered to the job: that is where Mark done, Edit and
       // Cancel are. The card used to open the job page, which has none of
       // them, so an overdue task could be looked at from Today but not done.
