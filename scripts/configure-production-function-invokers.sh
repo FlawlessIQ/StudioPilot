@@ -171,6 +171,8 @@ scheduler_services=(
   # for three months (saas/referrals.ts). Missing here, it 403s and credits
   # silently stop.
   referralcreditscheduler
+  # Repairs a studio's subscription from Stripe when a webhook was missed (saas/subscription-reconcile.ts).
+  subscriptionreconciler
   # Invites the vendors on studios' booked jobs to try StudioCue, once each
   # (saas/vendor-invites.ts).
   vendorinvitescheduler

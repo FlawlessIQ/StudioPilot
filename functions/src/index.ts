@@ -62,6 +62,7 @@ export {
   reviewRequestScheduler,
 } from "./post-event/jobs.js";
 export { billingCommand, stripeWebhook } from "./saas/stripe.js";
+export { subscriptionReconciler } from "./saas/subscription-reconcile.js";
 export { subscriptionAccessChanged } from "./saas/billing-hold.js";
 export { billingNoticeScheduler } from "./saas/billing-notices.js";
 export { referralCreditScheduler } from "./saas/referrals.js";

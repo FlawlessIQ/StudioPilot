@@ -1,6 +1,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
-import { entitlements, priceFor, writeSubscriptionFromStripe } from "../../saas/stripe.js";
+import { entitlements, priceFor } from "../../saas/stripe.js";
+import { syncSubscriptionFromStripe } from "../../saas/subscription-reconcile.js";
 import { REASON_MIN, consoleHandler, fail } from "../command-kit.js";
 import { refreshStudioSummary } from "../rollup.js";
 import { MAX_TRIAL_DAYS, STUDIOCUE_METADATA, stripeMock, stripeRequest, unix } from "../stripe-admin.js";
@@ -38,15 +39,14 @@ async function loadSubscription(db: Firestore, id: string) {
   return { reference, snapshot, stripeId, status, live, comped: snapshot.get("comped") === true };
 }
 
-/** Read the Stripe subscription back and write it exactly as the webhook would. */
+/**
+ * Read the Stripe subscription back and write it exactly as the webhook would
+ * — the same read and write the six-hourly subscriptionReconciler makes
+ * (saas/subscription-reconcile.ts).
+ */
 async function syncFromStripe(db: Firestore, id: string, stripeId: string, now: string) {
-  const object = await stripeRequest<Record<string, unknown>>("GET", `subscriptions/${encodeURIComponent(stripeId)}`, { "expand[]": "discount.promotion_code" });
-  const reference = db.doc(`subscriptions/${id}`);
-  const current = await reference.get();
-  const batch = db.batch();
-  const outcome = await writeSubscriptionFromStripe(batch, reference, current, id, object, object.status === "canceled", now);
-  await batch.commit();
-  return outcome;
+  const { status, plan } = await syncSubscriptionFromStripe(db, id, stripeId, now, "always");
+  return { status, plan };
 }
 
 function couponSummary(coupon: Record<string, unknown>, code: string | null, endsAt: string | null) {

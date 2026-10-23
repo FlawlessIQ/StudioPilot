@@ -812,13 +812,48 @@ type SubscriptionWriter = {
 };
 
 /**
+ * The billing state a Stripe subscription object means: its status, period and
+ * scheduled cancellation, mapped the one way every writer maps them.
+ *
+ * writeSubscriptionFromStripe writes these, and subscriptionReconciler
+ * (saas/subscription-reconcile.ts) compares them with what is stored to decide
+ * whether a webhook was missed — one mapping, so the check and the write can't
+ * disagree. `null` period ends mean Stripe didn't say and the stored one stands.
+ */
+export function stripeSubscriptionState(
+  object: Record<string, unknown>,
+  deleted: boolean,
+): {
+  status: ReturnType<typeof normalizeStatus>;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+} {
+  const items = object.items as
+    | { data?: Array<{ current_period_start?: number; current_period_end?: number }> }
+    | undefined;
+  // Resolve the period from the object/item/trial (see resolveSubscriptionPeriod
+  // — the top-level current_period_* fields are absent on recent API versions).
+  const period = resolveSubscriptionPeriod(object, items?.data?.[0]);
+  return {
+    status: deleted ? "cancelled" : normalizeStatus(object.status),
+    currentPeriodStart: period.start,
+    currentPeriodEnd: period.end,
+    cancelAtPeriodEnd: Boolean(object.cancel_at_period_end),
+  };
+}
+
+/**
  * The subscription as Stripe reports it, written onto ours.
  *
  * Shared by the webhook and by confirmCheckout, which provisions from the
  * Checkout Session a studio returns with, so a late or failed webhook no longer
  * leaves a paid-up studio on "Starting your trial…" (docs/onboarding-
  * assessment-2026-09-26.md). The same object gives the same record whichever
- * arrives first, and a merge makes the second harmless.
+ * arrives first, and a merge makes the second harmless. The Console's
+ * syncSubscription and the six-hourly subscriptionReconciler write through it
+ * too (saas/subscription-reconcile.ts), so a missed webhook is repaired with
+ * exactly the update the webhook would have made.
  */
 export async function writeSubscriptionFromStripe(
   batch: SubscriptionWriter,
@@ -842,10 +877,9 @@ export async function writeSubscriptionFromStripe(
     | undefined;
   const firstItem = items?.data?.[0];
   const priceId = firstItem?.price?.id ?? current.get("stripePriceId") ?? null;
-  // Resolve the period from the object/item/trial (see resolveSubscriptionPeriod
-  // — the top-level current_period_* fields are absent on recent API versions),
-  // then fall back to the stored value.
-  const period = resolveSubscriptionPeriod(object, firstItem);
+  // Status, period and cancellation, then the stored period where Stripe
+  // gave none.
+  const state = stripeSubscriptionState(object, deleted);
   const mappedPlan = priceId ? planForPrice(priceId) : undefined;
   // The entry plan is the floor for a subscription whose price we
   // cannot map. It was "solo", which no longer exists — a webhook for an
@@ -854,7 +888,7 @@ export async function writeSubscriptionFromStripe(
     mappedPlan ??
     (current.get("plan") as keyof typeof entitlements | undefined) ??
     "studio";
-  const status = deleted ? "cancelled" : normalizeStatus(object.status);
+  const status = state.status;
   const discount = await discountFromStripe(subscriptionReference.firestore, object);
   // Another studio's referral code ties this studio to it (saas/referrals.ts).
   const subscriptionMetadata = (object.metadata ?? {}) as Record<string, unknown>;
@@ -927,10 +961,10 @@ export async function writeSubscriptionFromStripe(
       ),
       stripePriceId: priceId,
       currentPeriodStart:
-        period.start ?? (current.get("currentPeriodStart") ?? null),
+        state.currentPeriodStart ?? (current.get("currentPeriodStart") ?? null),
       currentPeriodEnd:
-        period.end ?? (current.get("currentPeriodEnd") ?? null),
-      cancelAtPeriodEnd: Boolean(object.cancel_at_period_end),
+        state.currentPeriodEnd ?? (current.get("currentPeriodEnd") ?? null),
+      cancelAtPeriodEnd: state.cancelAtPeriodEnd,
       unitAmountCents:
         typeof firstItem?.price?.unit_amount === "number"
           ? firstItem.price.unit_amount
