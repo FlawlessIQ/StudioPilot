@@ -228,4 +228,6 @@ export const PURGE_REFUSALS: Record<string, string> = {
   PROJECT_HAS_LIVE_CREW:
     "Someone was offered work on this job after this panel opened. Close it and open it again to see who, then choose whether to withdraw them and delete the job.",
   PROJECT_NOT_FOUND: "That job could not be found. It may already be deleted.",
+  PROJECT_WORK_IN_FLIGHT:
+    "StudioCue is in the middle of something for this job right now (an invoice at QuickBooks, an email or a PDF). Wait a few minutes, then delete it.",
 };

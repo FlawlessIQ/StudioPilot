@@ -564,6 +564,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "That assignment is already over — declined, expired, withdrawn or completed — so there is nothing to withdraw.",
   ASSIGNMENT_NOT_FOUND:
     "That assignment is no longer on this job. Refresh to see who is on it now.",
+  PROJECT_WORK_IN_FLIGHT:
+    "StudioCue is in the middle of something for this job right now (an invoice at QuickBooks, an email or a PDF). Wait a few minutes, then delete it.",
   PROJECT_HAS_LIVE_CREW:
     "Someone is still waiting on this job — an offer out, or crew who said yes. Open the job to see who: Archive job and Delete this job permanently both list them and can withdraw them in the same step. Cancel it instead if the wedding is off.",
   CREW_IDENTITY_OWNED_BY_MEMBER:

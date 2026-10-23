@@ -298,3 +298,9 @@ test("deleting a job keeps the studio's vendors, and takes the job off them", ()
   assert.match(command, /await unlinkVendors\(db, tenantId, projectId\);\s*for \(const collection of await sweepableCollections\(db\)\)/);
   assert.match(command, /projectIds: remaining,[\s\S]*?projectId: remaining\[0\] \?\? null/);
 });
+
+test("a job isn't deleted while work for it is running", () => {
+  const command = readFileSync("functions/src/projects/purge-command.ts", "utf8");
+  assert.match(command, /if \(await workInFlight\(db, parsed\.tenantId, parsed\.input\.projectId\)\)\s*throw new Error\("PROJECT_WORK_IN_FLIGHT"\);/);
+  assert.ok(PURGE_REFUSALS.PROJECT_WORK_IN_FLIGHT);
+});

@@ -257,6 +257,23 @@ export async function sweepProjectRecords(
   return deleted;
 }
 
+/** Background work for this job that is running, or queued to call a provider. */
+async function workInFlight(db: Db, tenantId: string, projectId: string): Promise<boolean> {
+  const checks: Array<[string, string[]]> = [
+    ["providerJobs", ["queued", "retry_scheduled", "running"]],
+    ["emailJobs", ["running"]],
+    ["pdfJobs", ["running"]],
+  ];
+  // One field, so no composite index is needed: a missing index here would
+  // break deleting any job.
+  for (const [collection, statuses] of checks) {
+    const found = await db.collection(collection).where("projectId", "==", projectId).limit(500).get();
+    if (found.docs.some((job) => job.get("tenantId") === tenantId && statuses.includes(String(job.get("status")))))
+      return true;
+  }
+  return false;
+}
+
 /**
  * Take a deleted job off the studio's vendors, keeping every vendor.
  *
@@ -352,6 +369,12 @@ export const projectPurgeCommand = onRequest(
       // to withdraw them.
       if (liveCrew && !parsed.input.withdrawLiveCrew)
         throw new Error("PROJECT_HAS_LIVE_CREW");
+      // Work running for this job: a QuickBooks invoice being created, a
+      // signing envelope, an email or a PDF. Sweeping its records mid-flight
+      // let the worker write pieces of the job back afterwards and orphaned
+      // the record at the provider (audit, 2026-10-22).
+      if (await workInFlight(db, parsed.tenantId, parsed.input.projectId))
+        throw new Error("PROJECT_WORK_IN_FLIGHT");
 
       const purgeId = createHash("sha256")
         .update(`${parsed.tenantId}:${parsed.idempotencyKey}`)
