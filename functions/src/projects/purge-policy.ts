@@ -156,6 +156,7 @@ const LABELS: Record<string, { one: string; many: string }> = {
   projectCloseouts: { one: "closeout", many: "closeouts" },
   archiveHandoffs: { one: "archive handoff", many: "archive handoffs" },
   bookingOrchestrations: { one: "booking automation", many: "booking automations" },
+  bookingOrchestrationHistory: { one: "earlier booking automation", many: "earlier booking automations" },
   bookingGateRuns: { one: "booking gate run", many: "booking gate runs" },
   clientInvitations: { one: "portal invitation", many: "portal invitations" },
   aiActions: { one: "prepared action", many: "prepared actions" },

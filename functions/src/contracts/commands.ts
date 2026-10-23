@@ -24,6 +24,7 @@ import { contractDocumentHash, sha256Text } from "./document-hash.js";
 import { writeContractVoid } from "./void-writes.js";
 import { tenantTrade } from "../trades/tenant-trade.js";
 import { tradeVocab } from "../trades/trades.js";
+import { replacePlan } from "../booking/plan-history.js";
 import {
   customFieldsFrom,
   importedAgreementText,
@@ -717,27 +718,37 @@ export async function sendContract(
         currentStep: "wait_for_signature",
         updatedAt: context.timestamp,
       });
-    } else if (!orchestration.exists || orchestration.get("status") !== "completed") {
-      transaction.set(orchestrationReference, {
-        id: input.projectId,
+    } else {
+      // A paused, failed or cancelled plan is copied to history before this
+      // one replaces it; a completed one is kept (plan-history.ts).
+      replacePlan(db, transaction, {
+        existing: orchestration,
+        next: {
+          id: input.projectId,
+          tenantId: context.tenantId,
+          projectId: input.projectId,
+          proposalId,
+          contractId,
+          invoiceId: null,
+          status: "active",
+          currentStep: "wait_for_signature",
+          policy: {
+            createRetainerAfterSignature: invoicingConnected,
+            completeBookingAfterPayment: true,
+            retainerDueDays: 7,
+          },
+          approvedBy: context.actorId,
+          approvedAt: context.timestamp,
+          lastError: null,
+          completedAt: null,
+          createdAt: context.timestamp,
+          updatedAt: context.timestamp,
+        },
         tenantId: context.tenantId,
         projectId: input.projectId,
-        proposalId,
-        contractId,
-        invoiceId: null,
-        status: "active",
-        currentStep: "wait_for_signature",
-        policy: {
-          createRetainerAfterSignature: invoicingConnected,
-          completeBookingAfterPayment: true,
-          retainerDueDays: 7,
-        },
-        approvedBy: context.actorId,
-        approvedAt: context.timestamp,
-        lastError: null,
-        completedAt: null,
-        createdAt: context.timestamp,
-        updatedAt: context.timestamp,
+        now: context.timestamp,
+        actor: context.actorId,
+        reason: "agreement_sent",
       });
     }
     if (

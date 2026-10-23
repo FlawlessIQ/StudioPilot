@@ -2,6 +2,7 @@ import { detailsForLine } from "../packages/inclusions.js";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { expiryOnSend, MINIMUM_DAYS_AFTER_SEND } from "../booking/proposal-expiry.js";
+import { replacePlan } from "../booking/plan-history.js";
 import { eventZone } from "../planning/day-clock.js";
 import { invitationLinkFields, mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
@@ -426,27 +427,37 @@ export async function sendCombinedAgreement(
         currentStep: "wait_for_signature",
         updatedAt: context.timestamp,
       });
-    } else if (!orchestration.exists || orchestration.get("status") !== "completed") {
-      transaction.set(orchestrationReference, {
-        id: input.projectId,
+    } else {
+      // A paused, failed or cancelled plan is copied to history before this
+      // one replaces it; a completed one is kept (plan-history.ts).
+      replacePlan(db, transaction, {
+        existing: orchestration,
+        next: {
+          id: input.projectId,
+          tenantId: context.tenantId,
+          projectId: input.projectId,
+          proposalId: input.proposalId,
+          contractId,
+          invoiceId: null,
+          status: "active",
+          currentStep: "wait_for_signature",
+          policy: {
+            createRetainerAfterSignature: invoicingConnected,
+            completeBookingAfterPayment: true,
+            retainerDueDays: 7,
+          },
+          approvedBy: context.actorId,
+          approvedAt: context.timestamp,
+          lastError: null,
+          completedAt: null,
+          createdAt: context.timestamp,
+          updatedAt: context.timestamp,
+        },
         tenantId: context.tenantId,
         projectId: input.projectId,
-        proposalId: input.proposalId,
-        contractId,
-        invoiceId: null,
-        status: "active",
-        currentStep: "wait_for_signature",
-        policy: {
-          createRetainerAfterSignature: invoicingConnected,
-          completeBookingAfterPayment: true,
-          retainerDueDays: 7,
-        },
-        approvedBy: context.actorId,
-        approvedAt: context.timestamp,
-        lastError: null,
-        completedAt: null,
-        createdAt: context.timestamp,
-        updatedAt: context.timestamp,
+        now: context.timestamp,
+        actor: context.actorId,
+        reason: "combined_agreement_sent",
       });
     }
     const readyEmail = {

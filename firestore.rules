@@ -633,6 +633,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Every booking plan a write replaced or reopened, copied whole before it
+    // changed (functions/src/booking/plan-history.ts). Server only: the record
+    // of what a plan said must not be readable or rewritable from a browser.
+    match /bookingOrchestrationHistory/{historyId} {
+      allow read, write: if false;
+    }
+
     match /webhookEvents/{eventId} {
       allow read: if isPlatformAdmin()
         || hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);

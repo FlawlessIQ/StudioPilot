@@ -14,6 +14,7 @@ import { retryingTrigger } from "./trigger-retry.js";
 import { agreedRetainerCents, agreedRetainerDue, retainerDueFromSchedule } from "./agreed-retainer.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { jobCalledOff, refundOrKeepTask } from "./stopped-billing.js";
+import { replacePlan } from "./plan-history.js";
 import { bookingGateRequirements } from "./gate-requirements.js";
 import { dateClashes, jobKindOf, journeyProfile, projectGateNeeds } from "../job-kinds/job-kinds.js";
 import {
@@ -190,6 +191,7 @@ export const bookingProposalAccepted = onDocumentWritten(
     }
 
     const projectReference = db.doc(`projects/${projectId}`);
+    const planReference = db.doc(`bookingOrchestrations/${projectId}`);
     const [project, existingContracts, plan] = await Promise.all([
       projectReference.get(),
       db.collection("contracts")
@@ -197,7 +199,7 @@ export const bookingProposalAccepted = onDocumentWritten(
         .where("projectId", "==", projectId)
         .limit(10)
         .get(),
-      db.doc(`bookingOrchestrations/${projectId}`).get(),
+      planReference.get(),
     ]);
     if (!project.exists || project.get("tenantId") !== tenantId) return;
     // Acceptance moves the job to CONTRACT_PENDING in the same write as the
@@ -251,12 +253,19 @@ export const bookingProposalAccepted = onDocumentWritten(
 
     await db.runTransaction(async (transaction) => {
       const contractReference = db.doc(`contracts/${contractId}`);
-      const [existing, currentProject] = await Promise.all([
+      // The plan is read again here, not trusted from the read above: a plan
+      // that became active (or booked) since is not this one's to replace.
+      const [existing, currentProject, currentPlan] = await Promise.all([
         transaction.get(contractReference),
         transaction.get(projectReference),
+        transaction.get(planReference),
       ]);
       if (existing.exists) return;
       if (currentProject.get("state") !== "CONTRACT_PENDING") return;
+      if (currentPlan.exists && ["active", "completed"].includes(String(currentPlan.get("status")))) {
+        skip(`plan_${String(currentPlan.get("status"))}`);
+        return;
+      }
       for (const stale of existingContracts.docs) {
         transaction.update(stale.ref, {
           status: "superseded",
@@ -305,27 +314,37 @@ export const bookingProposalAccepted = onDocumentWritten(
         createdAt: now,
         updatedAt: now,
       });
-      transaction.set(db.doc(`bookingOrchestrations/${projectId}`), {
-        id: projectId,
+      // A plan already here (paused, failed, cancelled) is copied to history
+      // before this one replaces it (plan-history.ts).
+      replacePlan(db, transaction, {
+        existing: currentPlan,
+        next: {
+          id: projectId,
+          tenantId,
+          projectId,
+          proposalId: proposal.id,
+          contractId,
+          invoiceId: null,
+          status: "active",
+          currentStep: "wait_for_signature",
+          policy: {
+            createRetainerAfterSignature: true,
+            completeBookingAfterPayment: true,
+            retainerDueDays,
+          },
+          approvedBy: "studio_policy:send_on_acceptance",
+          approvedAt: now,
+          lastError: null,
+          completedAt: null,
+          createdAt: now,
+          updatedAt: now,
+        },
         tenantId,
         projectId,
-        proposalId: proposal.id,
-        contractId,
-        invoiceId: null,
-        status: "active",
-        currentStep: "wait_for_signature",
-        policy: {
-          createRetainerAfterSignature: true,
-          completeBookingAfterPayment: true,
-          retainerDueDays,
-        },
-        approvedBy: "studio_policy:send_on_acceptance",
-        approvedAt: now,
-        lastError: null,
-        completedAt: null,
-        createdAt: now,
-        updatedAt: now,
-      }, { merge: false });
+        now,
+        actor: "booking-orchestrator",
+        reason: "proposal_accepted",
+      });
       // The task acceptance created is done: nobody needs to prepare anything.
       // `complete` is the schema's word — `completed` is not in the enum and
       // left the task's "Mark done" button on screen for ever.
@@ -659,6 +678,8 @@ export const bookingRetainerPaid = onDocumentWritten(
           transaction.update(planReference, {
             status: "cancelled",
             currentStep: "cancelled",
+            // Where an undo of the cancel picks it back up (plan-history.ts).
+            cancelledFromStep: currentPlan.get("currentStep") ?? null,
             cancelledAt: now,
             cancelledReason: "project_called_off",
             updatedAt: now,
@@ -1120,8 +1141,16 @@ async function bookWithoutAgreement(
   }
 
   const moved = await db.runTransaction(async (transaction) => {
-    const current = await transaction.get(projectReference);
+    const [current, currentPlan] = await Promise.all([
+      transaction.get(projectReference),
+      transaction.get(planReference),
+    ]);
     if (!current.exists || current.get("state") !== "CONTRACT_PENDING") return false;
+    // A booked plan is the record that the job booked; nothing replaces it.
+    if (currentPlan.exists && currentPlan.get("status") === "completed") {
+      logger.info("bookWithoutAgreementSkipped", { tenantId, projectId, reason: "plan_completed" });
+      return false;
+    }
     const priorVersion = Number(current.get("stateVersion") ?? 0);
     transaction.update(projectReference, {
       state: "RETAINER_PENDING",
@@ -1158,28 +1187,37 @@ async function bookWithoutAgreement(
       transaction.create(db.doc(`invoiceReferences/${invoice.id}`), invoice.data);
       transaction.create(db.doc(`providerJobs/invoice_${invoice.id}`), invoice.providerJob);
     }
-    transaction.set(planReference, {
-      id: projectId,
+    // Any plan already here is copied to history first (plan-history.ts).
+    replacePlan(db, transaction, {
+      existing: currentPlan,
+      next: {
+        id: projectId,
+        tenantId,
+        projectId,
+        proposalId: proposal.id,
+        contractId: null,
+        invoiceId: invoice?.id ?? null,
+        status: "active",
+        currentStep: needs.payment ? "wait_for_payment" : "wait_for_gate",
+        policy: {
+          createRetainerAfterSignature: false,
+          completeBookingAfterPayment: true,
+          retainerDueDays,
+          noAgreement: true,
+        },
+        approvedBy: "studio_policy:job_kind",
+        approvedAt: now,
+        lastError: null,
+        completedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
       tenantId,
       projectId,
-      proposalId: proposal.id,
-      contractId: null,
-      invoiceId: invoice?.id ?? null,
-      status: "active",
-      currentStep: needs.payment ? "wait_for_payment" : "wait_for_gate",
-      policy: {
-        createRetainerAfterSignature: false,
-        completeBookingAfterPayment: true,
-        retainerDueDays,
-        noAgreement: true,
-      },
-      approvedBy: "studio_policy:job_kind",
-      approvedAt: now,
-      lastError: null,
-      completedAt: null,
-      createdAt: now,
-      updatedAt: now,
-    }, { merge: false });
+      now,
+      actor: "booking-orchestrator",
+      reason: "booked_without_agreement",
+    });
     // "Prepare client agreement" has nothing to prepare.
     transaction.set(db.doc(`tasks/proposal_decision_${proposal.id}`), {
       status: "complete",

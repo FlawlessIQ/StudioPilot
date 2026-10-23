@@ -251,6 +251,8 @@ export function writeStoppedBilling(
     transaction.update(reads.plan.ref, {
       status: "cancelled",
       currentStep: "cancelled",
+      // Where uncancelProject reopens it (plan-history.ts, reopenedPlanStep).
+      cancelledFromStep: reads.plan.get("currentStep") ?? null,
       cancelledAt: now,
       cancelledReason: input.stop === "cancelled" ? "project_cancelled" : "project_lost",
       updatedAt: now,

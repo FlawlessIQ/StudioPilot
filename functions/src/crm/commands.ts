@@ -55,6 +55,7 @@ import {
   oneOffTerms,
 } from "../packages/one-off.js";
 import { isStandingInvoice } from "../booking/invoice-standing.js";
+import { reopenPlan } from "../booking/plan-history.js";
 import { holdResumeStates } from "./hold-resume.js";
 import {
   amendmentFollows,
@@ -2363,6 +2364,18 @@ export const crmCommand = onRequest(
           const target = String(project.get("cancelledFromState")) as ProjectStateName;
           const booked = ["BOOKED", "PLANNING", "READY"].includes(target);
           /**
+           * The booking plan the cancel closed (stopped-billing.ts), read
+           * before any write as a transaction requires. Left `cancelled`, a
+           * job brought back to CONTRACT_PENDING or RETAINER_PENDING could
+           * never book itself: bookingRetainerPaid declines a plan that is
+           * not active, so the couple's deposit was paid and nothing followed
+           * (audit, 2026-10-22). It reopens below on the step the restored
+           * state waits for, the closed copy kept in history (plan-history.ts).
+           */
+          const bookingPlan = await transaction.get(
+            db.doc(`bookingOrchestrations/${command.input.projectId}`),
+          );
+          /**
            * The studio's calendar event, back. The cancel deleted it
            * (remove_booking_calendar_events) and an undo left the day empty.
            * Only for a booked job — before booking there was never an event —
@@ -2415,6 +2428,15 @@ export const crmCommand = onRequest(
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
+          const planReopenedOn = reopenPlan(db, transaction, {
+            existing: bookingPlan,
+            projectState: target,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            now: timestamp,
+            actor: identity.uid,
+            reason: "reopened_on_uncancel",
+          });
           const uncancelAuditId = randomUUID();
           transaction.create(db.doc(`auditEvents/${uncancelAuditId}`), {
             id: uncancelAuditId,
@@ -2432,7 +2454,12 @@ export const crmCommand = onRequest(
               cancelledAt: project.get("cancelledAt") ?? null,
               cancelReason: project.get("interruptionReason") ?? null,
             },
-            after: { state: target, stateVersion: stateVersion + 1, reason: command.input.reason },
+            after: {
+              state: target,
+              stateVersion: stateVersion + 1,
+              reason: command.input.reason,
+              bookingPlanReopenedOn: planReopenedOn,
+            },
             ipAddress: null,
             userAgent: request.header("user-agent") ?? null,
             correlationId,

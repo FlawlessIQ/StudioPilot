@@ -34,6 +34,7 @@ import { coupleInquiryUrl } from "./consultation-email.js";
 import { queueInquiryFormAnalysis } from "../intake/inquiry-form.js";
 import { mayContactClient } from "../post-event/client-outreach.js";
 import { isStandingInvoice } from "./invoice-standing.js";
+import { reopenPlan, replacePlan } from "./plan-history.js";
 import { sendFinalBalance, sendFinalBalanceInput } from "./send-final-balance.js";
 import {
   recordInstallmentPayment,
@@ -1696,32 +1697,43 @@ export const bookingCommand = onRequest(
             updatedBy: identity.uid,
           });
         }
-        if (command.input.activateBookingAutomation) {
-          batch.set(
-            firestore.doc(`bookingOrchestrations/${command.input.projectId}`),
-            {
-              id: command.input.projectId,
+        // A plan already here is copied to history in this batch before the
+        // new one replaces it, and only if it is unchanged since this read; a
+        // completed plan is kept (plan-history.ts).
+        const sequencePlan = command.input.activateBookingAutomation
+          ? replacePlan(firestore, batch, {
+              existing: await firestore
+                .doc(`bookingOrchestrations/${command.input.projectId}`)
+                .get(),
+              next: {
+                id: command.input.projectId,
+                tenantId: command.tenantId,
+                projectId: command.input.projectId,
+                proposalId: command.input.proposalId,
+                contractId,
+                invoiceId: null,
+                status: "active",
+                currentStep: "wait_for_signature",
+                policy: {
+                  createRetainerAfterSignature: true,
+                  completeBookingAfterPayment: true,
+                  retainerDueDays: command.input.retainerDueDays,
+                },
+                approvedBy: identity.uid,
+                approvedAt: timestamp,
+                lastError: null,
+                completedAt: null,
+                createdAt: timestamp,
+                updatedAt: timestamp,
+              },
               tenantId: command.tenantId,
               projectId: command.input.projectId,
-              proposalId: command.input.proposalId,
-              contractId,
-              invoiceId: null,
-              status: "active",
-              currentStep: "wait_for_signature",
-              policy: {
-                createRetainerAfterSignature: true,
-                completeBookingAfterPayment: true,
-                retainerDueDays: command.input.retainerDueDays,
-              },
-              approvedBy: identity.uid,
-              approvedAt: timestamp,
-              lastError: null,
-              completedAt: null,
-              createdAt: timestamp,
-              updatedAt: timestamp,
-            },
-            { merge: false },
-          );
+              now: timestamp,
+              actor: identity.uid,
+              reason: "booking_sequence_approved",
+            })
+          : "kept";
+        if (sequencePlan !== "kept") {
           const approvedEvent = productEvent({
             tenantId: command.tenantId,
             projectId: command.input.projectId,
@@ -1844,10 +1856,13 @@ export const bookingCommand = onRequest(
             contractId,
             updatedAt: timestamp,
           });
-        } else if (!orchestration.exists || orchestration.get("status") !== "completed") {
-          batch.set(
-            orchestrationReference,
-            {
+        } else {
+          // A paused, failed or cancelled plan is copied to history in this
+          // batch, and replaced only if unchanged since the read above; a
+          // completed one is kept (plan-history.ts).
+          replacePlan(firestore, batch, {
+            existing: orchestration,
+            next: {
               id: command.input.projectId,
               tenantId: command.tenantId,
               projectId: command.input.projectId,
@@ -1868,8 +1883,12 @@ export const bookingCommand = onRequest(
               createdAt: timestamp,
               updatedAt: timestamp,
             },
-            { merge: false },
-          );
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            now: timestamp,
+            actor: identity.uid,
+            reason: "signature_recorded",
+          });
         }
         for (const outstanding of outstandingNative.docs) {
           if (!["sent", "viewed"].includes(String(outstanding.get("status")))) continue;
@@ -2863,7 +2882,45 @@ export const bookingCommand = onRequest(
               ? `stripe_invoice_${command.idempotencyKey}`
               : `qbo_invoice_${command.idempotencyKey}`
             : null;
+          const retainerPlan = await firestore
+            .doc(`bookingOrchestrations/${command.input.projectId}`)
+            .get();
           const batch = firestore.batch();
+          /**
+           * The plan follows the new retainer, so paying it books the job.
+           *
+           * This never touched the plan. A job brought back from canceled
+           * before uncancelProject reopened plans kept a `cancelled` one, and
+           * bookingRetainerPaid declines a plan that is not active — the
+           * deposit was paid and nothing booked (audit, 2026-10-22). Such a
+           * plan reopens here, its closed copy kept in history; an active
+           * one is pointed at this invoice, as a signature does
+           * (orchestration.ts).
+           */
+          if (
+            retainerPlan.exists &&
+            retainerPlan.get("tenantId") === command.tenantId &&
+            retainerPlan.get("status") === "active"
+          ) {
+            batch.update(retainerPlan.ref, {
+              invoiceId,
+              currentStep: "wait_for_payment",
+              updatedAt: timestamp,
+            });
+          } else {
+            reopenPlan(firestore, batch, {
+              existing: retainerPlan,
+              projectState: project.get("state"),
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              now: timestamp,
+              actor: identity.uid,
+              reason: "reopened_for_retainer",
+              // A retainer is being raised, so the plan waits for it whatever
+              // it waited on before.
+              extra: { invoiceId, currentStep: "wait_for_payment" },
+            });
+          }
           for (const stale of supersededInvoices) {
             batch.update(stale, {
               status: "superseded",
