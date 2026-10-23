@@ -97,8 +97,21 @@ export function manualAdvanceFor(
   to: ProjectState,
   projectId: string,
   trade?: unknown,
+  /** The deposit is already paid (QuickBooks, Stripe or recorded): only the booking check is left. */
+  retainerPaid = false,
 ): ManualAdvance | null {
-  const entry = ROUTES[`${from}:${to}`];
+  // Paid already, so "Record the retainer" would count it twice: Michelle &
+  // Kyle's QuickBooks deposit was paid and the job still offered it
+  // (GR, 2026-10-23). What's left is the booking check, on the same page.
+  const entry =
+    from === "RETAINER_PENDING" && to === "BOOKED" && retainerPaid
+      ? {
+          label: "Confirm the booking",
+          detail:
+            "Their retainer is paid. Confirm the booking on the booking page — StudioCue checks the signature and payment, then books the job.",
+          href: "/studio/booking?project=:projectId",
+        }
+      : ROUTES[`${from}:${to}`];
   if (!entry) return null;
   // A makeup artist or hair stylist records the yes on a quote (trades.ts).
   // And a vendor's client pays a deposit, not a retainer (trades.ts `deposit`).

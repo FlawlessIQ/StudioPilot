@@ -275,7 +275,19 @@ export async function runIntegritySweep(db: Firestore, now = Date.now()) {
       },
       { merge: true },
     );
-    if (open) continue;
+    if (open) {
+      // Ticked off while the problem is still there: it comes back after an
+      // hour. Gabe marked "Confirm the booking" done and the job stayed
+      // unbooked, with nothing left on Today to say so (GR, 2026-10-23).
+      const task = integrityTask(finding, nowIso);
+      if (task) {
+        const current = await db.doc(`tasks/${task.id}`).get();
+        const completedAt = Date.parse(String(current.get("completedAt") ?? ""));
+        if (current.exists && current.get("completedBy") !== "integrity-sweep" && completedAt && now - completedAt > 60 * MINUTE)
+          await current.ref.update({ status: "not_started", completedAt: null, completedBy: null, reopenedAt: nowIso, updatedAt: nowIso, updatedBy: "integrity-sweep" });
+      }
+      continue;
+    }
     raised += 1;
     logger.error("integrityFinding", {
       studiocueOperationalError: true,

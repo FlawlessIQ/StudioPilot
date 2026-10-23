@@ -16,6 +16,7 @@
  * records and journey positions.
  */
 
+import { integrityTaskFix } from "@/features/tasks/integrity-task";
 import { connectionConsequence } from "@/features/integrations/connection-consequence";
 import { invoiceRecordsDeleted } from "@/features/billing/invoice-purge-policy";
 import { shotListNeedsStudio, type ShotListRecord } from "@/features/planning/shot-list";
@@ -1952,6 +1953,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
     ) {
       continue;
     }
+    // A problem the safety sweep found goes straight to where it's fixed
+    // (features/tasks/integrity-task.ts).
+    const integrityFix = integrityTaskFix(task);
     exception({
       id: `task-${task.id}`,
       kind: "task",
@@ -1964,7 +1968,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
       // The task list, filtered to the job: that is where Mark done, Edit and
       // Cancel are. The card used to open the job page, which has none of
       // them, so an overdue task could be looked at from Today but not done.
-      href: checklist && task.projectId
+      href: integrityFix
+        ? integrityFix.href
+        : checklist && task.projectId
         ? `/studio/projects/${encodeURIComponent(text(task.projectId))}#planning-checklist`
         : task.projectId
         ? `/studio/tasks?project=${encodeURIComponent(text(task.projectId))}`
@@ -1973,7 +1979,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectName: nameFor(task.projectId),
       eventDate: eventFor(task.projectId),
       updatedAt: changedAt(task),
-      label: checklist ? "Open the checklist" : "Open the task",
+      label: integrityFix ? integrityFix.label : checklist ? "Open the checklist" : "Open the task",
       ...(checklist ? { evidence: "On your planning checklist", ...(due === today ? { band: "soon" as const } : {}) } : {}),
     });
   }

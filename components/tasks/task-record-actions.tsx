@@ -8,6 +8,7 @@ import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { AssigneeSelect, useTaskAssignees } from "@/components/tasks/task-assignee";
 import { assigneeFields, assigneeLabel, assigneeValue } from "@/features/tasks/assignee";
 import { taskIsSettled } from "@/features/tasks/schema";
+import { integrityTaskFix } from "@/features/tasks/integrity-task";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { daysUntilEvent, formatDueDate } from "@/lib/format/event-date";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
@@ -86,13 +87,17 @@ export function TaskListRow({
   }
 
   const title = task.title || "Untitled task";
+  // A problem the safety sweep found closes itself once it's fixed; a tick
+  // here only hid it (GR, 2026-10-23: "Mark done" on "Confirm the booking"
+  // left the job unbooked). The title opens where it's fixed.
+  const fix = integrityTaskFix(task as Record<string, unknown>);
   return (
     <article className={`task-list-row${settled ? " is-settled" : ""}${late ? " is-late" : ""}`}>
       <button
         aria-label={settled ? (cancelled ? "Canceled" : justCompleted ? "Undo" : "Reopen") : `Mark "${title}" done`}
         aria-pressed={settled}
         className="task-check"
-        disabled={busy !== null || cancelled}
+        disabled={busy !== null || cancelled || Boolean(fix && !settled)}
         onClick={() =>
           settled
             ? void run("reopenTask", {}, "Reopened.", "That task could not be reopened.").then((ok) => {
@@ -102,7 +107,7 @@ export function TaskListRow({
                 if (ok) setJustCompleted(true);
               })
         }
-        title={settled ? (cancelled ? "Canceled" : "Reopen") : "Mark done"}
+        title={settled ? (cancelled ? "Canceled" : "Reopen") : fix ? "Closes by itself once it's fixed" : "Mark done"}
         type="button"
       >
         {busy === "completeTask" || busy === "reopenTask" ? (
@@ -114,14 +119,15 @@ export function TaskListRow({
         ) : null}
       </button>
       <div className="task-list-main">
-        {href ? (
-          <Link className="task-list-title" href={href}>
+        {fix || href ? (
+          <Link className="task-list-title" href={fix ? fix.href : href!}>
             {title}
           </Link>
         ) : (
           <strong className="task-list-title">{title}</strong>
         )}
         <span className="task-list-meta">
+          {fix && !settled ? <span>{fix.label} · closes by itself once it&rsquo;s fixed</span> : null}
           {settled ? (
             <span>{cancelled ? "Canceled" : "Done"}</span>
           ) : days === null ? (

@@ -304,6 +304,16 @@ function ProjectStageControl({
       : (tradeTargets[0] ?? forwardStage[state]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // A deposit already paid (QuickBooks, Stripe or recorded) leaves only the
+  // booking check: the card must not offer to record it again.
+  const { records: invoices } = useTenantDocuments("invoiceReferences");
+  const retainerPaid = (invoices ?? []).some(
+    (invoice) =>
+      invoice.projectId === projectId &&
+      invoice.kind === "retainer" &&
+      invoice.status === "paid" &&
+      Number(invoice.balanceCents ?? 1) <= 0,
+  );
 
   if (!target || !(allowedProjectTransitions[state].includes(target) || tradeTargets.includes(target))) {
     return null;
@@ -322,7 +332,7 @@ function ProjectStageControl({
    * See features/projects/manual-advance.ts.
    */
   const gated = transitionAuthority(state, target)
-    ? manualAdvanceFor(state, target, projectId, trade)
+    ? manualAdvanceFor(state, target, projectId, trade, retainerPaid)
     : null;
   const nextStage = target;
 

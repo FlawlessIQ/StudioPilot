@@ -47,7 +47,9 @@ test("a signed agreement with no deposit, and a missing booking plan, are found"
 
 test("findings alert once, close themselves, and reach Today the hour they're found", () => {
   const sweep = read("functions/src/operations/integrity-sweep.ts");
-  assert.match(sweep, /if \(open\) continue;\s*raised \+= 1;\s*logger\.error\("integrityFinding", \{\s*studiocueOperationalError: true/);
+  // Open already: no second alert (a reminder ticked off while still broken
+  // comes back instead — tests/confirm-booking-path.test.ts).
+  assert.match(sweep, /continue;\s*\}\s*raised \+= 1;\s*logger\.error\("integrityFinding", \{\s*studiocueOperationalError: true/);
   assert.match(sweep, /await record\.ref\.update\(\{ resolvedAt: nowIso \}\)/);
   assert.match(read("features/today/inbox.ts"), /const onTheDay = checklist \|\| text\(task\.source\) === "integrity_check";/);
   assert.match(read("firestore.rules"), /match \/integrityFindings\/\{findingId\} \{\s*allow read, write: if false;/);
