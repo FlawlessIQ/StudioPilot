@@ -8,11 +8,23 @@ What we promise (Terms §14, Privacy Policy "Retention and deletion"):
 **Automated since 2026-10-15.** `tenantDeletionWorker`
 (`functions/src/saas/tenant-deletion.ts`) runs hourly and carries out step 6
 below for every `platform_approved` request whose `deleteAfter` has passed.
-It refuses while the studio's Stripe subscription is live (the Console shows
-"Blocked: subscription live"), resumes a run that stopped part way, and leaves
-the request `completed` with its `manifest` and a "By hand" list in the
-Console: email the owner, plus any credential it couldn't destroy. Steps 1–5
-and 7 are still people's work.
+It resumes a run that stopped part way, and leaves the request `completed`
+with its `manifest` and a "By hand" list in the Console: email the owner, plus
+any credential it couldn't destroy. Steps 1–5 and 7 are still people's work.
+
+**Never a live studio (2026-10-22).** One rule,
+`tenantDeletionRefusal` (`functions/src/saas/tenant-deletion-policy.ts`),
+refuses a studio that is **comped in any mode** (local or a Stripe coupon), or
+whose subscription is trialing, active, past due, unpaid, paused, `incomplete`
+with a Stripe subscription behind it, unreadable, missing or contradictory.
+Only `cancelled`/`canceled`/`incomplete_expired`, or `incomplete` with no
+Stripe subscription, may be deleted. It is checked when the Console approves,
+when the worker starts, and again immediately before every step. A refusal
+stops everything, sets the request to `status: refused` with `refusedReason`
+and `refusedAtStep` (the Console shows "Refused: still live" and the reason),
+and logs `TENANT_DELETION_REFUSED`. End the billing or the comp, then approve
+the refused request again; the worker resumes where it stopped. The owner can
+cancel at any point before `completed`, and the worker stops at its next step.
 
 **Response times.** Acknowledge within 5 business days. Complete within 45
 days of a verified request (the strictest US state deadline).
@@ -44,20 +56,35 @@ days of a verified request (the strictest US state deadline).
 5. **After `deleteAfter`.** A platform admin approves the request in the
    Console. The request moves to `platform_approved`.
 6. **Delete — automatic.** The worker does the following, in this order
-   (by hand only if it fails; its `lastError` shows in the Console):
+   (by hand only if it fails; its `lastError` shows in the Console). The
+   refusal rule above is read before each numbered step. Recoverable work
+   comes first, then the irreversible steps from cheapest to put right to
+   dearest, so a refusal or failure part way leaves as much standing as it can:
    1. **Dry run:** count the documents per top-level collection where
-      `tenantId == {tenantId}`. Paste the counts into the request record.
-   2. Delete those documents in batches, including the `tenants/{id}`,
-      `subscriptions/{id}` and `memberships/{tenantId}_*` documents.
-   3. Delete the Storage prefix `tenants/{tenantId}/`.
+      `tenantId == {tenantId}`, and record the members and connected
+      providers on the request before anything goes.
+   2. Delete those documents in batches, including the
+      `memberships/{tenantId}_*` documents. Recoverable with point-in-time
+      recovery (7 days).
+   3. Strip personal fields from the studio's `auditEvents`.
    4. Delete the integration secrets `studiohub-{tenantId}-*` in Secret
       Manager. If the tokens are still valid, revoke them at the provider
-      first.
+      first. (Irreversible; the owner can reconnect.)
    5. Delete the Firebase Auth users whose only membership was this tenant.
-      Keep anyone who belongs to another studio.
-   6. **Keep:** StudioCue's own billing records (Stripe, 7 years) and the
-      `auditEvents` needed to prove the deletion happened. Strip personal
-      fields from those audit events.
+      Keep anyone who belongs to another studio. (Irreversible.)
+   6. Delete the Storage prefixes `tenants/{tenantId}/` and
+      `feedback/{tenantId}/`. Last of the irreversible steps: nobody can put
+      a studio's files back.
+   7. Delete `subscriptions/{id}` and `tenants/{id}`, write the tombstone and
+      mark the request `completed`, in one batch.
+   8. **Keep:** StudioCue's own billing records (Stripe, 7 years, and the
+      `saasInvoices` mirror), the `auditEvents` needed to prove the deletion
+      happened (personal fields stripped), and records that name the studio
+      but are someone else's or the platform's — `saasReferrals` (a
+      referrer's credit or partner's commission), vendor offer codes,
+      `vendorInvites`, `saasAttribution`, `saasLeads`, `supportAccess` and the
+      Console's own records. The full list, with the reason for each, is
+      `TENANT_DELETION_KEPT` in `tenant-deletion-policy.ts`.
 7. **Close it out.** Set the request to `status: completed` with
    `completedAt`, and email the owner. Backups roll off within 84 days. No
    restore may bring this tenant back unless the owner asks.

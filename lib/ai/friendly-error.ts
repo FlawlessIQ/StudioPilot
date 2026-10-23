@@ -347,6 +347,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   COUPON_NOT_STUDIOCUE: "That discount isn't one of StudioCue's, so it can't be applied here.",
   COUPON_NOT_VALID: "That discount has expired or been used up in Stripe. Pick another.",
   DELETION_REQUEST_NOT_APPROVABLE: "This deletion request isn't waiting for approval any more. Refresh to see where it stands.",
+  TENANT_DELETION_REFUSED: "This studio can't be deleted: it is paying, comped, or its billing can't be confirmed ended. The request is now marked refused with the reason. End the billing or the comp, then approve it again.",
   EMAIL_ALREADY_VERIFIED: "Their email is already verified.",
   FEATURE_IS_LIVE: "That feature is in use by the product, so it can't be archived.",
   FEATURE_ON_FOR_ALL: "This feature is on for every studio. Switch it to Some studios first.",

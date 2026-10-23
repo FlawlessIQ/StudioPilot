@@ -167,7 +167,10 @@ export const tenantDataCommand = onRequest(
       if (
         !current.exists ||
         current.get("tenantId") !== parsed.tenantId ||
-        !["cooling_off", "platform_approved"].includes(
+        // Also while deleting, and once refused: the worker re-reads the
+        // request before every step (tenant-deletion.ts) and stops at the
+        // next one. Whatever it had already removed stays removed.
+        !["cooling_off", "platform_approved", "deleting", "refused"].includes(
           String(current.get("status")),
         )
       )

@@ -34,6 +34,13 @@ type Deletion = {
   blockedReason?: string | null;
   lastError?: string | null;
   manualSteps?: string[];
+  /**
+   * `status: "refused"`: the studio was paying, comped or unreadable at the
+   * approval or a step (functions/src/saas/tenant-deletion-policy.ts).
+   */
+  refusedReason?: string | null;
+  /** Set once the worker began; its export was checked at the first approval. */
+  deletionStartedAt?: string | null;
 };
 type Export = { id: string; tenantId: string; status: string; createdAt?: string; completedAt?: string; requestedBy?: string };
 
@@ -46,13 +53,17 @@ export function DataRequestsPage() {
   const deletions = useLiveQuery<Deletion>("data:deletions", (firestore) => query(collection(firestore, "deletionRequests"), limit(500)));
   const exports = useLiveQuery<Export>("data:exports", (firestore) => query(collection(firestore, "exportJobs"), limit(500)));
   const exportDone = (tenantId: string) => (exports.rows ?? []).some((item) => item.tenantId === tenantId && item.status === "complete");
+  // A refused run may already have swept the export's record (approveDeletion).
+  const exportReady = (row: Deletion) => Boolean(row.deletionStartedAt) || exportDone(row.tenantId);
   const name = (tenantId: string) => studioById(tenantId)?.name ?? tenantId;
 
   const deletionColumns = useMemo<ColumnDef<Deletion, unknown>[]>(
     () => [
       { id: "studio", header: "Studio", accessorFn: (row) => name(row.tenantId), meta: { width: 220, flex: true }, cell: ({ row }) => <span className="cx-strong">{name(row.original.tenantId)}</span> },
       { id: "status", header: "Status", accessorFn: (row) => row.status, meta: { width: 140 }, cell: ({ row }) =>
-          row.original.blockedReason === "SUBSCRIPTION_ACTIVE" && row.original.status === "platform_approved" ? (
+          row.original.status === "refused" ? (
+            <Pill tone="bad">Refused: still live</Pill>
+          ) : row.original.blockedReason === "SUBSCRIPTION_ACTIVE" && row.original.status === "platform_approved" ? (
             <Pill tone="bad">Blocked: subscription live</Pill>
           ) : row.original.lastError && row.original.status !== "completed" ? (
             <Pill tone="bad">{`${humanize(row.original.status)} · error`}</Pill>
@@ -64,7 +75,7 @@ export function DataRequestsPage() {
       { id: "requested", header: "Requested", accessorFn: (row) => row.requestedAt ?? row.createdAt ?? "", meta: { width: 120 }, cell: ({ row }) => relative(row.original.requestedAt ?? row.original.createdAt) },
       { id: "cooling", header: "Cooling-off ends", accessorFn: (row) => row.deleteAfter ?? row.coolingOffEndsAt ?? "", meta: { width: 140, priority: 2 }, cell: ({ row }) => { const ends = row.original.deleteAfter ?? row.original.coolingOffEndsAt; return ends ? shortDate(ends) : "—"; } },
       // What the worker leaves for a person (runbook A7): email the owner, a credential it couldn't destroy.
-      { id: "todo", header: "By hand", accessorFn: (row) => (row.manualSteps ?? []).join(" "), meta: { width: 260, priority: 3 }, cell: ({ row }) => (row.original.manualSteps?.length ? row.original.manualSteps.join(" ") : row.original.lastError ?? "—") },
+      { id: "todo", header: "By hand", accessorFn: (row) => (row.manualSteps ?? []).join(" "), meta: { width: 260, priority: 3 }, cell: ({ row }) => (row.original.status === "refused" && row.original.refusedReason ? row.original.refusedReason : row.original.manualSteps?.length ? row.original.manualSteps.join(" ") : row.original.lastError ?? "—") },
       { id: "export", header: "Export", accessorFn: (row) => (exportDone(row.tenantId) ? 1 : 0), meta: { width: 120 }, cell: ({ row }) => (exportDone(row.original.tenantId) ? <Pill tone="ok">Complete</Pill> : <Pill tone="warn">Not yet</Pill>) },
       {
         id: "approve",
@@ -72,15 +83,15 @@ export function DataRequestsPage() {
         enableSorting: false,
         meta: { width: 100 },
         cell: ({ row }) =>
-          can("deletion.approve") && row.original.status === "cooling_off" ? (
+          can("deletion.approve") && (row.original.status === "cooling_off" || row.original.status === "refused") ? (
             <Button
-              disabled={!exportDone(row.original.tenantId)}
+              disabled={!exportReady(row.original)}
               onClick={(event) => {
                 event.stopPropagation();
                 setApproving(row.original);
               }}
               size="sm"
-              title={exportDone(row.original.tenantId) ? undefined : "Needs a completed export first"}
+              title={exportReady(row.original) ? undefined : "Needs a completed export first"}
             >
               Approve
             </Button>

@@ -34,6 +34,14 @@ async function seed(db: FirebaseFirestore.Firestore, rows = 3) {
     [`users/shared`, { email: "shared@example.com" }],
     [`subscriptions/${OURS}`, { tenantId: OURS, status: "cancelled", stripeSubscriptionId: "sub_1" }],
     [`deletionRequests/r1`, { tenantId: OURS, status: "platform_approved", deleteAfter: "2026-10-01T00:00:00.000Z" }],
+    // Records that name the closing studio but are someone else's
+    // (saas/tenant-deletion-policy.ts): the referrer's credit, the vendor's
+    // offer code and invitation, the platform's invoice ledger.
+    [`saasReferrals/${OURS}`, { id: OURS, tenantId: OURS, referrerTenantId: THEIRS, creditedAt: "2026-09-01T00:00:00.000Z" }],
+    [`saasReferralCodes/CLOSING`, { code: "CLOSING", tenantId: OURS }],
+    [`saasReferralCodes/VENDOR50`, { code: "VENDOR50", kind: "vendor_offer", tenantId: OURS, offerFor: "hash" }],
+    [`vendorInvites/hash`, { id: "hash", tenantId: OURS, unsubscribeToken: "t" }],
+    [`saasInvoices/in_1`, { id: "in_1", tenantId: OURS, totalCents: 10000 }],
   ];
   for (let index = 0; index < rows; index += 1) {
     writes.push([`projects/p${index}`, { tenantId: OURS, name: `Job ${index}` }]);
@@ -82,6 +90,10 @@ test("a closed studio goes, its neighbour stays, the trail stays without persona
     assert.deepEqual([a1.before, a1.ipAddress, Boolean(a1.scrubbedAt)], [null, null, true]);
     assert.equal((await db.doc("auditEvents/a2").get()).data()!.ipAddress, "5.6.7.8");
     assert.equal((await db.doc("auditEvents/tenant_deleted_r1").get()).get("action"), "tenant.deleted");
+    // Someone else's records survive; the studio's own code does not.
+    for (const path of [`saasReferrals/${OURS}`, "saasReferralCodes/VENDOR50", "vendorInvites/hash", "saasInvoices/in_1"])
+      assert.equal((await db.doc(path).get()).exists, true, `${path} is not the closing studio's to delete`);
+    assert.equal((await db.doc("saasReferralCodes/CLOSING").get()).exists, false);
     const request = (await db.doc("deletionRequests/r1").get()).data()!;
     assert.equal(request.status, "completed");
     assert.equal(request.manifest.projects, 450);
@@ -115,9 +127,50 @@ test("never before the 30 days, never while billing is live", options, async () 
     assert.equal((await deleteTenant(deps(db).value, "r1")).detail, "cooling_off");
     await db.doc("deletionRequests/r1").update({ deleteAfter: "2026-10-01T00:00:00.000Z" });
     await db.doc(`subscriptions/${OURS}`).update({ status: "active" });
-    assert.equal((await deleteTenant(deps(db).value, "r1")).detail, "subscription_active");
-    assert.equal((await db.doc("deletionRequests/r1").get()).get("blockedReason"), "SUBSCRIPTION_ACTIVE");
+    assert.equal((await deleteTenant(deps(db).value, "r1")).detail, "SUBSCRIPTION_LIVE");
+    const refused = (await db.doc("deletionRequests/r1").get()).data()!;
+    assert.deepEqual([refused.status, refused.refusalCode, refused.refusedAtStep], ["refused", "SUBSCRIPTION_LIVE", "start"]);
     assert.equal((await db.collection("projects").where("tenantId", "==", OURS).get()).size, 1);
+    // Refused is final: the worker leaves it until a person approves again.
+    assert.equal((await deleteTenant(deps(db).value, "r1")).detail, "not_approved");
+  } finally {
+    await deleteApp(app);
+  }
+});
+
+test("a locally comped studio — active, no Stripe subscription — is refused", options, async () => {
+  const { app, db } = connect("comped");
+  try {
+    await seed(db, 1);
+    await db.doc(`subscriptions/${OURS}`).set({ tenantId: OURS, status: "active", comped: true, compMode: "local", stripeSubscriptionId: null });
+    const { value, calls } = deps(db);
+    assert.equal((await deleteTenant(value, "r1")).detail, "STUDIO_COMPED");
+    assert.equal((await db.doc("deletionRequests/r1").get()).get("status"), "refused");
+    assert.deepEqual([calls.credentials, calls.users, calls.prefixes], [[], [], []]);
+    assert.equal((await db.doc(`tenants/${OURS}`).get()).exists, true);
+  } finally {
+    await deleteApp(app);
+  }
+});
+
+test("a comp granted part way stops the run before the next irreversible step", options, async () => {
+  const { app, db } = connect("midway");
+  try {
+    await seed(db, 3);
+    const { value, calls } = deps(db);
+    // The credentials step runs; while it does, someone comps the studio.
+    value.deleteCredential = async (tenantId, provider) => {
+      calls.credentials.push(`${tenantId}:${provider}`);
+      await db.doc(`subscriptions/${OURS}`).update({ comped: true, compMode: "local", status: "active" });
+    };
+    const outcome = await deleteTenant(value, "r1");
+    assert.deepEqual([outcome.status, outcome.detail], ["refused", "STUDIO_COMPED"]);
+    const request = (await db.doc("deletionRequests/r1").get()).data()!;
+    assert.equal(request.refusedAtStep, "people");
+    // Neither sign-ins nor files went; the handle and the subscription stand.
+    assert.deepEqual([calls.users, calls.prefixes], [[], []]);
+    assert.equal((await db.doc(`tenants/${OURS}`).get()).exists, true);
+    assert.equal((await db.doc(`subscriptions/${OURS}`).get()).exists, true);
   } finally {
     await deleteApp(app);
   }

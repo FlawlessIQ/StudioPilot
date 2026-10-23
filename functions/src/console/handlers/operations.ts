@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
+import { readTenantDeletionState, refuseTenantDeletion } from "../../saas/tenant-deletion.js";
+import { tenantDeletionRefusal } from "../../saas/tenant-deletion-policy.js";
 import { REASON_MIN, consoleHandler, fail } from "../command-kit.js";
 
 export const JOB_QUEUES = ["providerJobs", "emailJobs", "aiJobs", "pdfJobs", "automationRuns", "domainEvents"] as const;
@@ -119,20 +121,31 @@ export const operationsHandlers = {
     async run({ db, identity, now }, input) {
       const reference = db.doc(`deletionRequests/${input.requestId}`);
       const deletion = await reference.get();
-      if (!deletion.exists || deletion.get("status") !== "cooling_off") fail("DELETION_REQUEST_NOT_APPROVABLE");
+      // A refused request is approved again once its studio's billing has
+      // really ended; the worker then resumes where it stopped.
+      const before = String(deletion.get("status"));
+      if (!deletion.exists || !["cooling_off", "refused"].includes(before)) fail("DELETION_REQUEST_NOT_APPROVABLE");
       const tenantId = String(deletion.get("tenantId"));
       const tenant = await db.doc(`tenants/${tenantId}`).get();
       const names = [tenant.get("brandName"), tenant.get("businessName"), tenant.get("legalName")];
       const clean = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
       if (!names.some((name) => typeof name === "string" && clean(name) === clean(input.confirmName)))
         fail("CONFIRMATION_NAME_MISMATCH");
-      const exports = await db
-        .collection("exportJobs")
-        .where("tenantId", "==", tenantId)
-        .where("status", "==", "complete")
-        .limit(1)
-        .get();
-      if (exports.empty) fail("COMPLETED_EXPORT_REQUIRED");
+      // A run that was refused part way had its export checked at the first
+      // approval, and may already have swept the export's own record.
+      const started = Boolean(deletion.get("deletionStartedAt"));
+      const exports = started
+        ? null
+        : await db.collection("exportJobs").where("tenantId", "==", tenantId).where("status", "==", "complete").limit(1).get();
+      if (exports?.empty) fail("COMPLETED_EXPORT_REQUIRED");
+      // Never a studio that is paying, comped or otherwise live
+      // (saas/tenant-deletion-policy.ts). The worker asks again at its start
+      // and before every step; this is the first time anyone asks.
+      const refusal = tenantDeletionRefusal(await readTenantDeletionState(db, tenantId));
+      if (refusal) {
+        await refuseTenantDeletion(reference, { requestId: input.requestId, tenantId, step: "approval", refusal, at: now });
+        fail("TENANT_DELETION_REFUSED");
+      }
       await reference.update({
         status: "platform_approved",
         platformApprovedAt: now,
@@ -142,7 +155,7 @@ export const operationsHandlers = {
       });
       return {
         result: { tenantId, requestId: input.requestId, status: "platform_approved" },
-        audit: { tenantId, entityType: "deletion_request", entityId: input.requestId, before: { status: "cooling_off" }, after: { status: "platform_approved" }, reason: input.reason },
+        audit: { tenantId, entityType: "deletion_request", entityId: input.requestId, before: { status: before }, after: { status: "platform_approved" }, reason: input.reason },
       };
     },
   }),
