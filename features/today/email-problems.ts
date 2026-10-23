@@ -12,15 +12,25 @@
  *   statuses — so a couple whose address had a typo simply never heard from
  *   the studio, and nobody was told.
  *
- * Both now name who it was for, what it was, and why, and act in place: Retry
+ * And a third, added 2026-10-23: **it was held back.** A message the studio
+ * scheduled for a job cancelled, lost or archived before it was due is not
+ * sent, and is recorded `succeeded` with `result.held`, like every held send.
+ * Without a card it looked delivered.
+ *
+ * All three name who it was for, what it was, and why, and act in place: Retry
  * (a failed send), Fix the address (where the address lives), or Leave it.
  *
  * Pure.
  */
 
 export type EmailProblem = {
-  /** "failed": never sent. "undelivered": sent, and the receiving side refused it. */
-  kind: "failed" | "undelivered";
+  /**
+   * "failed": never sent. "undelivered": sent, and the receiving side refused
+   * it. "held": a message the studio scheduled that StudioCue held back,
+   * because the job was cancelled, lost or archived before it was due
+   * (functions/src/communications/scheduled-client-message.ts).
+   */
+  kind: "failed" | "undelivered" | "held";
   title: string;
   /** Why, in a sentence a photographer can act on. */
   reason: string;
@@ -30,6 +40,8 @@ export type EmailProblem = {
   canRetry: boolean;
   /** Where the address can be corrected: the job, or the inquiry. */
   fixHref: string | null;
+  /** What the link to `fixHref` says. */
+  fixLabel: string;
 };
 
 type Row = Record<string, unknown>;
@@ -84,6 +96,19 @@ function undeliveredCopy(status: string): { title: string; reason: string } {
   };
 }
 
+/** Why a scheduled message was held back, from the stop recorded on it. */
+function heldReason(stop: string): string {
+  if (stop === "cancelled")
+    return "The job was canceled or lost before it was due, so it wasn't sent.";
+  if (stop === "put_away")
+    return "The job was archived before it was due, so it wasn't sent.";
+  if (stop === "on_hold")
+    return "The job was put on hold before it was due, so it wasn't sent.";
+  if (stop === "automations_paused")
+    return "Client emails were paused on this job before it was due, so it wasn't sent.";
+  return "The job is no longer there, so it wasn't sent.";
+}
+
 export function emailProblemOf(job: Row): EmailProblem | null {
   if (text(job.studioDismissedAt)) return null;
   if (PLATFORM_TYPES.has(text(job.type))) return null;
@@ -100,6 +125,27 @@ export function emailProblemOf(job: Row): EmailProblem | null {
   const subject =
     text(job.customSubject) || text(job.subject) || null;
   const status = text(job.status);
+  // A held send is recorded as `succeeded` with `result.held`, so it looks
+  // delivered unless it is named. Only a message the studio scheduled is
+  // shown: an automatic send held because the job was put away is the
+  // silence the studio asked for, not a problem.
+  const result = (job.result ?? {}) as Row;
+  if (
+    status === "succeeded" &&
+    result.held === "client_outreach_stopped" &&
+    text(job.scheduledFor)
+  ) {
+    return {
+      kind: "held",
+      title: "A scheduled message wasn't sent",
+      reason: heldReason(text(result.reason)),
+      recipient,
+      subject,
+      canRetry: false,
+      fixHref: projectId ? `/studio/projects/${projectId}` : null,
+      fixLabel: "Open the job",
+    };
+  }
   if (status === "failed" || status === "dead_letter") {
     const error = (job.error ?? {}) as Row;
     return {
@@ -110,6 +156,7 @@ export function emailProblemOf(job: Row): EmailProblem | null {
       subject,
       canRetry: true,
       fixHref,
+      fixLabel: "Fix the address",
     };
   }
   const delivery = text(job.deliveryStatus).toLowerCase();
@@ -123,6 +170,7 @@ export function emailProblemOf(job: Row): EmailProblem | null {
       subject,
       canRetry: false,
       fixHref,
+      fixLabel: "Fix the address",
     };
   }
   return null;

@@ -290,6 +290,8 @@ export type TodayAction =
       reason: string;
       canRetry: boolean;
       fixHref: string | null;
+      /** What the link to fixHref says: "Fix the address", or "Open the job" for a held message. */
+      fixLabel: string;
     }
   /**
    * A client wrote and the studio owes the next word: Reply opens the thread
@@ -2316,13 +2318,14 @@ export function todayInbox(input: TodayInput): TodayInbox {
       extraFacts: [problem.reason],
       action: {
         kind: "email_problem",
-        label: problem.canRetry ? "Retry" : "Fix the address",
+        label: problem.canRetry ? "Retry" : problem.fixLabel,
         emailJobId: job.id,
         recipient: problem.recipient,
         subject: problem.subject,
         reason: problem.reason,
         canRetry: problem.canRetry,
         fixHref: problem.fixHref,
+        fixLabel: problem.fixLabel,
       },
     });
   }

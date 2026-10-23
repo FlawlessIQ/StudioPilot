@@ -1588,10 +1588,12 @@ function EmailProblemActions({ action, onCleared }: { action: EmailProblemAction
       <>
         {action.fixHref ? (
           <Link className="today-card-primary" href={action.fixHref}>
-            Fix the address
+            {action.fixLabel}
           </Link>
         ) : null}
-        <span className="today-card-notice">An owner or admin can send it again or clear it.</span>
+        <span className="today-card-notice">
+          {action.canRetry ? "An owner or admin can send it again or clear it." : "An owner or admin can clear it."}
+        </span>
       </>
     );
   }
@@ -1626,7 +1628,7 @@ function EmailProblemActions({ action, onCleared }: { action: EmailProblemAction
       ) : null}
       {action.fixHref ? (
         <Link className={action.canRetry ? "today-card-secondary" : "today-card-primary"} href={action.fixHref}>
-          Fix the address
+          {action.fixLabel}
         </Link>
       ) : null}
       <button className="today-card-secondary" disabled={busy !== null} onClick={() => void run("dismissEmailProblem")} type="button">

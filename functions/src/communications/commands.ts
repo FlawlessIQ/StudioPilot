@@ -24,6 +24,35 @@ import {
   mayContactClient,
 } from "../post-event/client-outreach.js";
 import { tradeProfile } from "../trades/trades.js";
+import {
+  scheduledClientMessageGuard,
+  scheduledReleaseUpdate,
+} from "./scheduled-client-message.js";
+import type { Transaction } from "firebase-admin/firestore";
+
+/**
+ * The send-time guard for a draft approved or sent for later
+ * (scheduled-client-message.ts). Nothing for a draft that goes now, or one not
+ * addressed to a client of its job. Read inside the caller's transaction,
+ * before any write.
+ */
+async function scheduledDraftGuard(
+  transaction: Transaction,
+  draft: Record<string, unknown>,
+  tenantId: string,
+  now: string,
+) {
+  const scheduledFor = typeof draft.scheduledFor === "string" ? draft.scheduledFor : "";
+  const projectId = typeof draft.projectId === "string" ? draft.projectId : "";
+  if (!scheduledFor || scheduledFor <= now || !projectId) return {};
+  const project = await transaction.get(getFirestore().doc(`projects/${projectId}`));
+  return scheduledClientMessageGuard({
+    scheduled: true,
+    project:
+      project.exists && project.get("tenantId") === tenantId ? project.data() : null,
+    contactId: draft.contactId,
+  });
+}
 
 const messageInput = z.object({
   projectId: z.string().min(1),
@@ -620,6 +649,16 @@ export const communicationsCommand = onRequest(
                 ? "scheduled"
                 : "queued",
             scheduledFor: command.input.scheduledFor,
+            // Scheduled for later: read against the job again as it goes, so
+            // one cancelled, lost or archived since is held, not sent
+            // (scheduled-client-message.ts).
+            ...scheduledClientMessageGuard({
+              scheduled: Boolean(
+                command.input.scheduledFor && command.input.scheduledFor > now,
+              ),
+              project: project.data(),
+              contactId: contact.id,
+            }),
             attempts: 0,
             requestedBy: identity.uid,
             // Put back if the send is undone, so nothing is lost to it.
@@ -881,6 +920,12 @@ export const communicationsCommand = onRequest(
           if (draft.get("status") !== "needs_approval") {
             throw new Error("DRAFT_NOT_APPROVABLE");
           }
+          const guard = await scheduledDraftGuard(
+            transaction,
+            draft.data() ?? {},
+            command.tenantId,
+            now,
+          );
           const emailJobId = `manual_${draft.id}`;
           transaction.update(draftReference, {
             status: "approved",
@@ -910,6 +955,7 @@ export const communicationsCommand = onRequest(
                 ? "scheduled"
                 : "queued",
             scheduledFor: draft.get("scheduledFor") ?? null,
+            ...guard,
             attempts: 0,
             createdAt: now,
             updatedAt: now,
@@ -1016,6 +1062,12 @@ export const communicationsCommand = onRequest(
           if (!z.string().email().safeParse(recipient).success) {
             throw new Error("DRAFT_RECIPIENT_REQUIRED");
           }
+          const guard = await scheduledDraftGuard(
+            transaction,
+            draft.data() ?? {},
+            command.tenantId,
+            now,
+          );
           const emailJobId = `manual_${draft.id}`;
           transaction.update(draftReference, {
             status: "queued",
@@ -1045,6 +1097,7 @@ export const communicationsCommand = onRequest(
                 ? "scheduled"
                 : "queued",
             scheduledFor: draft.get("scheduledFor") ?? null,
+            ...guard,
             attempts: 0,
             createdAt: now,
             updatedAt: now,
@@ -1567,9 +1620,36 @@ export const scheduledEmailRelease = onSchedule(
       .limit(100)
       .get();
     if (jobs.empty) return;
+    // Each job's project is read as it is released: a message to a client of
+    // a job cancelled, lost or archived since it was scheduled is held here
+    // (and again by the worker as it sends), recorded the way every held
+    // send is: `succeeded` with `result.held` and the reason
+    // (scheduled-client-message.ts). Crew and studio mail is released as before.
+    const projects = new Map<string, Promise<Record<string, unknown> | null>>();
+    const projectFor = (tenantId: string, projectId: string) => {
+      const key = `${tenantId}/${projectId}`;
+      let read = projects.get(key);
+      if (!read) {
+        read = db
+          .doc(`projects/${projectId}`)
+          .get()
+          .then((project) =>
+            project.exists && project.get("tenantId") === tenantId
+              ? (project.data() ?? null)
+              : null,
+          );
+        projects.set(key, read);
+      }
+      return read;
+    };
     const batch = db.batch();
     for (const job of jobs.docs) {
-      batch.update(job.ref, { status: "queued", updatedAt: now });
+      const data = job.data();
+      const projectId = String(data.projectId ?? "");
+      const project = projectId
+        ? await projectFor(String(data.tenantId ?? ""), projectId)
+        : null;
+      batch.update(job.ref, scheduledReleaseUpdate(data, project, now));
     }
     await batch.commit();
   },

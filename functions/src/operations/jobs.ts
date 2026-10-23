@@ -7,10 +7,7 @@ import {
   clientAutomationEmailTypes,
   clientAutomationsPaused,
 } from "../imports/existing-booking.js";
-import {
-  clientOutreachStop,
-  mayContactClient,
-} from "../post-event/client-outreach.js";
+import { clientOutreachHoldFor } from "../communications/scheduled-client-message.js";
 import {
   getFirestore,
   type DocumentSnapshot,
@@ -926,17 +923,20 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   // job had been archived, paused or cancelled in between — the guard above
   // only covers the automated types. Set by decideAiAction, the lifecycle
   // auto-send, retryEmailJob and the admin rerun; a message the studio writes
-  // and sends itself is its own deliberate act and is not held.
+  // and sends itself is its own deliberate act and is not held. A message it
+  // scheduled for later is guarded too (communications/scheduled-client-message.ts):
+  // a stop it could already see when it scheduled is accepted, one since is not.
   if (projectId && document.get("clientOutreachGuard") === true) {
     const project = await getFirestore().doc(`projects/${projectId}`).get();
     const data =
       project.exists && project.get("tenantId") === document.get("tenantId")
         ? project.data()
         : null;
-    if (!mayContactClient(data))
+    const hold = clientOutreachHoldFor(objectValue(document.data()), data ?? null);
+    if (hold)
       return {
         held: "client_outreach_stopped",
-        reason: clientOutreachStop(data) ?? "job_missing",
+        reason: hold,
         type,
       };
   }
