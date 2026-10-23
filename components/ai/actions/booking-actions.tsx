@@ -27,7 +27,7 @@ import { RecordRetainerPayment } from "@/components/booking/record-retainer-paym
 import { RecordFinalPayment } from "@/components/booking/record-final-payment";
 import { FinalBalanceActions } from "@/components/booking/final-balance-actions";
 import { JobSalesTax } from "@/components/booking/job-sales-tax";
-import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
+import { balanceFallbackSnapshot, outstandingFinalBalance } from "@/features/booking/final-balance-due";
 import { proposalTermsForPackages } from "@/features/booking/autopilot";
 import { briefRerunBlocked } from "@/features/booking/brief-run";
 import { currentJobSnapshots } from "@/features/packages/job-packages";
@@ -1493,6 +1493,7 @@ export function SendFinalBalanceCard({ action }: ActionCardProps) {
   const { job, loading } = useJob(action.projectId);
   const proposals = useRecords("proposals");
   const invoices = useRecords("invoiceReferences");
+  const snapshots = useRecords("packageSnapshots");
   const ownerOrAdmin = useIsOwnerOrAdmin();
   const [message, setMessage] = useState<string | null>(null);
   const studioBilled = useJobBilling(action.projectId)?.method === "studio";
@@ -1501,7 +1502,13 @@ export function SendFinalBalanceCard({ action }: ActionCardProps) {
   if (loading || !proposals || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
-  const due = outstandingFinalBalance({ projectId: job.id, proposals, invoices, recordsDeleted: invoiceRecordsDeleted(job) });
+  const due = outstandingFinalBalance({
+    projectId: job.id,
+    proposals,
+    invoices,
+    recordsDeleted: invoiceRecordsDeleted(job),
+    packageSnapshot: balanceFallbackSnapshot(job, snapshots),
+  });
   // Held for the studio to check: never sent, so "already out" was untrue.
   const held = due.heldForReviewId ? (invoices.find((item) => item.id === due.heldForReviewId) ?? null) : null;
   // In QuickBooks already, waiting on the tax check: send with or without tax.

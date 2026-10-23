@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { FinalBalanceActions } from "@/components/booking/final-balance-actions";
 import { StudioInvoiceActions } from "@/components/booking/studio-invoice-actions";
-import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
+import { balanceFallbackSnapshot, outstandingFinalBalance } from "@/features/booking/final-balance-due";
 import { studioTaxRateFor } from "@/features/billing/job-billing-from-records";
 import { balanceMayBeAttested } from "@/features/booking/agreed-final-balance";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -37,6 +37,7 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
   const { records: proposals } = useTenantDocuments("proposals");
   const { records: connections } = useTenantDocuments("integrationConnections");
   const { records: billingSettings } = useTenantDocuments("billingSettings");
+  const { records: packageSnapshots } = useTenantDocuments("packageSnapshots");
   const [settled, setSettled] = useState<string | null>(null);
   // Arrived from one job whose balance nothing has billed: the actions, not a
   // note that the scheduler will get to it (it may never — see
@@ -57,6 +58,7 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
             billingSettings: billingSettings?.find((record) => record.tenantId === project.tenantId) ?? null,
           }),
           recordsDeleted: invoiceRecordsDeleted(project),
+          packageSnapshot: balanceFallbackSnapshot(project, packageSnapshots),
         })
       : null;
   // A payment plan (features/billing/payment-plan.ts): its next installment

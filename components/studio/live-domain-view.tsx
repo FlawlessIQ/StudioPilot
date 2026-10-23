@@ -3,7 +3,7 @@
 import { FileLinks } from "@/components/documents/file-link";
 import { FILE_BEARING, type FileRef } from "@/features/documents/file-ref";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { jobIsOver } from "@/features/projects/job-moment";
+import { jobIsOver, preparationIsMoot } from "@/features/projects/job-moment";
 import { taskIsOpenWork, taskJobStillWantsIt } from "@/features/tasks/live-work";
 import Link from "next/link";
 import {
@@ -1547,7 +1547,7 @@ export function ProjectContextBar({ projectId }: { projectId: string }) {
                   ring reading "43" said nothing a studio could act on, and
                   the Overview a tab away spoke in things, not percent (UI
                   audit, 2026-10-02). */}
-              {readinessTracked && readinessView.blocking.length ? (
+              {readinessTracked && readinessView.blocking.length && !preparationIsMoot(state) ? (
                 <Link
                   className="project-title-action project-readiness-gap"
                   href={`/studio/projects/${projectId}#project-checkpoints`}

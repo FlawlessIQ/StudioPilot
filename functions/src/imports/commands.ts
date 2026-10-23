@@ -19,6 +19,7 @@ import {
   clientAutomationsPaused,
   existingBookingSchema,
   importBlocked,
+  balanceOwedCents,
   planImportedBooking,
   type ExistingBooking,
   type ImportedCoverageRole,
@@ -405,7 +406,11 @@ export async function importExistingBooking(input: {
     tenantId: input.tenantId,
     projectId,
     actorId: input.actorId,
-    imported: { bookingDate: input.booking.signedOn, importedOn: today },
+    imported: {
+      bookingDate: input.booking.signedOn,
+      importedOn: today,
+      balanceOwed: balanceOwedCents(input.booking) > 0,
+    },
   });
 
   let state = "BOOKED";

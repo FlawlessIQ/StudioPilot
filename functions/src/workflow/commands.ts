@@ -1767,7 +1767,7 @@ export async function autoInstantiateWorkflow(input: {
    * contract got signed, the retainer got paid — so it is recorded as done
    * rather than left to arrive on day one as a wall of overdue work.
    */
-  imported?: { bookingDate: string; importedOn: string };
+  imported?: { bookingDate: string; importedOn: string; balanceOwed?: boolean };
 }): Promise<
   | {
       workflowRunId: string;
@@ -1928,9 +1928,13 @@ export async function autoInstantiateWorkflow(input: {
       const importedOn = input.imported.importedOn;
       const done = new Set<string>();
       for (const checkpoint of checkpointDocuments) {
+        // Except money the import itself says is still owed: the final
+        // balance on a $4,800 wedding with $1,200 paid read "Paid in full"
+        // because its due date had passed (prod walk, 2026-10-23).
         if (
           checkpoint.resolvedDueDate &&
-          checkpoint.resolvedDueDate < importedOn
+          checkpoint.resolvedDueDate < importedOn &&
+          !(input.imported.balanceOwed && checkpoint.templateKey === "final-balance")
         ) {
           done.add(checkpoint.id);
           checkpoint.status = "complete";

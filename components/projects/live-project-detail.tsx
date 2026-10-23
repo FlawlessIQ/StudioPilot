@@ -73,7 +73,7 @@ import {
 import { readinessSummary } from "@/features/projects/readiness-summary";
 import { journeyPhaseLabelFor, journeyPhaseOrder } from "@/features/journey/phases";
 import { projectPhaseIndex } from "@/features/projects/lifecycle";
-import { jobIsOver } from "@/features/projects/job-moment";
+import { jobIsOver, preparationIsMoot } from "@/features/projects/job-moment";
 import { describeEventProximity } from "@/lib/format/event-date";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
@@ -1822,7 +1822,9 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
                   "Retainer paid" read as good news when it was a missing item
                   (UI audit, 2026-10-02). A count in the row; the names on
                   hover and in the list it links to. */}
-              {readinessView.tracked && outstanding.length ? (
+              {/* Not once the day is behind it: a delivered wedding still
+                  read "11 things before the day" (prod walk, 2026-10-23). */}
+              {readinessView.tracked && outstanding.length && !preparationIsMoot(state) ? (
                 <a
                   className="project-title-action project-readiness-gap"
                   href="#project-checkpoints"

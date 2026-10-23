@@ -130,3 +130,17 @@ test("a job that can still take a proposal is still asked for one", () => {
 test("the quiet card is actually styled, not just labelled", () => {
   assert.match(read("app/globals.css"), /\.booking-autopilot-empty\.is-quiet\s*\{/);
 });
+
+// --- An unpaid balance is not "done before StudioCue" ----------------------
+
+test("an imported booking with money owed keeps its final balance open", () => {
+  // Prod walk, 2026-10-23: $4,800 wedding, $1,200 paid, 8 days out — every
+  // step due before the import was ticked, the final balance included.
+  const workflow = read("functions/src/workflow/commands.ts");
+  assert.match(
+    workflow,
+    /checkpoint\.resolvedDueDate < importedOn &&\s*!\(input\.imported\.balanceOwed && checkpoint\.templateKey === "final-balance"\)/,
+  );
+  const imports = read("functions/src/imports/commands.ts");
+  assert.match(imports, /balanceOwed: balanceOwedCents\(input\.booking\) > 0/);
+});

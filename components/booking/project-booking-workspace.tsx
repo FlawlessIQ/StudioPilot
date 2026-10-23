@@ -2040,7 +2040,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 ) : null}
                 <button
                   className="button booking-gate-button"
-                  disabled={busy !== null || projectState !== "RETAINER_PENDING"}
+                  // A postponed job is booked again from here ("Re-run the
+                  // booking check"); the server takes POSTPONED (runBookingGate
+                  // bookableFrom), but the button stayed disabled for it
+                  // (prod walk, 2026-10-23).
+                  disabled={busy !== null || !["RETAINER_PENDING", "POSTPONED"].includes(projectState)}
                   onClick={() => void reviewBooking()}
                   type="button"
                 >

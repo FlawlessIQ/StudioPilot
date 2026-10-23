@@ -482,3 +482,14 @@ test("Build it myself with no times starts on the job's day, not today", async (
   });
   assert.equal(new Date(first!.startAt).toISOString(), new Date("2026-10-14T12:00").toISOString());
 });
+
+test("with no ceremony time, a tapped moment follows the last named item, not the blank starter line", () => {
+  // Prod walk, 2026-10-23: the blank line "Build it myself" starts with runs
+  // 12:00–20:00, so "Ceremony" landed at 8:00 PM.
+  const items = [
+    { title: "", startAt: "2026-10-31T16:00:00.000Z", endAt: "2026-11-01T00:00:00.000Z" },
+    { title: "Getting into the dress", startAt: "2026-10-31T17:00:00.000Z", endAt: "2026-10-31T17:30:00.000Z" },
+  ];
+  const placed = placeStandardMoment("ceremony", items, { coverageStartsAt: "2026-10-31T16:00:00.000Z", coverageEndsAt: "2026-11-01T00:00:00.000Z" });
+  assert.equal(placed.startAt, "2026-10-31T17:30:00.000Z");
+});

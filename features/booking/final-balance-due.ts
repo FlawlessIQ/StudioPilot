@@ -44,6 +44,14 @@ export function outstandingFinalBalance(input: {
    * paid is no longer known, so no balance is worked out and none offered.
    */
   recordsDeleted?: boolean;
+  /**
+   * The job's package snapshot, for a job with no accepted proposal — an
+   * imported booking — as the server bills it (functions/src/booking/
+   * final-invoice.ts). Without it a $4,800 import with $1,200 paid, eight days
+   * out, was told the balance was overdue and given nothing to bill it with
+   * (prod walk, 2026-10-23). Callers pass it only for a job that is not quiet.
+   */
+  packageSnapshot?: Row | null;
 }): {
   cents: number | null;
   dueDate: string | null;
@@ -60,7 +68,8 @@ export function outstandingFinalBalance(input: {
   const accepted = (input.proposals ?? [])
     .filter((proposal) => proposal.projectId === input.projectId && proposal.status === "accepted")
     .sort((left, right) => Number(right.version ?? 0) - Number(left.version ?? 0))[0];
-  const pricing = (accepted?.pricingSnapshot ?? null) as Record<string, unknown> | null;
+  const pricing = (accepted?.pricingSnapshot ??
+    (accepted ? null : input.packageSnapshot ?? null)) as Record<string, unknown> | null;
   const agreedTax = Number(pricing?.taxCents);
   const preTax = Number(pricing?.totalCents) - (Number.isSafeInteger(agreedTax) && agreedTax > 0 ? agreedTax : 0);
   const total =
@@ -130,4 +139,18 @@ export function finalBillFailure(invoices: readonly Record<string, unknown>[]): 
 export function currentFinalInvoice<T extends Record<string, unknown>>(invoices: readonly T[]): T | undefined {
   const finals = invoices.filter((invoice) => invoice.kind === "final");
   return finals.find((invoice) => !NOT_STANDING.includes(text(invoice.status))) ?? finals[0];
+}
+
+/**
+ * The package snapshot a job's balance falls back to when it has no accepted
+ * proposal (outstandingFinalBalance). Not for a quiet job — an import the
+ * studio has not brought in may well be billed elsewhere.
+ */
+export function balanceFallbackSnapshot(
+  job: Record<string, unknown> | null | undefined,
+  snapshots: readonly Row[] | null | undefined,
+): Row | null {
+  if (!job || job.clientAutomationsPausedAt) return null;
+  const id = text(job.packageSnapshotId);
+  return id ? ((snapshots ?? []).find((snapshot) => snapshot.id === id) ?? null) : null;
 }

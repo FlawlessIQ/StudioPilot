@@ -140,3 +140,21 @@ test("the Invoices page leads with the ledger and no longer says everything is Q
   assert.doesNotMatch(page, /synced from QuickBooks|QuickBooks references/);
   assert.match(read("components/billing/invoice-ledger.tsx"), /Download CSV/);
 });
+
+test("an imported booking with no proposal bills its balance from the package", async () => {
+  // Prod walk, 2026-10-23: $4,800, $1,200 paid, eight days out — "overdue",
+  // and nothing on Invoices or Today to bill it with.
+  const { balanceFallbackSnapshot, outstandingFinalBalance } = await import("../features/booking/final-balance-due");
+  const snapshot = { id: "snap", totalCents: 480000, taxCents: 0 };
+  const job = { id: "job", packageSnapshotId: "snap", clientAutomationsPausedAt: null };
+  const invoices = [{ id: "r", projectId: "job", kind: "retainer", status: "paid", amountCents: 120000, balanceCents: 0 }];
+  const due = outstandingFinalBalance({
+    projectId: "job",
+    proposals: [],
+    invoices,
+    packageSnapshot: balanceFallbackSnapshot(job, [snapshot]),
+  });
+  assert.equal(due.cents, 360000);
+  // Still quiet (not brought in): may be billed elsewhere, so nothing offered.
+  assert.equal(balanceFallbackSnapshot({ ...job, clientAutomationsPausedAt: "2026-10-23T00:00:00Z" }, [snapshot]), null);
+});

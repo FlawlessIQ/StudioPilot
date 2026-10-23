@@ -442,6 +442,16 @@ export async function prepareContract(
     overrides: input.overrides,
     today,
   });
+  // A venue typed here is the job's venue too, when the job has none: it
+  // lived only on this draft, so the next booking change could not fill it
+  // and refused with "some details are blank" (prod walk, 2026-10-23).
+  const typedVenue = (input.overrides["event.venue"] ?? "").trim();
+  if (typedVenue) {
+    const project = await db.doc(`projects/${input.projectId}`).get();
+    if (project.exists && project.get("tenantId") === context.tenantId && !String(project.get("venueName") ?? "").trim()) {
+      await project.ref.update({ venueName: typedVenue, updatedAt: context.timestamp, updatedBy: context.actorId });
+    }
+  }
   await draftReference.set({
     id: input.projectId,
     tenantId: context.tenantId,

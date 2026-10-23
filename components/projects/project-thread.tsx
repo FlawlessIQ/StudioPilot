@@ -481,10 +481,18 @@ function ThreadNextMove({
               {interruption.reason
                 ? `Your reason: ${interruption.reason}`
                 : held
-                  ? "Bring it back from the job rail when the new date is settled."
+                  ? "Bring it back when the new date is settled."
                   : "Everything on it is kept. The owner can undo the cancel from Move back for 30 days."}
             </small>
           </div>
+          {/* The way back, where the job says it is on hold: it was only
+              "Re-run the booking check" at the foot of the page (prod walk,
+              2026-10-23). */}
+          {held ? (
+            <Link className="button button-light" href={`/studio/booking?project=${projectId}`}>
+              Bring it back
+            </Link>
+          ) : null}
         </div>
       </div>
     );

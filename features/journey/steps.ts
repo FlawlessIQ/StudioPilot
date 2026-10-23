@@ -1765,7 +1765,7 @@ export function projectJourney(input: JourneyInput): {
     key: "event_day",
     title: needsReconciling ? "Did this go ahead?" : "Event day",
     detail: needsReconciling
-      ? `The date passed ${Math.abs(days ?? 0)} days ago and this job is still marked ${projectStateLabel(String(input.state), input.trade).toLowerCase()}.`
+      ? `The date passed ${Math.abs(days ?? 0) === 1 ? "yesterday" : `${Math.abs(days ?? 0)} days ago`} and this job is still marked ${projectStateLabel(String(input.state), input.trade).toLowerCase()}.`
       : eventBehindThem
         ? tradeWords.dayDone
         : input.eventDate ?? "Date pending",

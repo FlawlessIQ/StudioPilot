@@ -16,6 +16,7 @@ import {
 } from "firebase-admin/firestore";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { onRequest } from "firebase-functions/v2/https";
+import { logger } from "firebase-functions";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
@@ -1626,7 +1627,11 @@ async function runToolLoop(
       ],
     },
   ];
+  const startedAt = Date.now();
   for (let iteration = 0; iteration < COPILOT_MAX_TOOL_ITERATIONS; iteration++) {
+    // How long the record-reading took, per step: a turn that ran out of
+    // time used to leave no line in the log at all.
+    if (iteration > 0) logger.info("copilotRetrievalStep", { iteration, elapsedMs: Date.now() - startedAt });
     const response = await vertexGenerate(
       {
         systemInstruction: { parts: [{ text: COPILOT_RETRIEVAL_INSTRUCTION }] },
@@ -2427,7 +2432,11 @@ export async function generateProposalDraft(facts: {
 }
 
 export const aiCopilotCommand = onRequest(
-  { cors: studioHubCors, invoker: "private", timeoutSeconds: 60 },
+  // An action turn reads records up to four times, each a model call with
+  // thinking, before the streamed answer: "Remind Avery Quinn to fill in the
+  // event details form" ran out at 61s twice on prod (2026-10-23), shown as
+  // "Cue could not answer". The app relay allows 300s.
+  { cors: studioHubCors, invoker: "private", timeoutSeconds: 180 },
   async (request, response) => {
     if (request.method !== "POST") {
       response.status(405).json({ error: "METHOD_NOT_ALLOWED" });

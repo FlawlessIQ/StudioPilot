@@ -8,7 +8,7 @@ import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tena
 import { isCataloguePackage } from "@/features/packages/one-off";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { ContractDocumentView } from "@/components/contracts/contract-document-view";
-import { contractDocumentSchema } from "@/features/contracts/document";
+import { contractDocumentSchema, contractMergeFields } from "@/features/contracts/document";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { tradeVocab } from "@/features/trades/trades";
 import { sendBookingCommand } from "@/lib/booking/command-client";
@@ -329,6 +329,10 @@ export function BookingAmendmentPanel({
     const parsed = contractDocumentSchema.safeParse(pending.document);
     const sent = pending.status === "sent";
     const recordOnly = pending.signingMode !== "studiocue";
+    // Named before signing, not refused after: "some details are blank" said
+    // nothing about which (prod walk, 2026-10-23: the venue).
+    const blankFields = (Array.isArray(pending.unresolvedFields) ? (pending.unresolvedFields as unknown[]) : [])
+      .map((key) => contractMergeFields.find((field) => field.key === key)?.label ?? String(key));
     return (
       <div className="amendment-panel">
         <p className="eyebrow">{sent ? "Waiting for the couple" : "The change"}</p>
@@ -524,10 +528,15 @@ export function BookingAmendmentPanel({
               </button>
             )
           ) : null}
+          {!sent && blankFields.length ? (
+            <p className="form-error" role="alert">
+              {`Blank in the amended agreement: ${blankFields.join(", ")}. Add ${blankFields.length === 1 ? "it" : "them"} with Edit job, then Change it to write the change up again.`}
+            </p>
+          ) : null}
           {!sent && !recordOnly && ownerOrAdmin && !recording ? (
             <button
               className="button button-dark"
-              disabled={busy || !consent || signer.trim().length < 2}
+              disabled={busy || !consent || signer.trim().length < 2 || blankFields.length > 0}
               onClick={() =>
                 void act(
                   "sendAmendment",

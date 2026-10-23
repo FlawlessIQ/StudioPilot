@@ -8,6 +8,7 @@ import {
 } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
+import { runCrmCommand } from "@/lib/crm/command-client";
 import {
   DELIVERY_GATE_STEPS,
   deliveryGateCleared,
@@ -98,6 +99,27 @@ function PostProductionSteps({
     // "SHOT" meant this branch never ran, and a shot wedding was still told
     // to wait for the event (walked on production, 2026-09-28).
     const shot = ["EVENT_COMPLETE", "POST_PRODUCTION"].includes(state);
+    const job = (projects ?? []).find((item) => item.id === projectId);
+    // The step this panel names, here: it was only at the foot of the job
+    // page, so Delivery said to confirm editing and offered no way to
+    // (prod walk, 2026-10-23).
+    const startEditing = async () => {
+      setBusy("start-editing");
+      setNotice(null);
+      try {
+        await runCrmCommand("transitionProject", {
+          projectId,
+          expectedVersion: Number(job?.stateVersion ?? 0),
+          targetState: "POST_PRODUCTION",
+        });
+        refreshTenantRecords("projects", "postProductionRecords");
+        setNotice("Editing has started. The post-production checks open in a moment.");
+      } catch (caught: unknown) {
+        setNotice(friendlyError(caught, "Editing could not be marked as started."));
+      } finally {
+        setBusy(null);
+      }
+    };
     return (
       <section className="panel post-production-pending">
         <div className="panel-heading">
@@ -111,6 +133,13 @@ function PostProductionSteps({
             ? "The post-production checks appear here as soon as you confirm editing has started on this job. Anything can be released once the cards are backed up."
             : "The post-production checks appear here once the event has been covered. Anything can be released once the cards are backed up."}
         </p>
+        {state === "EVENT_COMPLETE" ? (
+          <button className="button button-dark" disabled={busy !== null} onClick={() => void startEditing()} type="button">
+            {busy === "start-editing" ? <LoaderCircle aria-hidden="true" className="spin" size={14} /> : null}
+            Confirm editing has started
+          </button>
+        ) : null}
+        {notice ? <p className="form-notice" role="status">{notice}</p> : null}
       </section>
     );
   }

@@ -801,7 +801,10 @@ function DeliveryReleaseForm({ projectId }: { projectId?: string }) {
 
           {!postProductionOpen ? (
             <p className="delivery-gate-notice form-span" role="status">
-              <strong>Not ready to release yet.</strong>{" "}Post-production opens after the event.
+              <strong>Not ready to release yet.</strong>{" "}
+              {state === "EVENT_COMPLETE"
+                ? "Confirm editing has started, above, and the checks open."
+                : "Post-production opens after the event."}
             </p>
           ) : outstandingGateSteps.length ? (
             <p className="delivery-gate-notice form-span" role="status">

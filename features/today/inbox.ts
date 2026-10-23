@@ -49,7 +49,7 @@ import {
 } from "@/features/today/provider-failure";
 import { countdownPhrase, formatDueDate } from "@/lib/format/event-date";
 import { isAmendable } from "@/features/booking/amendable";
-import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
+import { balanceFallbackSnapshot, outstandingFinalBalance } from "@/features/booking/final-balance-due";
 import { installmentName } from "@/features/billing/payment-plan";
 import { journeyPaymentPlan } from "@/features/billing/payment-plan-view";
 import { heldInvoiceView } from "@/features/billing/held-invoice-review";
@@ -2490,6 +2490,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       }),
       // Records deleted by the studio: no balance is worked out from what's left.
       recordsDeleted: invoiceRecordsDeleted(job),
+      packageSnapshot: balanceFallbackSnapshot(job, rows(input.packageSnapshots) as Array<Record<string, unknown> & { id: string }>),
     });
     // A final bill held for review is standing, so the "send" card below
     // stays away — but it was never sent, and nothing else said so.

@@ -152,8 +152,13 @@ export function placeStandardMoment(
   // Nobody is there to photograph it before coverage starts.
   const clamped =
     start !== null && coverageStart !== null && start < coverageStart ? coverageStart : start;
+  // "After the last item" means the last thing named. "Build it myself"
+  // starts with one blank line running to the end of coverage, so with no
+  // ceremony time a tapped "Ceremony" landed at 8:00 PM, after a 1:00 PM
+  // getting-ready (prod walk, 2026-10-23).
+  const named = items.filter((item) => String(item.title ?? "").trim());
   const startMs =
-    clamped ?? Date.parse(nextItemStart(items, anchors.coverageStartsAt ?? null));
+    clamped ?? Date.parse(nextItemStart(named, anchors.coverageStartsAt ?? null));
   return {
     title: moment.title,
     startAt: new Date(startMs).toISOString(),
