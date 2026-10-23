@@ -1,5 +1,6 @@
 "use client";
 
+import { useWorkspace } from "@/features/auth/workspace-context";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -15,7 +16,7 @@ import {
   bookingFromSpreadsheetRow,
   detectColumns,
   parseCsv,
-  spreadsheetFieldLabels,
+  spreadsheetFieldLabel,
   spreadsheetFields,
   spreadsheetTemplateCsv,
   type SpreadsheetField,
@@ -86,6 +87,9 @@ function statusFromPreview(preview: ExistingBookingPreview): RowStatus {
 }
 
 export function SpreadsheetBookingImport() {
+  // The studio's trade names the crew columns (a DJ's "DJs") and says whether
+  // there is a second one (spreadsheet.ts, spreadsheetFieldLabel).
+  const trade = useWorkspace().tenantTrade;
   const [fileName, setFileName] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
   const [cells, setCells] = useState<string[][]>([]);
@@ -116,7 +120,7 @@ export function SpreadsheetBookingImport() {
     setHeaders(head!);
     setCells(body.slice(0, MAX_ROWS));
     setTooMany(Math.max(0, body.length - MAX_ROWS));
-    setColumns(detectColumns(head!));
+    setColumns(detectColumns(head!, trade));
     setBatchId(crypto.randomUUID());
     setRows([]);
     setPhase("mapping");
@@ -125,7 +129,7 @@ export function SpreadsheetBookingImport() {
   function readRows(): Row[] {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
     return cells.map((rowCells, index) => {
-      const result = bookingFromSpreadsheetRow({ row: index + 2, cells: rowCells, columns, timezone });
+      const result = bookingFromSpreadsheetRow({ row: index + 2, cells: rowCells, columns, timezone, trade });
       if ("problems" in result) {
         const name =
           [rowCells[columns.firstName ?? -1], rowCells[columns.lastName ?? -1]].filter(Boolean).join(" ") ||
@@ -322,9 +326,9 @@ export function SpreadsheetBookingImport() {
             are wrong, and leave out what the sheet doesn&rsquo;t have.
           </p>
           <div className="sheet-import-columns">
-            {spreadsheetFields.map((field) => (
+            {spreadsheetFields.filter((field) => spreadsheetFieldLabel(field, trade) !== null).map((field) => (
               <label key={field}>
-                {spreadsheetFieldLabels[field]}
+                {spreadsheetFieldLabel(field, trade)}
                 <select
                   onChange={(event) =>
                     setColumns((prior) => {
