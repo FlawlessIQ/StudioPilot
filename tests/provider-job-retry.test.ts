@@ -14,11 +14,12 @@ import assert from "node:assert/strict";
  * `failed` or `dead_letter` — never at `retry_scheduled` — while the
  * contract itself read "Sent".
  *
- * This pins the classification against the source, since the function lives
- * in functions/ and the root tsconfig cannot import it.
+ * This pins the classification against the source. It moved out of
+ * operations/jobs.ts into the import-free operations/job-retry.ts
+ * (tests/email-job-retry.test.ts exercises it directly).
  */
 const source = readFileSync(
-  join(process.cwd(), "functions/src/operations/jobs.ts"),
+  join(process.cwd(), "functions/src/operations/job-retry.ts"),
   "utf8",
 );
 

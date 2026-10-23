@@ -45,6 +45,7 @@ import {
   eventReminderHoldFor,
 } from "../communications/event-reminders.js";
 import { captureOperationalError } from "./observability.js";
+import { DEFAULT_MAX_ATTEMPTS, retryPlanFor } from "./job-retry.js";
 import { productEvent } from "./product-events.js";
 import {
   addCrewCalendarInvite,
@@ -106,6 +107,16 @@ import {
 
 type Result = Record<string, unknown>;
 
+/**
+ * The SendGrid message id of a send SendGrid already accepted, kept on the
+ * email job until the job succeeds. Its presence on a retry means the email
+ * went and only what follows the send is left to do.
+ */
+const SENDGRID_ACCEPTED_FIELD = "sendgridAcceptedMessageId";
+
+/** Long enough for a large attachment; SendGrid usually answers in under a second. */
+const SENDGRID_SEND_TIMEOUT_MS = 30_000;
+
 export const jobCollections = [
   "providerJobs",
   "emailJobs",
@@ -114,58 +125,6 @@ export const jobCollections = [
 ] as const;
 
 export type JobCollection = (typeof jobCollections)[number];
-
-const retryDelay = (attempt: number) =>
-  Math.min(6 * 60 * 60 * 1000, 30_000 * 2 ** Math.max(0, attempt - 1));
-
-function retryableJobFailure(
-  collectionName: string,
-  code: string,
-  message: string,
-): boolean {
-  if (collectionName === "aiJobs") {
-    const permanentAiFailures = new Set([
-      "STUDIO_IMPORT_DOCX_TEXT_EXTRACTION_FAILED",
-      "STUDIO_IMPORT_NO_ASSETS_EXTRACTED",
-      "VERTEX_AI_NOT_CONFIGURED",
-    ]);
-    if (permanentAiFailures.has(code)) return false;
-    if (code === "VERTEX_STUDIO_IMPORT_FAILED") {
-      const status = Number(message.split(":")[1] ?? 0);
-      return status === 408 || status === 429 || status >= 500;
-    }
-  }
-  if (collectionName === "providerJobs") {
-    // Provider failures carry their HTTP status: `CODE:402:PROVIDER_ERROR`.
-    // A 4xx is the provider refusing, not the network faltering, so retrying
-    // only delays the moment anyone finds out — and Today surfaces these
-    // jobs at `dead_letter`, never at `retry_scheduled`. A Dropbox Sign 402
-    // (the account has no paid API plan) was retried five times over an
-    // hour while the contract read "Sent" and nothing had been sent.
-    //
-    // 408 and 429 are the exceptions: both are the provider asking to be
-    // called again later.
-    const status = Number(message.split(":")[1] ?? 0);
-    if (status >= 400 && status < 500) return status === 408 || status === 429;
-    return true;
-  }
-  if (collectionName !== "emailJobs") return true;
-  const permanentEmailFailures = new Set([
-    "EMAIL_RECIPIENT_MISSING",
-    "SENDGRID_NOT_CONFIGURED",
-    "COI_ATTACHMENT_REFERENCE_INVALID",
-    "COI_ATTACHMENT_TOO_LARGE",
-    "PROPOSAL_ATTACHMENT_INVALID",
-    "PROPOSAL_ATTACHMENT_REFERENCE_INVALID",
-    "PROPOSAL_ATTACHMENT_TOO_LARGE",
-  ]);
-  if (permanentEmailFailures.has(code)) return false;
-  if (code === "SENDGRID_SEND_FAILED") {
-    const status = Number(message.split(":")[1] ?? 0);
-    return status === 408 || status === 429 || status >= 500;
-  }
-  return true;
-}
 
 /**
  * Apply a job's outcome to its invoice — unless StudioCue already closed it.
@@ -263,23 +222,37 @@ async function finish(
       error: null,
       completedAt: now,
       updatedAt: now,
+      // Done with: a job queued again after this is a new send, not the
+      // tail of this one.
+      ...(document.ref.parent.id === "emailJobs"
+        ? { [SENDGRID_ACCEPTED_FIELD]: null }
+        : {}),
     });
   } catch (caught: unknown) {
     const current = await document.ref.get();
     const attempts = Number(current.get("attempts") ?? 1);
-    const maxAttempts = Number(current.get("maxAttempts") ?? 5);
+    const maxAttempts = Number(current.get("maxAttempts") ?? DEFAULT_MAX_ATTEMPTS);
     const message = caught instanceof Error ? caught.message : "JOB_FAILED";
     const code = message.split(":")[0] ?? "JOB_FAILED";
     const now = new Date().toISOString();
-    const retryable =
-      attempts < maxAttempts &&
-      retryableJobFailure(document.ref.parent.id, code, message);
+    // Email has a longer schedule for SendGrid being down; everything else,
+    // and every other way an email fails, keeps the standard one
+    // (operations/job-retry.ts).
+    const plan = retryPlanFor({
+      collectionName: document.ref.parent.id,
+      code,
+      message,
+      attempts,
+      maxAttempts,
+    });
+    const retryable = plan.retryable;
     await document.ref.update({
       status: retryable ? "retry_scheduled" : "dead_letter",
       error: { code, message, retryable },
-      nextAttemptAt: retryable
-        ? new Date(Date.now() + retryDelay(attempts)).toISOString()
+      nextAttemptAt: plan.retryable
+        ? new Date(Date.now() + plan.delayMs).toISOString()
         : null,
+      retrySchedule: plan.schedule,
       completedAt: retryable ? null : now,
       updatedAt: now,
     });
@@ -1428,18 +1401,42 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       ];
     }
   }
-  const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok)
-    throw new Error(`SENDGRID_SEND_FAILED:${response.status}`);
-  const messageId =
-    response.headers.get("x-message-id") ?? `sendgrid_${document.id}`;
+  // SendGrid took this email on an earlier attempt and something after it
+  // failed — recording the message, updating the invoice. Finish that
+  // bookkeeping without handing SendGrid the same email a second time.
+  const acceptedMessageId = firstString(document.get(SENDGRID_ACCEPTED_FIELD));
+  let messageId: string;
+  if (acceptedMessageId) {
+    messageId = acceptedMessageId;
+  } else {
+    let response: Response;
+    try {
+      response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        // A SendGrid that never answers would otherwise hold the job at
+        // `running` until the function is killed, where nothing retries it.
+        signal: AbortSignal.timeout(SENDGRID_SEND_TIMEOUT_MS),
+      });
+    } catch (caught: unknown) {
+      // No answer at all: retried on the outage schedule (job-retry.ts).
+      const name = caught instanceof Error ? caught.name : "UnknownError";
+      throw new Error(`SENDGRID_NETWORK_ERROR:${name}`);
+    }
+    if (!response.ok)
+      throw new Error(`SENDGRID_SEND_FAILED:${response.status}`);
+    messageId =
+      response.headers.get("x-message-id") ?? `sendgrid_${document.id}`;
+    // Written before anything else can fail, so a retry finds it.
+    await document.ref.update({
+      [SENDGRID_ACCEPTED_FIELD]: messageId,
+      sendgridAcceptedAt: new Date().toISOString(),
+    });
+  }
   await saveMessage(
     document,
     recipient,
