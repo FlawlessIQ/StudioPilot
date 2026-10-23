@@ -54,6 +54,11 @@ export const PURGE_PROTECTED_COLLECTIONS: readonly string[] = [
   "deletionRequests",
   "exportJobs",
   "projectPurges",
+  // The studio's vendor list. A vendor record carries the first job it was
+  // added on as `projectId`, so deleting that job deleted a vendor the studio
+  // still used on others (audit, 2026-10-22). The sweep takes the job off the
+  // vendor instead (purge-command.ts, unlinkVendors).
+  "vendors",
 ];
 
 /**

@@ -10,6 +10,7 @@ import {
 } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
+import { retryingTrigger } from "./trigger-retry.js";
 import { agreedRetainerCents, agreedRetainerDue, retainerDueFromSchedule } from "./agreed-retainer.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { jobCalledOff, refundOrKeepTask } from "./stopped-billing.js";
@@ -110,8 +111,8 @@ function strings(value: unknown): string[] {
  * trigger cannot send twice.
  */
 export const bookingProposalAccepted = onDocumentWritten(
-  "proposals/{proposalId}",
-  async (event) => {
+  { document: "proposals/{proposalId}", retry: true },
+  async (event) => retryingTrigger("bookingProposalAccepted", event, async () => {
     const before = event.data?.before;
     const proposal = event.data?.after;
     if (!proposal?.exists) return;
@@ -360,12 +361,12 @@ export const bookingProposalAccepted = onDocumentWritten(
         archivedAt: null,
       }, { merge: true });
     });
-  },
+  }),
 );
 
 export const bookingContractCompleted = onDocumentWritten(
-  "contracts/{contractId}",
-  async (event) => {
+  { document: "contracts/{contractId}", retry: true },
+  async (event) => retryingTrigger("bookingContractCompleted", event, async () => {
     const before = event.data?.before;
     const contract = event.data?.after;
     // Also covers deletion, which onDocumentWritten delivers and an update
@@ -561,7 +562,7 @@ export const bookingContractCompleted = onDocumentWritten(
         updatedAt: now,
       });
     });
-  },
+  }),
 );
 
 /**
@@ -578,8 +579,8 @@ export const bookingContractCompleted = onDocumentWritten(
  * retainer that has only just appeared.
  */
 export const bookingRetainerPaid = onDocumentWritten(
-  "invoiceReferences/{invoiceId}",
-  async (event) => {
+  { document: "invoiceReferences/{invoiceId}", retry: true },
+  async (event) => retryingTrigger("bookingRetainerPaid", event, async () => {
     const before = event.data?.before;
     const invoice = event.data?.after;
     // Also covers deletion, which a write trigger delivers and an update
@@ -710,7 +711,7 @@ export const bookingRetainerPaid = onDocumentWritten(
       projectReference,
       triggerId: invoice.id,
     });
-  },
+  }),
 );
 
 /**

@@ -232,6 +232,7 @@ export async function sweepProjectRecords(
   projectId: string,
 ): Promise<Record<string, number>> {
   const deleted: Record<string, number> = {};
+  await unlinkVendors(db, tenantId, projectId);
   for (const collection of await sweepableCollections(db)) {
     let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined;
     for (;;) {
@@ -254,6 +255,31 @@ export async function sweepProjectRecords(
     }
   }
   return deleted;
+}
+
+/**
+ * Take a deleted job off the studio's vendors, keeping every vendor.
+ *
+ * `vendors` is protected (purge-policy.ts): "Your vendors and venues" stay,
+ * as the delete panel promises. A vendor first added on this job points at
+ * it as `projectId`; it moves to another job it is still on, or to none.
+ */
+async function unlinkVendors(db: Db, tenantId: string, projectId: string): Promise<void> {
+  const [listed, first] = await Promise.all([
+    db.collection("vendors").where("tenantId", "==", tenantId).where("projectIds", "array-contains", projectId).get(),
+    db.collection("vendors").where("tenantId", "==", tenantId).where("projectId", "==", projectId).get(),
+  ]);
+  const vendors = new Map([...listed.docs, ...first.docs].map((vendor) => [vendor.id, vendor]));
+  for (const vendor of vendors.values()) {
+    const remaining = ((vendor.get("projectIds") as unknown[] | undefined) ?? []).filter(
+      (id): id is string => typeof id === "string" && id !== projectId,
+    );
+    await vendor.ref.update({
+      projectIds: remaining,
+      ...(vendor.get("projectId") === projectId ? { projectId: remaining[0] ?? null } : {}),
+      updatedAt: new Date().toISOString(),
+    });
+  }
 }
 
 export const projectPurgeCommand = onRequest(

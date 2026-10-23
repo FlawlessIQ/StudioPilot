@@ -449,8 +449,11 @@ export function LeadIntakeForm({
     }
 
     try {
-      const { getAppCheckToken } = await import("@/lib/firebase/app-check");
-      const appCheckToken = await getAppCheckToken();
+      // No token (reCAPTCHA down, or stalled in an in-app browser) still
+      // sends: the website holds the inquiry rather than turn the client
+      // away (server/intake/hold-inquiry.ts, unverified).
+      const { getOptionalAppCheckToken } = await import("@/lib/firebase/app-check");
+      const appCheckToken = await getOptionalAppCheckToken();
       const response = await fetch(`${endpoint.replace(/\/$/, "")}/publicLeadIntake`, {
         method: "POST",
         headers: {

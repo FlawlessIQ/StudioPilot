@@ -99,6 +99,43 @@ PY
   failures=$((failures + $(printf '%s\n' "${result}" | sed -n 's/^BAD=//p')))
 done
 
+printf '\n3. Every secret version a function is pinned to is enabled\n'
+# A function mounts each secret at a fixed version (Firebase pins the number at
+# deploy). Disabling that version — which a rotation that forgets to redeploy
+# first does — stops every new instance of the function from starting, the
+# same silent spread as 2026-10-22. docs/production-secrets.md has the order.
+gcloud run services list --project="${project_id}" --region=us-east4 \
+  --filter='metadata.labels."goog-managed-by"=cloudfunctions' --format=json > "${work}/secret-services" 2>/dev/null || echo '[]' > "${work}/secret-services"
+secret_pairs="$(python3 - "${work}/secret-services" <<'PY'
+import json, sys
+pairs = {}
+for service in json.load(open(sys.argv[1])):
+    template = service["spec"]["template"]
+    aliases = {}
+    for entry in (template["metadata"].get("annotations", {}).get("run.googleapis.com/secrets") or "").split(","):
+        if ":" in entry:
+            alias, path = entry.split(":", 1)
+            aliases[alias] = path.rsplit("/", 1)[-1]
+    for env in template["spec"]["containers"][0].get("env", []):
+        ref = (env.get("valueFrom") or {}).get("secretKeyRef")
+        if ref:
+            secret = aliases.get(ref["name"], ref["name"])
+            pairs.setdefault((secret, ref.get("key", "latest")), []).append(service["metadata"]["name"])
+for (secret, version), users in sorted(pairs.items()):
+    print(f"{secret}\t{version}\t{len(users)}")
+PY
+)"
+while IFS=$'\t' read -r secret version users; do
+  [ -z "${secret}" ] && continue
+  state="$(gcloud secrets versions describe "${version}" --secret="${secret}" --project="${project_id}" --format='value(state)' 2>/dev/null || echo MISSING)"
+  if [ "${state}" = "ENABLED" ]; then
+    printf '  ok    %s v%s (%s functions)\n' "${secret}" "${version}" "${users}"
+  else
+    printf '  FAIL  %s v%s is %s — %s functions cannot start a new instance\n' "${secret}" "${version}" "${state:-UNKNOWN}" "${users}"
+    failures=$((failures + 1))
+  fi
+done <<< "${secret_pairs}"
+
 if [ "${failures}" -gt 0 ]; then
   printf '\n%s problem(s). A function whose image is gone fails on its next cold start: redeploy it.\n' "${failures}"
   exit 1

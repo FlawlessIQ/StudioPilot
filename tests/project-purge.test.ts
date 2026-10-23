@@ -289,3 +289,12 @@ test("the new Function is reachable and invokable in production", () => {
   const index = readFileSync(`${process.cwd()}/functions/src/index.ts`, "utf8");
   assert.match(index, /export \{ projectPurgeCommand \}/);
 });
+
+test("deleting a job keeps the studio's vendors, and takes the job off them", () => {
+  // A vendor first added on a job carries it as `projectId`; deleting that job
+  // deleted a vendor still used on other jobs (audit, 2026-10-22).
+  assert.ok(PURGE_PROTECTED_COLLECTIONS.includes("vendors"));
+  const command = readFileSync("functions/src/projects/purge-command.ts", "utf8");
+  assert.match(command, /await unlinkVendors\(db, tenantId, projectId\);\s*for \(const collection of await sweepableCollections\(db\)\)/);
+  assert.match(command, /projectIds: remaining,[\s\S]*?projectId: remaining\[0\] \?\? null/);
+});

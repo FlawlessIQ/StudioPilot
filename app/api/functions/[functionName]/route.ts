@@ -169,8 +169,20 @@ async function proxy(
       userAgent: reportedAgent ?? request.headers.get("user-agent"),
       reason,
     });
+    // The function was down and this token can't be verified: say the
+    // function is down (502), not "bad token" (401). The uptime probe sends a
+    // dummy token so it reaches the function, and must see the outage.
+    if (reason !== "no_app_check" && held.status === 401)
+      return Response.json({ error: "FUNCTION_UPSTREAM_UNAVAILABLE" }, { status: 502 });
     return Response.json(held.body, { status: held.status });
   };
+
+  // No App Check token: the form sends anyway when reCAPTCHA can't issue
+  // one, and the function would only refuse it. Held, within the tighter
+  // unverified limits, instead of a client turned away.
+  if (holdable && !request.headers.get("x-firebase-appcheck")) {
+    return hold("no_app_check").catch(() => Response.json({ error: "APP_CHECK_REQUIRED" }, { status: 401 }));
+  }
 
   let upstream: Response;
   try {

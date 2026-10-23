@@ -112,6 +112,21 @@ Functions and App Hosting use their attached service identities.
 6. Run provider sandbox checks and signed webhook replays.
 7. Change provider mode from mock to live only after those checks pass.
 
-Secret rotation adds a new enabled version, deploys or restarts the consuming
-runtime where required, verifies provider health, then disables the prior
-version. Do not destroy the prior version until rollback is no longer needed.
+Secret rotation, in this order:
+
+1. Add the new version (`gcloud secrets versions add NAME --data-file=-`).
+2. Redeploy **every** function that mounts the secret with
+   `firebase deploy --only functions:…`. Functions mount a secret at the
+   version number pinned at their last Firebase deploy;
+   `scripts/deploy-functions-self-contained.sh` swaps only the image and keeps
+   the old pin.
+3. Run `./scripts/verify-function-images.sh studiohub-prod`. Its part 3 lists
+   every pinned secret version, and must show the new one in use, with
+   nothing on the old one.
+4. Verify provider health, then disable the prior version.
+
+Disabling a version a function is still pinned to stops every new instance of
+that function from starting. It fails one function at a time, with no log
+line, as on 2026-10-22. `operationsTaskWorker` mounts nine secrets, so a
+careless disable stops all email. Do not destroy the prior version until
+rollback is no longer needed.

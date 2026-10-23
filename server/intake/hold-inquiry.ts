@@ -18,6 +18,14 @@ import { adminAppCheck, adminFirestore } from "@/server/firebase/admin";
  */
 
 export const HELD_INQUIRY_MAX_BYTES = 64 * 1024;
+/**
+ * Without App Check — reCAPTCHA could not issue a token, so the browser sent
+ * none — an inquiry is still held, but within tighter limits than the live
+ * form's five an hour: per sender, and across every studio, so a bot that
+ * skips App Check can't fill the queue. Delivery then runs every live check.
+ */
+export const UNVERIFIED_HOLDS_PER_SENDER_PER_HOUR = 3;
+export const UNVERIFIED_HOLDS_PER_HOUR = 40;
 
 export type HeldInquiryReply = { status: number; body: Record<string, unknown> };
 
@@ -41,11 +49,13 @@ export async function holdInquiry(input: {
   userAgent: string | null;
   reason: string;
 }): Promise<HeldInquiryReply> {
-  if (!input.appCheckToken) return { status: 401, body: { error: "APP_CHECK_REQUIRED" } };
-  try {
-    await adminAppCheck.verifyToken(input.appCheckToken);
-  } catch {
-    return { status: 401, body: { error: "APP_CHECK_REQUIRED" } };
+  const verified = Boolean(input.appCheckToken);
+  if (input.appCheckToken) {
+    try {
+      await adminAppCheck.verifyToken(input.appCheckToken);
+    } catch {
+      return { status: 401, body: { error: "APP_CHECK_REQUIRED" } };
+    }
   }
   if (input.bytes.byteLength > HELD_INQUIRY_MAX_BYTES) return { status: 400, body: { error: "INVALID_INQUIRY" } };
   let parsed: unknown;
@@ -70,6 +80,7 @@ export async function holdInquiry(input: {
   const clientAddress = input.clientAddress ?? "unknown";
   const id = heldInquiryId(input.bytes, clientAddress);
   const now = new Date().toISOString();
+  if (!verified && !(await withinUnverifiedLimits(clientAddress))) return { status: 429, body: { error: "RATE_LIMITED" } };
   try {
     await adminFirestore.doc(`pendingInquiries/${id}`).create({
       id,
@@ -81,6 +92,7 @@ export async function holdInquiry(input: {
       status: "pending",
       attempts: 0,
       heldBecause: input.reason.slice(0, 200),
+      verified,
       receivedAt: now,
       updatedAt: now,
     });
@@ -88,6 +100,27 @@ export async function holdInquiry(input: {
     // Already held (the same submission sent again): the same receipt.
     if ((caught as { code?: unknown }).code !== 6) throw caught;
   }
-  console.error(`functions relay: publicLeadIntake unavailable (${input.reason}); held inquiry ${id} for ${tenant.id}`);
+  console.error(
+    `functions relay: publicLeadIntake ${verified ? "unavailable" : "sent without App Check"} (${input.reason}); held inquiry ${id} for ${tenant.id}`,
+  );
   return { status: 202, body: heldInquiryReceipt(id) };
+}
+
+/** The hourly counters for unverified holds, in the same server-only collection as the form's. */
+async function withinUnverifiedLimits(clientAddress: string): Promise<boolean> {
+  const hour = new Date().toISOString().slice(0, 13);
+  const sender = adminFirestore.doc(
+    `publicRateLimits/held_${createHash("sha256").update(`${clientAddress}|${hour}`).digest("hex").slice(0, 32)}`,
+  );
+  const everyone = adminFirestore.doc(`publicRateLimits/held_all_${hour.replace(/[^0-9]/g, "")}`);
+  return adminFirestore.runTransaction(async (transaction) => {
+    const [mine, all] = await Promise.all([transaction.get(sender), transaction.get(everyone)]);
+    const mineCount = Number(mine.get("count") ?? 0) + 1;
+    const allCount = Number(all.get("count") ?? 0) + 1;
+    if (mineCount > UNVERIFIED_HOLDS_PER_SENDER_PER_HOUR || allCount > UNVERIFIED_HOLDS_PER_HOUR) return false;
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    transaction.set(sender, { count: mineCount, expiresAt });
+    transaction.set(everyone, { count: allCount, expiresAt });
+    return true;
+  });
 }

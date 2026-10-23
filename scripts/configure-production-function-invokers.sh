@@ -198,6 +198,9 @@ scheduler_services=(
   # taxed (billing/billing-address-request.ts).
   billingaddressrequestscheduler
   finalinvoicescheduler
+  # The morning digest (ai/daily-digest.ts). Missing from this list until
+  # 2026-10-22; discovery below now catches any scheduler left out.
+  dailydigestscheduler
   # Delivers inquiries the website held while publicLeadIntake could not
   # answer (crm/pending-inquiries.ts; the 2026-10-22 outage).
   pendinginquirydelivery
@@ -263,6 +266,29 @@ if (( ${#discovered_event_services[@]} )); then
   event_services+=("${discovered_event_services[@]}")
 else
   problems+=("DISCOVERY FAILED  no event-driven functions found — every Eventarc trigger may be left unbound")
+fi
+
+# Every scheduled function, discovered too. The list above is hand-kept, and
+# dailyDigestScheduler was never added to it (found 2026-10-22): it kept its
+# binding only until the next revision. Firebase labels every onSchedule
+# service `deployment-scheduled=true`; anything listed above as well is bound
+# twice, which is harmless.
+discovered_scheduler_services=()
+while IFS= read -r discovered; do
+  [[ -n "${discovered}" ]] && discovered_scheduler_services+=("${discovered}")
+done < <(gcloud run services list \
+  --project="${project_id}" --region="${region}" \
+  --filter='metadata.labels.deployment-scheduled=true' \
+  --format='value(metadata.name)' 2>/dev/null | sort -u)
+if (( ${#discovered_scheduler_services[@]} )); then
+  for discovered in "${discovered_scheduler_services[@]}"; do
+    case " ${scheduler_services[*]} " in
+      *" ${discovered} "*) ;;
+      *) scheduler_services+=("${discovered}") ;;
+    esac
+  done
+else
+  problems+=("DISCOVERY FAILED  no scheduled functions found — schedulers may be left unbound")
 fi
 
 echo "App Hosting relay -> private Functions (${#app_services[@]} services)"

@@ -43,7 +43,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm install --no-save --no-audit --no-fund @google-cloud/functions-framework@${framework}
 COPY lib ./lib
 USER node
-CMD ["npx", "--no-install", "functions-framework"]
+CMD ["node", "node_modules/@google-cloud/functions-framework/build/src/main.js"]
 EOF
 
 printf 'Building %s\n' "${tag}"
@@ -56,8 +56,14 @@ else
     --format='value(name.segment(3),serviceConfig.service.basename())')"
 fi
 
+# Memory: never below 512MiB. Every function loads the whole bundle, and on
+# 2026-10-22 calendarDriftSweep and clientAccessOnProjectWrite crashed on
+# 256MiB ("Memory limit of 256 MiB exceeded") right after the switch to this
+# image. A function set higher keeps its own size.
 printf '%s\n' "${targets}" | grep . | xargs -P 8 -L 1 sh -c \
-  'gcloud run deploy "$1" --image='"${tag}"' --clear-base-image --region="$0" --project='"${project_id}"' --quiet >/dev/null 2>&1 && echo "  ok    $1" || echo "  FAIL  $1"' \
+  'current="$(gcloud run services describe "$1" --region="$0" --project='"${project_id}"' --format="value(spec.template.spec.containers[0].resources.limits.memory)" 2>/dev/null)"
+   case "${current}" in 128Mi|256Mi|"") memory="--memory=512Mi" ;; *) memory="" ;; esac
+   gcloud run deploy "$1" --image='"${tag}"' --clear-base-image ${memory} --region="$0" --project='"${project_id}"' --quiet >/dev/null 2>&1 && echo "  ok    $1" || echo "  FAIL  $1"' \
   | tee "${work}/results"
 
 ./scripts/configure-production-function-invokers.sh "${project_id}" "${region}"
