@@ -16,6 +16,11 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   CONSULTATION_NOT_CANCELLABLE: "That consultation can't be canceled — it has already happened or been canceled.",
   CONSULTATION_NOT_COMPLETABLE: "That consultation can't be written up — it was canceled.",
   CONSULTATION_NOT_FOUND: "That consultation isn't there any more. Refresh and try again.",
+  // A client's booking link fails closed while a connected calendar can't be
+  // read (functions/src/integrations/busy-time.ts). The client pages say it in
+  // their own words, with the studio's name (features/consultations/booking-paused.ts).
+  CALENDAR_AVAILABILITY_UNAVAILABLE:
+    "Your calendar couldn't be read, so online booking is paused until it can. Check it in Integrations.",
   CONSULTATION_NOT_RESCHEDULABLE: "Only a consultation still to come can be moved.",
   CONSULTATION_NOT_SCHEDULED: "That call isn't booked anymore — it was canceled or moved since.",
   INVALID_TIME_RANGE: "The end time has to be after the start time.",

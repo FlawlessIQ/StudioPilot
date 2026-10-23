@@ -23,11 +23,15 @@ import {
   oauthClientPrefix,
   refreshScope,
 } from "../integrations/provider-config.js";
+import { logger } from "firebase-functions/v2";
 import {
+  CALENDAR_AVAILABILITY_UNAVAILABLE,
   collectBusyIntervals,
+  decideCalendarAvailability,
   isBusyTimeProvider,
   type BusyInterval,
   type BusyTimeProvider,
+  type CalendarAvailability,
   type FreeBusyResult,
 } from "../integrations/busy-time.js";
 import { GRAPH_BASE_URL, outlookBusyFromGraph } from "../integrations/outlook-calendar.js";
@@ -468,25 +472,37 @@ const freeBusyFetchers:Record<BusyTimeProvider,FreeBusyFetcher>={
 /**
  * Real busy intervals from every calendar the tenant has connected — Google,
  * Outlook and Apple, in any combination — unioned, for merging into
- * consultation slot generation.
+ * consultation slot generation, and what that read means for anyone choosing
+ * a time (busy-time.ts `decideCalendarAvailability`): `ok`, `not_connected`,
+ * or `unavailable`, which fails closed.
  *
- * Never throws. A provider that fails is logged and skipped; the others still
- * count. `{ok:false}` means nothing connected answered, and callers proceed
- * with no extra busy time rather than fail the whole read — the same contract
- * this had when Google was the only source.
+ * A connection marked "error" counts as connected-and-unreadable, not as not
+ * connected. connection() marks a calendar "error" the moment its sign-in
+ * stops working and never loads it again until the studio reconnects, so
+ * reading only "connected" ones turned a broken calendar into "no calendar"
+ * on the very next request: fail closed for one page view, then offer every
+ * hour again. A studio that disconnects on purpose leaves "disconnected",
+ * which is not connected, and books from its hours as before.
+ *
+ * Never throws; a read it could not make at all is `unavailable`.
  */
 export async function getCalendarBusyIntervals(
   tenantId:string,
   timeMinIso:string,
   timeMaxIso:string,
-):Promise<FreeBusyResult&{sources?:BusyTimeProvider[]}>{
+):Promise<CalendarAvailability>{
+  const db=getFirestore();
+  let availability:CalendarAvailability;
   try{
-    const db=getFirestore();
-    const snapshot=await db.collection("integrationConnections").where("tenantId","==",tenantId).where("status","==","connected").get();
-    const providers=snapshot.docs
-      .filter((document)=>!document.get("archivedAt"))
-      .map((document)=>document.get("provider"))
-      .filter(isBusyTimeProvider);
+    // Every connection the tenant has, filtered here: a handful of documents,
+    // and no composite index for status "in".
+    const snapshot=await db.collection("integrationConnections").where("tenantId","==",tenantId).get();
+    const calendars=snapshot.docs.filter((document)=>!document.get("archivedAt")&&isBusyTimeProvider(document.get("provider")));
+    const connected=new Set(calendars.filter((document)=>document.get("status")==="connected").map((document)=>document.get("provider") as BusyTimeProvider));
+    const broken=new Map(calendars
+      .filter((document)=>document.get("status")==="error"&&!connected.has(document.get("provider")))
+      .map((document)=>[document.get("provider") as BusyTimeProvider,text(document.get("lastError"))||"CONNECTION_ERROR"]));
+    const providers=[...connected,...broken.keys()];
     let timezone:Promise<string>|null=null;
     const studioTimeZone=()=>timezone??=db.doc(`tenants/${tenantId}`).get()
       .then((tenant)=>text(tenant.get("timezone"))||"America/New_York")
@@ -494,17 +510,81 @@ export async function getCalendarBusyIntervals(
     const context:BusyContext={tenantId,timeMinIso,timeMaxIso,studioTimeZone};
     const collected=await collectBusyIntervals({
       providers,
-      fetchers:Object.fromEntries(providers.map((provider)=>[provider,()=>freeBusyFetchers[provider](context)])),
+      fetchers:Object.fromEntries(providers.map((provider)=>[
+        provider,
+        broken.has(provider)
+          ?async():Promise<FreeBusyResult>=>({ok:false,reason:`${provider.toUpperCase()}_CONNECTION_BROKEN:${broken.get(provider)}`})
+          :()=>freeBusyFetchers[provider](context),
+      ])),
     });
     for(const failure of collected.failures){
-      console.warn(JSON.stringify({severity:"WARNING",event:"calendar_busy.provider_skipped",tenantId,provider:failure.provider,reason:failure.reason}));
+      console.warn(JSON.stringify({severity:"WARNING",event:"calendar_busy.provider_unread",tenantId,provider:failure.provider,reason:failure.reason}));
     }
-    return collected.ok
-      ?{ok:true,busy:collected.busy,sources:collected.sources}
-      :{ok:false,reason:collected.reason};
+    availability=decideCalendarAvailability(collected);
   }catch(caught:unknown){
-    return{ok:false,reason:caught instanceof Error?caught.message:"FREEBUSY_FAILED"};
+    availability={state:"unavailable",reason:caught instanceof Error?caught.message:"FREEBUSY_FAILED",failures:[]};
   }
+  if(availability.state==="unavailable"){
+    await reportCalendarUnavailable(db,tenantId,availability).catch((caught:unknown)=>
+      console.error("calendar unavailable report failed",{tenantId,error:caught instanceof Error?caught.message:caught}));
+  }
+  return availability;
+}
+
+/** One operational alert per tenant per hour, however many clients open the link. */
+const CALENDAR_UNAVAILABLE_ALERT_WINDOW_MS=60*60*1000;
+
+/**
+ * Make sure the studio hears that its booking link stopped offering times.
+ *
+ * A calendar whose connection is broken (marked "error": a refused sign-in,
+ * an Apple password revoked, one broken before alerts existed) goes through
+ * the studio's own "connection broken" email, which is one per break
+ * (integrations/connection-alert.ts) — connection() has usually queued it
+ * already, and queuing it again is a no-op. Anything else (Google answering
+ * 503, a timeout, a calendar we could not reach) is not the studio's to fix,
+ * so it is an operational error for us: `studiocueOperationalError`, which
+ * alerting keys off, at most once per tenant per hour, deduped through a
+ * server-only counter as the public rate limits are (crm/public-lead.ts).
+ */
+async function reportCalendarUnavailable(
+  db:FirebaseFirestore.Firestore,
+  tenantId:string,
+  availability:Extract<CalendarAvailability,{state:"unavailable"}>,
+){
+  const now=new Date().toISOString();
+  const transient:Array<{provider:string;reason:string}>=[];
+  if(availability.failures.length){
+    // Read after the attempt: connection() marks a refused sign-in "error" as it fails.
+    const snapshot=await db.collection("integrationConnections").where("tenantId","==",tenantId).get();
+    for(const failure of availability.failures){
+      const document=snapshot.docs.find((candidate)=>candidate.get("provider")===failure.provider&&!candidate.get("archivedAt"));
+      if(document?.get("status")==="error"){
+        await queueConnectionBrokenAlert(db,{tenantId,provider:failure.provider,connectedAt:text(document.get("connectedAt"))||null,code:text(document.get("lastError"))||failure.reason,now});
+      }else{
+        transient.push(failure);
+      }
+    }
+  }else{
+    transient.push({provider:"unknown",reason:availability.reason});
+  }
+  if(!transient.length)return;
+  const reference=db.doc(`publicRateLimits/calendar_unavailable_${tenantId}`);
+  const nowMillis=Date.now();
+  const first=await db.runTransaction(async(transaction)=>{
+    const previous=Number((await transaction.get(reference)).get("windowStartedAt")??0);
+    if(previous&&nowMillis-previous<CALENDAR_UNAVAILABLE_ALERT_WINDOW_MS)return false;
+    transaction.set(reference,{tenantId,windowStartedAt:nowMillis,expiresAt:new Date(nowMillis+CALENDAR_UNAVAILABLE_ALERT_WINDOW_MS*2).toISOString()});
+    return true;
+  });
+  if(!first)return;
+  logger.error("calendarAvailabilityUnavailable",{
+    studiocueOperationalError:true,
+    code:CALENDAR_AVAILABILITY_UNAVAILABLE,
+    tenantId,
+    failures:transient.map((failure)=>({provider:failure.provider,reason:failure.reason.slice(0,200)})),
+    detail:"A connected calendar could not be read, so the studio's booking links offer no times until it can.",
+  });
 }
 
 /**

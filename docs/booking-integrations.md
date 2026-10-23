@@ -20,10 +20,27 @@ time from **every** calendar the studio has connected, unioned:
 `getCalendarBusyIntervals` in `functions/src/operations/provider-runtime.ts` lists the
 tenant's connected busy-time providers (`BUSY_TIME_PROVIDERS` in
 `functions/src/integrations/busy-time.ts`), asks each in parallel, and merges the
-intervals. A provider that fails is logged (`calendar_busy.provider_skipped`) and
-skipped; the others still count. Only when nothing connected answers is the result
-`ok:false`, which callers treat as "no extra busy time" — the slot list never fails
-because a calendar did.
+intervals. What the read means is decided by `decideCalendarAvailability` (busy-time.ts)
+and has three states:
+
+- **`ok`** — every connected calendar answered; its busy time is subtracted.
+- **`not_connected`** — no calendar connected (a "disconnected" one counts as none):
+  times come from the studio's hours and StudioCue's own bookings, as always.
+- **`unavailable`** — a calendar is connected (or marked `error`: its sign-in broke)
+  and could not be read. **Fail closed** (audit 2026-10-22): a client's booking link
+  and couple inquiry page get no times, `bookingUnavailable: true` and
+  `reason: "CALENDAR_AVAILABILITY_UNAVAILABLE"`, and booking refuses with that code;
+  the page says online booking is briefly unavailable and to contact the studio
+  directly (`features/consultations/booking-paused.ts`). One calendar failing among
+  several also fails closed — its busy time is unknown.
+
+The studio hears about it: a broken connection through its once-per-break
+"connection broken" email (`integrations/connection-alert.ts`); any other failure as a
+`studiocueOperationalError` log with code `CALENDAR_AVAILABILITY_UNAVAILABLE`, at most
+once per tenant per hour (`publicRateLimits/calendar_unavailable_{tenantId}`). The
+studio's own views do not hide openings — the studio picks the time there — but say
+the calendar could not be read (`calendarAvailability` on
+`consultationAvailabilityQuery`, the amendment clash note, the Cue booking card).
 
 Outlook and Apple are **busy time only**: their `providerCapabilities` are empty, so
 they never take the `calendar` capability (putting consultation events on a calendar),

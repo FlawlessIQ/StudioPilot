@@ -290,8 +290,12 @@ async function plannedConsultationMoves(
         rangesOverlap(move.toStartsAt, move.toEndsAt, text(candidate.get("startsAt")), text(candidate.get("endsAt"))),
     );
     if (other) move.clash = `Another ${call} is booked at that time.`;
-    else if (busy.ok && busy.busy.some((interval) => rangesOverlap(move.toStartsAt, move.toEndsAt, interval.start, interval.end)))
+    else if (busy.state === "ok" && busy.busy.some((interval) => rangesOverlap(move.toStartsAt, move.toEndsAt, interval.start, interval.end)))
       move.clash = "Your calendar is busy then.";
+    // An unread calendar is not a free one. The studio decides here (a clash
+    // is shown, not refused), so it is told to check rather than told nothing.
+    else if (busy.state === "unavailable")
+      move.clash = "Your calendar couldn't be read, so check you're free then.";
   }
   return moves;
 }

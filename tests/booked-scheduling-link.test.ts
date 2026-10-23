@@ -360,8 +360,9 @@ test("the page shows the booking, with no picker, and says how to change it", ()
   assert.match(page, /Need a different time\? Reply to the studio’s email and they’ll sort it out\./);
   // Right after booking, the same words as before, through the same formatter.
   assert.match(page, /setMessage\(`Your \$\{callWord \?\? "appointment"\} is confirmed for \$\{bookedWhen\(String\(result\.startsAt\), timezone\)\}\.`\);/);
-  // The picker and the Book button belong to an open link only.
-  assert.match(page, /\{status === "ready" \|\| status === "booking" \? \(\s*<Actions>/);
+  // The picker and the Book button belong to an open link only — and not
+  // while booking is paused on an unread calendar (calendar-availability-fail-closed.test.ts).
+  assert.match(page, /\{\(status === "ready" \|\| status === "booking"\) && !paused \? \(\s*<Actions>/);
   const booked = page.slice(page.indexOf('status === "booked" && preview?.booked ? ('), page.indexOf("<SlotPicker"));
   assert.ok(booked.length > 0);
   assert.doesNotMatch(booked.slice(0, booked.indexOf("</Card>")), /SlotPicker|Button/);

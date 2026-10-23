@@ -39,6 +39,7 @@ import { BEFORE_KINDS, isJobKind, journeyProfile, vocab } from "@/features/job-k
 import { tradeVocab } from "@/features/trades/trades";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 import { scheduleZoneLabel } from "@/features/schedules/item-clock";
+import { BOOKING_PAUSED_CODE, bookingPaused, bookingPausedCopy } from "@/features/consultations/booking-paused";
 import { autosaveDelayMs, saveFailureIsFinal } from "@/features/inquiries/autosave";
 
 /**
@@ -182,6 +183,9 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   const [busy, setBusy] = useState(false);
   const [values, setValues] = useState<Partial<Record<Field | "notes", string>>>({});
   const [slots, setSlots] = useState<Slot[]>([]);
+  // The studio's calendar couldn't be read, so no time is offered: the page
+  // says online booking is briefly unavailable (features/consultations/booking-paused.ts).
+  const [paused, setPaused] = useState(false);
   const [selected, setSelected] = useState("");
   const [format, setFormat] = useState<Format | "">("");
   // Only asked when they choose a phone call and no number is on file.
@@ -255,6 +259,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
     void call("inquiry_availability", { token })
       .then((result) => {
         if (!active) return;
+        setPaused(bookingPaused(result));
         setSlots(
           Array.isArray(result.slots)
             ? (result.slots as Array<Record<string, unknown>>).map((slot) => ({
@@ -454,6 +459,13 @@ export function CoupleInquiryPage({ token }: { token: string }) {
       setSelected("");
       load();
     } catch (caught: unknown) {
+      // The calendar went unreadable since the times loaded: none is bookable.
+      if (caught instanceof Error && caught.message === BOOKING_PAUSED_CODE) {
+        setPaused(true);
+        setSlots([]);
+        setSelected("");
+        return;
+      }
       setNotice(message(caught, "That time couldn’t be booked. Please try another."));
     } finally {
       setBusy(false);
@@ -778,7 +790,11 @@ export function CoupleInquiryPage({ token }: { token: string }) {
             </Card>
           ) : null}
 
-          {step === "time" && preview && !noCall && preview.takesBookings ? (
+          {step === "time" && preview && !noCall && preview.takesBookings && paused ? (
+            <Note icon={CalendarDays}>{bookingPausedCopy(preview.studioName)}</Note>
+          ) : null}
+
+          {step === "time" && preview && !noCall && preview.takesBookings && !paused ? (
             <div className="kit-stack">
               {preview.formats.length > 1 ? (
                 <Choices
@@ -873,7 +889,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
           </Actions>
         ) : null}
 
-        {step === "time" && !noCall && preview?.takesBookings ? (
+        {step === "time" && !noCall && preview?.takesBookings && !paused ? (
           <Actions note={preview.booked ? "Your current time stays booked until you confirm a new one." : undefined}>
             <Button disabled={!selected || !format || busy || (needsPhone && !phoneUsable)} onClick={() => void book()}>
               {busy

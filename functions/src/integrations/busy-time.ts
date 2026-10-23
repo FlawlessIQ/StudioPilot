@@ -84,11 +84,11 @@ export function unionBusyIntervals(
 /**
  * Ask every connected busy-time provider at once and union the answers.
  *
- * One provider failing never fails the read: its reason is reported (the
- * caller logs it) and the others still count. Only when nothing is connected,
- * or everything connected failed, is the result `ok:false` — which callers
- * already treat as "no extra busy time", exactly as they did when Google was
- * the only source.
+ * This only collects: the busy time of every provider that answered, and the
+ * reason of every one that did not. Whether anyone may book on what came
+ * back is `decideCalendarAvailability` below, which fails closed when any
+ * connected calendar went unread. `ok:false` with no failures means nothing
+ * is connected.
  */
 export async function collectBusyIntervals(input: {
   providers: readonly BusyTimeProvider[];
@@ -142,6 +142,83 @@ export async function collectBusyIntervals(input: {
     };
   }
   return { ok: true, busy: unionBusyIntervals(lists), sources, failures };
+}
+
+/**
+ * The code a booking link answers with when the studio's calendar could not
+ * be read, and the operational alert's code (provider-runtime.ts).
+ */
+export const CALENDAR_AVAILABILITY_UNAVAILABLE = "CALENDAR_AVAILABILITY_UNAVAILABLE";
+
+/**
+ * What a read of the studio's calendars means for anyone choosing a time.
+ *
+ * - `ok`: every connected calendar answered; its busy time is subtracted.
+ * - `not_connected`: the studio connected no calendar. Times come from its
+ *   hours and StudioCue's own bookings alone, as they always have: nothing
+ *   is being hidden from us.
+ * - `unavailable`: a calendar is connected (or was, and broke) and could not
+ *   be read. Its busy time is unknown, so no time may be offered from it.
+ */
+export type CalendarAvailability =
+  | { state: "ok"; busy: BusyInterval[]; sources: BusyTimeProvider[] }
+  | { state: "not_connected" }
+  | {
+      state: "unavailable";
+      reason: string;
+      failures: Array<{ provider: BusyTimeProvider; reason: string }>;
+    };
+
+/**
+ * Fail closed when a connected calendar went unread.
+ *
+ * Until 2026-10-22 "no calendar answered" read as "no busy time", so a
+ * client's booking link offered every hour the studio keeps, including the
+ * ones its calendar holds: a silent double-booking (reliability audit,
+ * 2026-10-22).
+ *
+ * Partial success fails closed too. When Google answers and Outlook does not,
+ * Google's busy time says nothing about Outlook's — a studio connects a
+ * second calendar precisely because the first does not hold everything — so
+ * the hours Outlook holds are as unknown as if nothing had answered. Offering
+ * them is the same double-booking, only rarer and harder to notice. A pause
+ * in online booking, which the client is told about and the studio is
+ * alerted to, costs far less than two clients holding one hour.
+ */
+export function decideCalendarAvailability(collected: CollectedBusy): CalendarAvailability {
+  if (collected.failures.length) {
+    return {
+      state: "unavailable",
+      reason: collected.failures[0]?.reason ?? "FREEBUSY_FAILED",
+      failures: collected.failures,
+    };
+  }
+  if (!collected.ok) {
+    return collected.reason === "CALENDAR_NOT_CONNECTED"
+      ? { state: "not_connected" }
+      : { state: "unavailable", reason: collected.reason, failures: [] };
+  }
+  return { state: "ok", busy: collected.busy, sources: collected.sources };
+}
+
+/**
+ * The busy time a client's bookable times are generated around: StudioCue's
+ * own bookings plus the calendar's — or, when the calendar could not be
+ * read, nothing bookable at all.
+ */
+export function busyForBooking(
+  internal: readonly BusyInterval[],
+  calendar: CalendarAvailability,
+):
+  | { bookable: true; busy: BusyInterval[] }
+  | { bookable: false; reason: typeof CALENDAR_AVAILABILITY_UNAVAILABLE } {
+  if (calendar.state === "unavailable") {
+    return { bookable: false, reason: CALENDAR_AVAILABILITY_UNAVAILABLE };
+  }
+  return {
+    bookable: true,
+    busy: calendar.state === "ok" ? [...internal, ...calendar.busy] : [...internal],
+  };
 }
 
 // ---------------------------------------------------------------------------

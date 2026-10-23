@@ -142,6 +142,11 @@ export function StudioCalendar() {
   const [calendarStatus, setCalendarStatus] = useState<"connected" | "unavailable" | "unknown">(
     "unknown",
   );
+  // Read, none connected, or connected and unreadable — the last means the
+  // studio's booking links are offering clients no times (busy-time.ts).
+  const [calendarAvailability, setCalendarAvailability] = useState<
+    "ok" | "not_connected" | "unavailable" | null
+  >(null);
 
   const tenantId = workspace.tenantId ?? "";
   const { records: projects } = useTenantDocuments("projects");
@@ -259,6 +264,7 @@ export function StudioCalendar() {
         if (outcome.mode === "live") {
           setCalendarBusy(outcome.payload.busy);
           setCalendarStatus(outcome.payload.calendarStatus);
+          setCalendarAvailability(outcome.payload.calendarAvailability ?? null);
         }
       } catch {
         if (active) setCalendarStatus("unavailable");
@@ -645,7 +651,15 @@ export function StudioCalendar() {
         </div>
         {loadingSettings || consultationsLoading ? (
           <p className="ds-cal-note">Loading availability…</p>
-        ) : calendarStatus === "unavailable" && !calendarConnected ? (
+        ) : calendarAvailability === "unavailable" ? (
+          // Fail closed (functions/src/integrations/busy-time.ts): the studio
+          // must know its clients are being told to get in touch instead.
+          <p className="ds-cal-note" role="status">
+            Your calendar couldn&apos;t be read, so your booking links aren&apos;t offering clients
+            any times until it can. Only StudioCue bookings are shown here. Check it in{" "}
+            <a href="/studio/integrations">Integrations</a>.
+          </p>
+        ) : calendarStatus === "unavailable" && (calendarAvailability === "not_connected" || !calendarConnected) ? (
           <p className="ds-cal-note">
             Only StudioCue bookings are shown.{" "}
             <a href="/studio/integrations">Connect Google Calendar</a>{" "}and times you&apos;re

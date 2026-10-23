@@ -48,7 +48,9 @@ test("a new studio lands in setup, and every page setup opens leads back to it",
 
 test("the calendar tells a studio that never connected how to, not that sync is down", () => {
   const calendar = read("components/booking/studio-calendar.tsx");
-  assert.match(calendar, /calendarStatus === "unavailable" && !calendarConnected/);
+  // The server now says which (calendarAvailability); the Google-only
+  // connection check stays for a Functions build that doesn't.
+  assert.match(calendar, /calendarStatus === "unavailable" && \(calendarAvailability === "not_connected" \|\| !calendarConnected\)/);
   assert.match(calendar, /Connect Google Calendar/);
 });
 

@@ -126,20 +126,26 @@ const when = (iso: unknown): string => {
 
 /** Studio consultation length and the busy calendar, read once per card. */
 function useAvailability() {
-  const [state, setState] = useState<{ duration: number; busy: Array<{ start: string; end: string }> } | null>(null);
+  const [state, setState] = useState<{
+    duration: number;
+    busy: Array<{ start: string; end: string }>;
+    /** A connected calendar couldn't be read: no clash shown is not "free" (busy-time.ts). */
+    calendarUnread: boolean;
+  } | null>(null);
   useEffect(() => {
     let active = true;
     void queryConsultationAvailability()
       .then((result) => {
         if (!active) return;
-        if (result.mode === "preview") setState({ duration: 30, busy: [] });
+        if (result.mode === "preview") setState({ duration: 30, busy: [], calendarUnread: false });
         else
           setState({
             duration: num(result.payload.settings?.durationMinutes) || 30,
             busy: result.payload.busy ?? [],
+            calendarUnread: result.payload.calendarAvailability === "unavailable",
           });
       })
-      .catch(() => active && setState({ duration: 30, busy: [] }));
+      .catch(() => active && setState({ duration: 30, busy: [], calendarUnread: false }));
     return () => {
       active = false;
     };
@@ -223,6 +229,9 @@ export function ScheduleConsultationCard({ action }: ActionCardProps) {
         {mode === "in_person" ? <TextField label="Where" onChange={setLocation} value={location} /> : null}
       </Form>
       {clash ? <Blocked>You already have something on your calendar at that time.</Blocked> : null}
+      {!clash && availability.calendarUnread ? (
+        <Blocked>Your calendar couldn&apos;t be read just now, so check you&apos;re free at that time.</Blocked>
+      ) : null}
       <Actions
         busy={runner.busy}
         disabled={!contact || !startsAt}

@@ -14,15 +14,15 @@
 export const CONNECTION_CONSEQUENCES: Record<string, { label: string; stops: string }> = {
   google_calendar: {
     label: "Google Calendar",
-    stops: "Calls clients book won't go on your calendar, and your busy times won't block your booking link.",
+    stops: "Calls clients book won't go on your calendar, and your booking links won't offer clients any times until you reconnect.",
   },
   outlook_calendar: {
     label: "Outlook Calendar",
-    stops: "Calls clients book won't go on your calendar, and your busy times won't block your booking link.",
+    stops: "Calls clients book won't go on your calendar, and your booking links won't offer clients any times until you reconnect.",
   },
   apple_calendar: {
     label: "Apple Calendar",
-    stops: "Calls clients book won't go on your calendar, and your busy times won't block your booking link.",
+    stops: "Calls clients book won't go on your calendar, and your booking links won't offer clients any times until you reconnect.",
   },
   zoom: { label: "Zoom", stops: "New calls won't get a Zoom link, and call summaries won't come back." },
   quickbooks: { label: "QuickBooks", stops: "Invoices won't be created in QuickBooks, and payments won't be marked paid." },

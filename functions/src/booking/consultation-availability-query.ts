@@ -71,20 +71,26 @@ export const consultationAvailabilityQuery = onRequest(
           end: String(document.get("endsAt")),
         }));
 
-      // Real calendar conflicts auto-block alongside internal bookings; an
-      // unconnected or failing provider degrades gracefully rather than
-      // failing the whole read.
+      // Real calendar conflicts block alongside internal bookings. This is the
+      // studio's own view, and the studio picks the time here, so an unread
+      // calendar does not hide its openings — it says so instead
+      // (`calendarAvailability`), and that its clients' booking links are
+      // offering nothing meanwhile (public-scheduling.ts `busyBetween`).
       const calendar = await getCalendarBusyIntervals(
         tenantId,
         now.toISOString(),
         rangeEnd.toISOString(),
       );
-      if (calendar.ok) busy.push(...calendar.busy);
+      if (calendar.state === "ok") busy.push(...calendar.busy);
 
       response.status(200).json({
         settings,
         busy,
-        calendarStatus: calendar.ok ? "connected" : "unavailable",
+        // Kept as it was for a browser still on the build before
+        // calendarAvailability: "connected" only when a calendar was read.
+        calendarStatus: calendar.state === "ok" ? "connected" : "unavailable",
+        /** "ok" | "not_connected" | "unavailable" (busy-time.ts `CalendarAvailability`). */
+        calendarAvailability: calendar.state,
       });
     } catch (caught: unknown) {
       const message =

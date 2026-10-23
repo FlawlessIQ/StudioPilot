@@ -18,6 +18,7 @@ import {
 import { SlotPicker, slotLabel } from "@/components/kit/slot-picker";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 import { scheduleZoneLabel } from "@/features/schedules/item-clock";
+import { BOOKING_PAUSED_CODE, bookingPaused, bookingPausedCopy } from "@/features/consultations/booking-paused";
 
 /** What went wrong, in words a couple can act on, not the server's code. */
 const friendly: Record<string, string> = {
@@ -153,6 +154,9 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
     "loading" | "ready" | "booking" | "complete" | "booked" | "error"
   >("loading");
   const [message, setMessage] = useState("");
+  // The studio's calendar couldn't be read, so no time is offered: the page
+  // says online booking is briefly unavailable (features/consultations/booking-paused.ts).
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -215,6 +219,7 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
         setSlots(readSlots(availability.slots));
         setRange(readRange(availability.window));
         setTimezone(String(availability.timezone ?? ""));
+        setPaused(bookingPaused(availability));
         setStatus("ready");
       })
       .catch((caught: unknown) => {
@@ -243,6 +248,7 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
       if (ask !== browseAsk.current) return;
       setSlots(readSlots(availability.slots));
       setRange(readRange(availability.window));
+      setPaused(bookingPaused(availability));
     } catch (caught: unknown) {
       if (ask === browseAsk.current) setMessage(words(caught, "Those times couldn’t be loaded. Please try again."));
     } finally {
@@ -265,6 +271,13 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
       setMessage(`Your ${callWord ?? "appointment"} is confirmed for ${bookedWhen(String(result.startsAt), timezone)}.`);
     } catch (caught: unknown) {
       setStatus("ready");
+      // The calendar went unreadable since the times loaded: none is bookable.
+      if (caught instanceof Error && caught.message === BOOKING_PAUSED_CODE) {
+        setPaused(true);
+        setSlots([]);
+        setSelected("");
+        return;
+      }
       setMessage(words(caught, "That time could not be booked. Please choose another."));
     }
   }
@@ -298,7 +311,7 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
                   ? `Choose a time with ${preview.studioName}`
                   : chooseTime}
             </h1>
-            {bookedIn ? null : (
+            {bookedIn || paused ? null : (
               <p className="kit-body">
                 {finalCall
                   ? "A short call to go over your final details and timeline together. Pick one of the studio’s openings — nothing is booked until you confirm."
@@ -339,6 +352,8 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
               <p className="kit-caption">Time shown in {zone}.</p>
               <p className="kit-body">Need a different time? Reply to the studio’s email and they’ll sort it out.</p>
             </Card>
+          ) : paused ? (
+            <Note icon={CalendarDays}>{bookingPausedCopy(preview?.studioName)}</Note>
           ) : (
             <div className="kit-stack">
               {preview ? (
@@ -426,7 +441,7 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
           )}
           <PoweredBy />
         </Main>
-        {status === "ready" || status === "booking" ? (
+        {(status === "ready" || status === "booking") && !paused ? (
           <Actions>
             <Button disabled={!selected || status === "booking"} onClick={() => void book()}>
               {status === "booking"

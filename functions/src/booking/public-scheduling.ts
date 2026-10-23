@@ -7,8 +7,9 @@ import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { commandTypeOf, respondToCommandError } from "../security/command-errors.js";
 import { getCalendarBusyIntervals } from "../operations/provider-runtime.js";
+import { CALENDAR_AVAILABILITY_UNAVAILABLE, busyForBooking } from "../integrations/busy-time.js";
 import { studioHubCors } from "../security/cors.js";
-import { generateConsultationSlots, getConsultationSettings } from "./availability.js";
+import { generateConsultationSlots, getConsultationSettings, type ConsultationSlot } from "./availability.js";
 import { studioDay, trialLinkDays, trialSlotPlan, BOOKING_LINK_DAYS } from "./trial-window.js";
 import {
   detailsOf,
@@ -205,7 +206,12 @@ async function slotsFor(link: FirebaseFirestore.QueryDocumentSnapshot) {
   return slotsForTenant(String(link.get("tenantId")));
 }
 
-/** What is already taken between two instants: booked calls and trials, and the studio's own calendar. */
+/**
+ * What is already taken between two instants: booked calls and trials, and
+ * the studio's own calendar — or `bookable:false` when a calendar the studio
+ * connected could not be read, so its busy time is unknown and no time may be
+ * offered (busy-time.ts `busyForBooking`).
+ */
 async function busyBetween(db: FirebaseFirestore.Firestore, tenantId: string, fromIso: string, toIso: string) {
   const existing = await db
     .collection("consultations")
@@ -220,13 +226,19 @@ async function busyBetween(db: FirebaseFirestore.Firestore, tenantId: string, fr
       start: String(document.get("startsAt")),
       end: String(document.get("endsAt")),
     }));
-  // Real calendar conflicts auto-block alongside internal bookings; an
-  // unconnected or failing provider degrades to no extra busy time rather
-  // than failing the whole scheduling read.
-  const calendarBusy = await getCalendarBusyIntervals(tenantId, fromIso, toIso);
-  if (calendarBusy.ok) busy.push(...calendarBusy.busy);
-  return busy;
+  // Real calendar conflicts block alongside internal bookings. No calendar
+  // connected: the studio's hours alone, as always. A connected calendar
+  // that could not be read fails closed: offering its hours is how a client
+  // books over something the studio already has (audit, 2026-10-22).
+  return busyForBooking(busy, await getCalendarBusyIntervals(tenantId, fromIso, toIso));
 }
+
+/**
+ * The answer when nothing can be offered because the studio's calendar could
+ * not be read. The page says online booking is briefly unavailable and to
+ * contact the studio directly (features/consultations/booking-paused.ts).
+ */
+const bookingPaused = () => ({ slots: [] as ConsultationSlot[], bookingUnavailable: true, reason: CALENDAR_AVAILABILITY_UNAVAILABLE });
 
 /**
  * A makeup or hair trial's openings, a week at a time, up to the day before
@@ -260,8 +272,10 @@ async function trialSlotsFor(
     bufferMinutes: settings.bufferMinutes,
     trialMinutes,
   });
-  if (!plan) return { timezone, durationMinutes: trialMinutes ?? settings.durationMinutes, slots: [], window: null };
-  const busy = await busyBetween(db, tenantId, plan.busyFrom, plan.busyTo);
+  if (!plan) return { timezone, durationMinutes: trialMinutes ?? settings.durationMinutes, slots: [], window: null, bookingUnavailable: false };
+  const taken = await busyBetween(db, tenantId, plan.busyFrom, plan.busyTo);
+  if (!taken.bookable) return { timezone, durationMinutes: plan.durationMinutes, window: null, ...bookingPaused() };
+  const busy = taken.busy;
   const slots = generateConsultationSlots({
     settings: { ...settings, durationMinutes: plan.durationMinutes },
     timezone,
@@ -274,7 +288,7 @@ async function trialSlotsFor(
     // inside its hours (Priya Shah, Jess Styles Bridal, 2026-10-10).
     stepMinutes: plan.stepMinutes,
   });
-  return { timezone, durationMinutes: plan.durationMinutes, slots, window: plan.window };
+  return { timezone, durationMinutes: plan.durationMinutes, slots, window: plan.window, bookingUnavailable: false };
 }
 
 async function slotsForTenant(tenantId: string) {
@@ -284,17 +298,18 @@ async function slotsForTenant(tenantId: string) {
   const settings = await getConsultationSettings(db, tenantId);
   const rangeStart = new Date();
   rangeStart.setUTCDate(rangeStart.getUTCDate() + 29);
-  const busy = await busyBetween(db, tenantId, new Date().toISOString(), rangeStart.toISOString());
+  const taken = await busyBetween(db, tenantId, new Date().toISOString(), rangeStart.toISOString());
+  if (!taken.bookable) return { timezone, durationMinutes: settings.durationMinutes, ...bookingPaused() };
   const slots = generateConsultationSlots({
     settings,
     timezone,
     now: new Date(),
     startInDays: 1,
     daysAhead: 28,
-    busy,
+    busy: taken.busy,
     maxSlots: 40,
   });
-  return { timezone, durationMinutes: settings.durationMinutes, slots };
+  return { timezone, durationMinutes: settings.durationMinutes, slots, bookingUnavailable: false };
 }
 
 export const publicConsultationScheduling = onRequest(
@@ -481,6 +496,9 @@ export const publicConsultationScheduling = onRequest(
         response.status(200).json(availability);
         return;
       }
+      // Nothing is bookable while the calendar cannot be read, whatever time
+      // an earlier page load showed.
+      if (availability.bookingUnavailable) throw new Error("CALENDAR_AVAILABILITY_UNAVAILABLE");
       const selected = availability.slots.find(
         (slot) => slot.startsAt === command.input.startsAt,
       );
@@ -947,6 +965,7 @@ async function handleInquiryCommand(
   const options = await meetingOptions(db, context.tenantId);
   if (!options.formats.includes(command.input.format)) throw new Error("FORMAT_NOT_OFFERED");
   const availability = await slotsForTenant(context.tenantId);
+  if (availability.bookingUnavailable) throw new Error("CALENDAR_AVAILABILITY_UNAVAILABLE");
   const selected = availability.slots.find((slot) => slot.startsAt === command.input.startsAt);
   if (!selected) throw new Error("TIME_NO_LONGER_AVAILABLE");
   const contactId = text(context.lead.get("primaryContactId")) || (project.get("clientContactIds") as string[] | undefined)?.[0] || null;

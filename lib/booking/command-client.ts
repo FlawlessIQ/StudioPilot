@@ -57,6 +57,13 @@ export type ConsultationAvailabilityQueryResult = {
   settings: Record<string, unknown>;
   busy: { start: string; end: string }[];
   calendarStatus: "connected" | "unavailable";
+  /**
+   * What the read of the studio's calendars meant: read, none connected, or
+   * connected and unreadable — in which case its clients' booking links are
+   * offering no times (functions/src/integrations/busy-time.ts). Absent from
+   * a Functions build older than this field.
+   */
+  calendarAvailability?: "ok" | "not_connected" | "unavailable";
 };
 
 /**
