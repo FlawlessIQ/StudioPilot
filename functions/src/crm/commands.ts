@@ -66,6 +66,7 @@ import {
   retargetContractSigners,
 } from "./email-change.js";
 import { followEmailToInquiries } from "./email-change-follow.js";
+import { followDateToFirstReply } from "./date-change-follow.js";
 import { billingAddressInputSchema, sameBillingAddress } from "../contacts/billing-address.js";
 import {
   evidenceControlledTransitions,
@@ -6125,6 +6126,17 @@ export const crmCommand = onRequest(
         } catch (caught: unknown) {
           console.warn(
             `[crm] readiness reconcile after date change failed: ${String(caught).slice(0, 160)}`,
+          );
+        }
+        try {
+          await followDateToFirstReply(db, {
+            tenantId: command.tenantId,
+            projectId: dateMoved.projectId,
+            now: new Date().toISOString(),
+          });
+        } catch (caught: unknown) {
+          console.warn(
+            `[crm] redrafting the first reply after a date change failed: ${String(caught).slice(0, 160)}`,
           );
         }
       }

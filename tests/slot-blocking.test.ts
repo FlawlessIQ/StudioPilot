@@ -63,3 +63,23 @@ test("wired: its own command, and a settings save keeps the blocks", () => {
   assert.match(calendar, /settings: \{ \.\.\.settings, blockedSlots: \[\] \},/, "blocked times stay listed, to unblock");
   assert.match(calendar, /\(slot\) => !selectedBookedKeys\.has\(slot\.startsAt\) && !isSlotBlocked\(slot\),/, "never offered when moving a booking");
 });
+
+test("today's times that have already gone are never offered", async () => {
+  const { generateConsultationSlots } = await import("../features/consultations/slots");
+  const slots = generateConsultationSlots({
+    settings: {
+      durationMinutes: 45,
+      bufferMinutes: 15,
+      windows: (["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const).map((day) => ({ day, startMinute: 9 * 60, endMinute: 17 * 60 })),
+      blockedDates: [],
+    },
+    timezone: "America/New_York",
+    // Friday 2026-10-23, 4:22 PM in New York.
+    now: new Date("2026-10-23T20:22:00Z"),
+    startInDays: 0,
+    daysAhead: 1,
+    busy: [],
+    maxSlots: 50,
+  });
+  assert.deepEqual(slots, []);
+});

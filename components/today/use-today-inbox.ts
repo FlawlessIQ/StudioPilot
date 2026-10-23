@@ -255,8 +255,9 @@ export function useTodayInbox(): {
 
   // One journey position per active job, from the same engine the project
   // page uses — Today and the job page can never disagree about the step.
+  // An archived job is put away, whatever stage it stopped at.
   const journeys: TodayJourneyPosition[] = (projects.records ?? [])
-    .filter((project) => activeProjectStates.has(text(project.state)))
+    .filter((project) => activeProjectStates.has(text(project.state)) && !project.archivedAt)
     .map((project) => {
       const projectId = project.id;
       const lead =

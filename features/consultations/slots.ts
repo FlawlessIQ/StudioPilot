@@ -180,6 +180,9 @@ export function generateConsultationSlots(input: {
         minute += step
       ) {
         const start = zonedTimeToUtc(year, month, day, minute, timezone);
+        // Today's earlier times have gone: the studio calendar offered "Book"
+        // on 9 AM at 4:22 PM (prod walk, 2026-10-23).
+        if (start.getTime() <= now.getTime()) continue;
         const end = new Date(start.getTime() + settings.durationMinutes * 60_000);
         const bufferMs = settings.bufferMinutes * 60_000;
         const overlaps = busyMs.some(

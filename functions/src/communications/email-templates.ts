@@ -3518,7 +3518,13 @@ export function withStudioCueLink(copy: EmailCopy, input: RenderEmailInput): Ema
   if (CLIENT_EMAIL_TYPES.has(input.key)) {
     const home = safeUrl(stringValue(input.values, "portalUrl"));
     return home
-      ? { ...copy, action: { label: /\/i\//.test(home) ? "Open your inquiry" : "Open your client portal", url: home } }
+      ? {
+          ...copy,
+          // The /i/ page serves a booked client who has no account yet as well
+          // as an inquiry, so "Open your inquiry" read wrong on a booked job's
+          // message (prod walk, 2026-10-23).
+          action: { label: /\/i\//.test(home) ? "See where things stand" : "Open your client portal", url: home },
+        }
       : copy;
   }
   return copy;

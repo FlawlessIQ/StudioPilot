@@ -166,6 +166,13 @@ export async function createStudioDeposit(context: CommandContext, input: z.infe
     actor: context.actorId,
     now: context.timestamp,
   });
+  // Recording the signature drafts the deposit in the background, so the
+  // button can still be on screen when it already exists (prod walk,
+  // 2026-10-23: "This retainer is already settled" on an unpaid $750). The
+  // draft that is there is the answer.
+  if (!drafted.created && drafted.reason === "retainer_exists" && drafted.invoiceId) {
+    return { invoiceId: drafted.invoiceId, existing: true };
+  }
   if (!drafted.created) {
     if (drafted.reason === "retainer_exists") throw new Error("RETAINER_INVOICE_ALREADY_EXISTS");
     if (drafted.reason === "no_package") throw new Error("PACKAGE_SNAPSHOT_NOT_FOUND");

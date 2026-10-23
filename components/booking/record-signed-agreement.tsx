@@ -6,6 +6,7 @@ import { recordSignedAgreement } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { tradeVocab } from "@/features/trades/trades";
+import { refreshTenantRecords } from "@/components/live/tenant-records";
 
 /**
  * Recording an agreement signed outside StudioCue.
@@ -89,6 +90,9 @@ export function RecordSignedAgreement({
       }
       form.reset();
       setConfirming(false);
+      // The signature drafts the deposit invoice; without this the page went
+      // on offering "Create the deposit invoice" for one that existed.
+      refreshTenantRecords("invoiceReferences", "pdfJobs", "contracts");
       /**
        * Say what happened.
        *

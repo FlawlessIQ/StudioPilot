@@ -117,3 +117,18 @@ test("crew paperwork, message attachments and import sources open in place", () 
   assert.match(read("components/communications/message-inbox.tsx"), /files: FILE_BEARING\.messages\(value\),/);
   assert.match(read("functions/src/studio-import/review.ts"), /storageObjectKey: string\(item\.get\("storageObjectKey"\)\) \|\| null,/);
 });
+
+test("a document filed to Dropbox opens from the copy we keep, never from Dropbox's id", async () => {
+  const { documentStoragePath } = await import("../lib/documents/resolve-file");
+  assert.equal(
+    documentStoragePath({
+      provider: "dropbox",
+      providerFileId: "id:0h7OHefVk84AAAAAAAAAaA",
+      canonicalPath: "/StudioCue/2026/x/05_COI/c.pdf",
+      cloudStorageSource: "gs://studiohub-prod.firebasestorage.app/tenants/t/projects/p/coi/inbound/c.pdf",
+    }),
+    "tenants/t/projects/p/coi/inbound/c.pdf",
+  );
+  assert.equal(documentStoragePath({ provider: "dropbox", providerFileId: "id:abc" }), "");
+  assert.equal(documentStoragePath({ provider: "cloud_storage", providerFileId: "tenants/t/a.pdf" }), "tenants/t/a.pdf");
+});

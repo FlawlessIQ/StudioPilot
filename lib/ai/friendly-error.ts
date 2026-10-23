@@ -816,7 +816,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
    * from the current booking screen.
    */
   RETAINER_INVOICE_ALREADY_EXISTS:
-    "This retainer is already settled. Refresh the booking page to see where the job stands.",
+    "This job already has its retainer invoice. Refresh the booking page to see it.",
   RETAINER_INVOICE_NOT_FOUND:
     "That retainer invoice could not be found. Refresh the booking page and try again.",
   SIGNED_CONTRACT_REQUIRED:

@@ -441,8 +441,7 @@ export function SpreadsheetBookingImport() {
                   {status?.kind === "ready" && (status.warnings.length || row.notes.length) ? (
                     <details className="sheet-import-detail">
                       <summary>
-                        {status.warnings.length + row.notes.length}{" "} thing
-                        {" "}{status.warnings.length + row.notes.length === 1 ? "" : "s"}{" "} to know
+                        {`${status.warnings.length + row.notes.length} ${status.warnings.length + row.notes.length === 1 ? "thing" : "things"} to know`}
                       </summary>
                       <ul>
                         {[...status.warnings, ...row.notes].map((message) => (

@@ -1491,7 +1491,10 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   // the conversation and its composer — follows it.
   const threadEl = (
     <ProjectThread
-      consultationId={thread.openConsultationId}
+      // A call note completes the consultation, which the server takes only
+      // at that stage: a booked job with a call still on the calendar offered
+      // "Log a call" and then refused the note (prod walk, 2026-10-23).
+      consultationId={state === "CONSULTATION" ? thread.openConsultationId : null}
       current={current}
       waitingOnClient={waitingOnClient}
       studioOpenWork={studioOpenWork}

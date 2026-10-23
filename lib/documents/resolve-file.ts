@@ -65,6 +65,22 @@ async function fromPath(path: string, name: string, contentType: string | null, 
   }
 }
 
+/**
+ * Where a `documents` record's file sits in our own Storage. A record filed to
+ * Dropbox keeps Dropbox's id ("id:…") and folder path beside the copy we keep
+ * (`cloudStorageSource`, a gs:// URL); read as Storage paths those are always
+ * "not allowed", so a filed COI read "still being checked" forever.
+ */
+export function documentStoragePath(data: Record<string, unknown>): string {
+  const own = text(data.storagePath) || text(data.filePath);
+  if (own) return own;
+  const source = text(data.cloudStorageSource).match(/^gs:\/\/[^/]+\/(.+)$/)?.[1];
+  if (source) return source;
+  const provider = text(data.provider);
+  if (provider && provider !== "cloud_storage") return "";
+  return text(data.providerFileId) || text(data.canonicalPath);
+}
+
 /** A `documents` record's own file: a ready URL, or a path to resolve. */
 async function fromDocument(id: string, label: string, tenantId: string | null): Promise<ResolvedFile> {
   const { firestore } = getFirebaseClient();
@@ -83,8 +99,7 @@ async function fromDocument(id: string, label: string, tenantId: string | null):
   const sizeBytes = typeof data.sizeBytes === "number" ? data.sizeBytes : null;
   const direct = text(data.downloadUrl) || text(data.url) || text(data.fileUrl);
   if (/^https?:\/\//i.test(direct)) return { status: "ready", url: direct, name, contentType, sizeBytes };
-  const path =
-    text(data.storagePath) || text(data.providerFileId) || text(data.canonicalPath) || text(data.filePath);
+  const path = documentStoragePath(data);
   if (!path) return { status: "pending", name, message: "No file is attached to this document yet." };
   return fromPath(path, name, contentType, sizeBytes);
 }
