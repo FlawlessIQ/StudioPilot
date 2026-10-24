@@ -17,7 +17,9 @@ test.use({ serviceWorkers: "block", timezoneId: "America/Los_Angeles" });
 test("today leads with the next job and names only what needs you", async ({ page }) => {
   await page.goto("/crew");
   const hero = page.locator(".kit-card[data-tone='accent']").first();
-  await expect(hero).toContainText("Next up · in 6 days");
+  // Six days out in UTC: seven in the evening west of Greenwich, when the
+  // local date is a day behind (both are right; the page counts local days).
+  await expect(hero).toContainText(/Next up · in [67] days/);
   await expect(hero).toContainText("Rivera wedding");
   await expect(hero).toContainText("call 1:00 PM");
   const needs = page.getByRole("region", { name: "Needs you" });
