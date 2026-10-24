@@ -485,8 +485,9 @@ const source = (path: string) => readFileSync(path, "utf8");
 test("activation reads the studio's trade and saves the extras to the add-on library", () => {
   const review = source("functions/src/studio-import/review.ts");
   assert.match(review, /const trade = await tenantTrade\(db, input\.tenantId\);/);
-  // Both the first activation and "Sync to library".
-  assert.equal(review.match(/importedStudioPackage\(\{[^}]*\btrade,/g)?.length, 2);
+  // The first activation, "Sync to library", and setup's price review
+  // (packagePreviews), which must show what activation writes (2026-10-24).
+  assert.equal(review.match(/importedStudioPackage\(\{[^}]*\btrade,/g)?.length, 3);
   assert.equal(review.match(/batch\.set\(\s*db\.doc\(`addOns\/\$\{addOn\.id\}`\)/g)?.length, 1);
   assert.equal(review.match(/transaction\.set\(\s*db\.doc\(`addOns\/\$\{addOn\.id\}`\)/g)?.length, 1);
   // "Sync to library" never rewrites an extra the studio has since edited,

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { BackToSetup } from "@/components/setup/back-to-setup";
 import { AppShell } from "@/components/layout/app-shell";
 import { EditPackageForm } from "@/components/crm/edit-package-form";
 
@@ -8,16 +7,18 @@ export const metadata: Metadata = { title: "Edit package" };
 
 export default async function EditPackagePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { id } = await params;
+  // Setup's price review links each package it added here to check it.
+  const { from } = await searchParams;
   return (
     <AppShell active="Packages">
       <div className="crm-form-page">
-        <Link className="back-link" href="/studio/packages">
-          <ArrowLeft size={15} /> Back to packages
-        </Link>
+        <BackToSetup fallback={{ href: "/studio/packages", label: "Back to packages" }} from={from} />
         <div className="dashboard-heading">
           <div>
             <p className="eyebrow">Your offering</p>

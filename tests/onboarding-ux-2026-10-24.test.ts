@@ -215,3 +215,45 @@ test("signup's selects are full width, and an import draft's lists say what they
   assert.doesNotMatch(fields, /\{" "\} item/);
   assert.match(fields, /lineItems: "Add a pricing item"/);
 });
+
+// ── Setup's price review ─────────────────────────────────────────────────
+
+test("a package card says the price, what holds the date and what's covered, in the trade's words", async () => {
+  const { coverageLabel, depositLabel, priceLabel } = await import("@/features/setup/package-preview");
+  assert.equal(priceLabel(320000), "$3,200");
+  assert.equal(priceLabel(12550), "$125.50");
+  assert.equal(priceLabel(150000, "GBP"), "£1,500");
+  assert.equal(depositLabel({ type: "percentage", basisPoints: 3000 }, 320000, "USD", "photographer"), "Retainer: 30% ($960)");
+  assert.equal(depositLabel({ type: "fixed", amountCents: 50000 }, 320000, "USD", "makeup"), "Deposit: $500");
+  // Unstated is not "$0 to book": the package form asks for it then.
+  assert.equal(depositLabel({ type: "fixed", amountCents: 0 }, 320000, "USD"), null);
+  assert.equal(coverageLabel(480, [{ role: "photographer", count: 2 }]), "8 hours · 2 photographers");
+  assert.equal(coverageLabel(0, [{ role: "hair_stylist", count: 1 }]), "1 hair stylist");
+});
+
+test("the review shows exactly what activation creates, under the id activation gives it", () => {
+  const review = code("functions/src/studio-import/review.ts");
+  const previews = review.slice(review.indexOf("async function packagePreviews("));
+  assert.match(previews, /importedStudioPackage\(\{/);
+  assert.match(previews, /packageId: `imported_package_\$\{assetId\}`/);
+  assert.match(review, /const packageId = `imported_package_\$\{assetId\}`;/);
+  assert.match(review, /packagePreviews: await packagePreviews\(db, tenantId, sessionId, versions, items\),/);
+});
+
+test("setup's price import ends in the plain review, and its one button approves and activates", () => {
+  assert.match(code("app/studio/import/page.tsx"), /fromSetup=\{from === "setup"\}/);
+  const studio = code("components/ai/template-import-studio.tsx");
+  assert.match(studio, /const setupPrices = fromSetup && initialKind === "Package";/);
+  assert.match(studio, /<SetupPackageReview onAdded=\{\(\) => setPricesAdded\(true\)\} onDetailed=\{\(\) => setDetailed\(true\)\} review=\{review\} \/>/);
+  // The paste box goes once the packages are in: drafting again would import the list twice.
+  assert.match(studio, /\{plainReview && pricesAdded \? null : \(/);
+  const card = code("components/ai/setup-package-review.tsx");
+  assert.match(card, /action: "approve",\s*confirmClassification: true,/);
+  assert.match(card, /await activateStudioImport\(review\.session\.id\);/);
+  assert.match(card, /refreshTenantRecords\("packages"\)/);
+  // Every added package can be checked on its own page, which leads back.
+  assert.match(card, /href=\{`\/studio\/packages\/\$\{encodeURIComponent\(preview\.packageId\)\}\?from=setup`\}/);
+  assert.match(code("app/studio/packages/[id]/page.tsx"), /<BackToSetup /);
+  // The full workspace is still one press away.
+  assert.match(card, /Review every detail instead/);
+});

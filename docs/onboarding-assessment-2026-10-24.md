@@ -145,14 +145,31 @@ card-required trial.
 - The sign-up page still sold "a calm operating system"; it says what Cue
   does, as the sign-in page does.
 
-## Still open (not built here)
+### Built the same day: a plain review for setup's prices
 
-- **The price import review is the heaviest step left.** After pasting a
-  price list the studio meets "AI review workspace", "Template name",
-  "Variables", "82% AI confidence", "25% of your setup can be drafted",
-  "Split, merge, or ignore this draft" and "Human-gated activation". For the
-  setup path it wants a plain "Here are your packages — check the prices"
-  review. Recommend as the next piece of work.
+After pasting a price list the studio met the general import workspace:
+"AI review workspace", "Template name", "Variables", "82% AI confidence",
+"25% of your setup can be drafted", "Split, merge, or ignore this draft" and
+"Human-gated activation". Opened from setup's "What do you charge?" it is now:
+
+- one paste box ("Draft my packages"), no import plan;
+- a card per package with its price, what holds the date, the hours and crew,
+  what's included and any extras, read from the package activation would
+  write (`packagePreviews` in `functions/src/studio-import/review.ts` runs the
+  same `importedStudioPackage`), so the card can't promise something
+  activation won't write; an unset deposit says so;
+- uncheck anything that isn't a package, then one button approves and
+  activates through the existing commands;
+- "Your package is added", each with a link to check or change it on its own
+  page (which leads back to setup), and "Back to setup";
+- the full workspace one link away ("Review every detail instead").
+
+Walked in the emulator on a laptop and a phone. The emulator's AI is the
+deterministic stand-in, which reads a whole list as one package; production's
+splits a list into packages, so the cards there will usually be one per
+package.
+
+## Still open (not built here)
 - **The agreement question needs a real document.** Native signing makes the
   starter agreement editable, but its terms read "[Replace with your own …]".
   A guided "use the starter, fill in three paragraphs" path would make it
@@ -179,5 +196,6 @@ way in counts; every kind setup offers survives the save, for every trade;
 answers shown back; the three signup steps; the resend, the typo route and
 the real email subject; the single apply of a verification code; the
 existing-owner state; the one-decision plan picker; the signup shell; the CSS
-group being one rule; the full-width signup fields; the import list labels.
+group being one rule; the full-width signup fields; the import list labels;
+the price review's cards, its server preview and its one button.
 `e2e/contrast.spec.ts` now reads the three signup pages.

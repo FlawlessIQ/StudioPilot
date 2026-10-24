@@ -25,6 +25,7 @@ import {
   validateStudioImportFileCandidate,
 } from "@/features/studio-import/schema";
 import { StudioImportReviewWorkspace } from "@/components/ai/studio-import-review-workspace";
+import { SetupPackageReview } from "@/components/ai/setup-package-review";
 import {
   cancelStudioImport,
   getStudioImportReview,
@@ -245,13 +246,27 @@ function isImportKind(value: string | null | undefined): value is ImportKind {
 export function TemplateImportStudio({
   resumeSessionId,
   kind: requestedKind = null,
+  fromSetup = false,
 }: {
   resumeSessionId?: string | null;
   /** From `?kind=`; ignored unless it names a kind this page imports. */
   kind?: string | null;
+  /** Opened by setup (`?from=setup`). */
+  fromSetup?: boolean;
 }) {
   const initialKind = isImportKind(requestedKind) ? requestedKind : null;
   const kindCopy = initialKind ? KIND_COPY[initialKind] ?? null : null;
+  /**
+   * Setup's "What do you charge?": paste the prices, check the packages, add
+   * them — no import plan, no review workspace unless asked for
+   * (SetupPackageReview; onboarding audit, 2026-10-24).
+   */
+  const setupPrices = fromSetup && initialKind === "Package";
+  const [detailed, setDetailed] = useState(false);
+  const plainReview = setupPrices && !detailed;
+  // Once the packages are in, the paste box has done its job: drafting again
+  // from it would import the same list twice.
+  const [pricesAdded, setPricesAdded] = useState(false);
   // "Your retainer", "your deposit": the studio's own word (trades.ts).
   const depositWord = tradeVocab(useWorkspace().tenantTrade).deposit;
   const nativeSigning = useNativeSigning();
@@ -722,14 +737,24 @@ export function TemplateImportStudio({
       )}
 
       <div className="template-import-layout">
-        <section className="template-source-panel">
-          <div className="template-step-heading">
-            <span>1</span>
-            <div>
-              <p className="eyebrow">Show StudioCue what you use</p>
-              <h2>Choose a source</h2>
+        {plainReview && pricesAdded ? null : (
+        <section className={plainReview ? "template-source-panel is-compact" : "template-source-panel"}>
+          {plainReview ? (
+            <div className="template-step-heading">
+              <div>
+                <p className="eyebrow">Your price list</p>
+                <h2>Paste it or upload it</h2>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="template-step-heading">
+              <span>1</span>
+              <div>
+                <p className="eyebrow">Show StudioCue what you use</p>
+                <h2>Choose a source</h2>
+              </div>
+            </div>
+          )}
 
           <div className="template-source-tabs" role="tablist" aria-label="Import source">
             {sourceModes.map((mode) => {
@@ -928,7 +953,7 @@ export function TemplateImportStudio({
           ) : null}
 
           <button
-            className="template-analyze-button"
+            className={plainReview && review ? "template-analyze-button is-secondary" : "template-analyze-button"}
             disabled={!hasSource || busy}
             onClick={() => void buildPlan()}
             type="button"
@@ -940,9 +965,13 @@ export function TemplateImportStudio({
                 : "Running safety checks…"
               : busy && !selected.length
                 ? "Mapping your workflow…"
-                : sourceMode === "files"
-                  ? "Upload and verify sources"
-                  : "Preview AI import"}
+                : plainReview
+                  ? review
+                    ? "Draft them again"
+                    : "Draft my packages"
+                  : sourceMode === "files"
+                    ? "Upload and verify sources"
+                    : "Preview AI import"}
             <ArrowRight size={16} />
           </button>
           {busy && uploadProgress?.sessionId ? (
@@ -965,7 +994,13 @@ export function TemplateImportStudio({
               <span>
                 <i style={{ width: `${uploadProgress.percent}%` }} />
               </span>
-              <small>{uploadProgress.message}</small>
+              <small>
+                {/* "1 cited draft is ready for your approval" is the
+                    workspace's language; here the packages are right below. */}
+                {plainReview && review && uploadProgress.phase === "ready"
+                  ? "Done — check what StudioCue found below."
+                  : uploadProgress.message}
+              </small>
             </div>
           ) : null}
           {pipelineError ? (
@@ -989,7 +1024,9 @@ export function TemplateImportStudio({
             </div>
           ) : null}
         </section>
+        )}
 
+        {plainReview ? null : (
         <section className="template-plan-panel">
           <div className="template-step-heading">
             <span>2</span>
@@ -1123,8 +1160,13 @@ export function TemplateImportStudio({
             </div>
           )}
         </section>
+        )}
       </div>
-      {review ? (
+      {review && plainReview ? (
+        <div className="template-review-step" ref={reviewRef}>
+          <SetupPackageReview onAdded={() => setPricesAdded(true)} onDetailed={() => setDetailed(true)} review={review} />
+        </div>
+      ) : review ? (
         <div className="template-review-step" ref={reviewRef}>
           <div className="template-review-step-heading">
             <span>3</span>

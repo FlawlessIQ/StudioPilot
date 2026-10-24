@@ -74,7 +74,10 @@ export function inferStudioAssetType(
   if (/(email|message|subject line|follow.?up|reply)/.test(text))
     return "message_template";
   if (/(proposal|quote|estimate)/.test(text)) return "proposal";
-  if (/(package|pricing|collection|line item|add.?on)/.test(text))
+  // "Pasted price list" is what setup's prices import is called
+  // (template-import-studio.tsx KIND_COPY), and the mock read a list with
+  // none of these words as a workflow.
+  if (/(package|pricing|price list|collection|line item|add.?on)/.test(text))
     return "package";
   if (/(contract|agreement|terms|signature (?:line|block|anchor))/.test(text))
     return "contract";

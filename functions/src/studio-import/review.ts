@@ -299,7 +299,61 @@ export async function readStudioImportReview(
     sources,
     drafts: versions.map(reviewVersion),
     coverage: coverageForAssetTypes(assetTypes),
+    packagePreviews: await packagePreviews(db, tenantId, sessionId, versions, items),
   };
+}
+
+/**
+ * What activating each package draft would create, for the plain review a
+ * new studio sees after pasting its prices in setup ("Here's what StudioCue
+ * found"). It runs the same materialisation activation runs
+ * (importedStudioPackage), so the review cannot show a price, deposit or
+ * extra that activation would not write (onboarding audit, 2026-10-24).
+ * Read only when the session holds a package draft: the trade costs a read.
+ */
+async function packagePreviews(
+  db: Firestore,
+  tenantId: string,
+  sessionId: string,
+  versions: readonly DocumentSnapshot[],
+  items: readonly DocumentSnapshot[],
+) {
+  const packages = versions.filter(
+    (version) =>
+      string(version.get("assetType")) === "package" &&
+      version.get("status") !== "archived",
+  );
+  if (!packages.length) return [];
+  const trade = await tenantTrade(db, tenantId);
+  return packages.map((version, index) => {
+    const assetId = string(version.get("assetId"));
+    const studioPackage = importedStudioPackage({
+      name: string(version.get("name")) || "Imported package",
+      structuredContent: version.get("structuredContent"),
+      displayOrder: index,
+      trade,
+      sourceText: draftSourceText(version, items),
+      addOnIdPrefix: `imported_addon_${assetId}`,
+      sharedAddOnIdPrefix: `imported_addon_${sessionId}`,
+    });
+    return {
+      versionId: version.id,
+      // The id activation gives the package (activateStudioImport).
+      packageId: `imported_package_${assetId}`,
+      name: studioPackage.name,
+      basePriceCents: studioPackage.basePriceCents,
+      currency: studioPackage.currency,
+      retainerRule: studioPackage.retainerRule,
+      includedDeliverables: studioPackage.includedDeliverables.slice(0, 12),
+      includedCoverageMinutes: studioPackage.includedCoverageMinutes,
+      includedCoverage: studioPackage.includedCoverage,
+      addOns: studioPackage.addOns.map((addOn) => ({
+        name: addOn.name,
+        unitPriceCents: addOn.unitPriceCents,
+        unitLabel: addOn.unitLabel ?? null,
+      })),
+    };
+  });
 }
 
 function extractedFromVersion(

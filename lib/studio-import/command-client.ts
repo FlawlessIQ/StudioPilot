@@ -540,6 +540,23 @@ export type StudioImportReviewDraft = {
   updatedAt: string;
 };
 
+/** A package draft as activation would write it: the plain review's card. */
+export type StudioImportPackagePreview = {
+  versionId: string;
+  /** The package's id once activated: `imported_package_<assetId>`. */
+  packageId: string;
+  name: string;
+  basePriceCents: number;
+  currency: string;
+  retainerRule:
+    | { type: "percentage"; basisPoints: number }
+    | { type: "fixed"; amountCents: number };
+  includedDeliverables: string[];
+  includedCoverageMinutes: number;
+  includedCoverage: Array<{ role: string; count: number }>;
+  addOns: Array<{ name: string; unitPriceCents: number; unitLabel: string | null }>;
+};
+
 export type StudioImportReview = {
   session: {
     id: string;
@@ -560,6 +577,11 @@ export type StudioImportReview = {
     storageObjectKey?: string | null;
   }>;
   drafts: StudioImportReviewDraft[];
+  /**
+   * What activating each package draft would create (review.ts
+   * packagePreviews). Absent from an older functions build.
+   */
+  packagePreviews?: StudioImportPackagePreview[];
   coverage: {
     sections: Array<{
       key: string;

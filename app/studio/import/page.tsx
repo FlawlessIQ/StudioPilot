@@ -23,7 +23,7 @@ export default async function TemplateImportPage({
     <AppShell active="Library">
       <div className="template-import-shell">
         <BackToSetup fallback={{ href: "/studio/library", label: "Back to library" }} from={from} />
-        <TemplateImportStudio kind={kind ?? null} resumeSessionId={session ?? null} />
+        <TemplateImportStudio fromSetup={from === "setup"} kind={kind ?? null} resumeSessionId={session ?? null} />
       </div>
     </AppShell>
   );

@@ -2253,3 +2253,160 @@
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* ── Setup's price review (components/ai/setup-package-review.tsx) ──
+   Each package a card: tick, name and price on one line that wraps under
+   a long name, then what it covers and includes. */
+.template-source-panel.is-compact {
+  min-height: 0;
+}
+.setup-package-review {
+  display: grid;
+  gap: 16px;
+  padding: 22px var(--panel-inset, 24px);
+}
+.setup-package-review > header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+}
+.setup-package-icon {
+  background: #e3f1eb;
+  border-radius: 12px;
+  color: var(--accent, #0a7a55);
+  display: grid;
+  flex: 0 0 auto;
+  height: 38px;
+  place-items: center;
+  width: 38px;
+}
+.setup-package-review h2 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  margin: 0 0 4px;
+}
+.setup-package-review p {
+  color: var(--ds-muted, #545c66);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+.setup-package-list {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+.setup-package-card {
+  background: var(--ds-paper, #fff);
+  border: 1px solid var(--ds-line, #dde1e7);
+  border-radius: 14px;
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+}
+.setup-package-card.is-left-out {
+  background: transparent;
+  border-style: dashed;
+}
+.setup-package-card.is-left-out .setup-package-name,
+.setup-package-card.is-left-out .setup-package-price {
+  color: var(--ds-muted, #545c66);
+  text-decoration-line: line-through;
+}
+.setup-package-pick {
+  align-items: baseline;
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.setup-package-pick > input {
+  accent-color: var(--ds-action, #0b7d57);
+  align-self: center;
+  flex: 0 0 auto;
+  height: 18px;
+  margin: 0;
+  width: 18px;
+}
+.setup-package-name {
+  color: var(--ds-ink, #191b20);
+  flex: 1 1 140px;
+  font-size: 16px;
+  font-weight: 700;
+  min-width: 0;
+}
+.setup-package-price {
+  color: var(--ds-ink, #191b20);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.setup-package-review .setup-package-meta,
+.setup-package-review .setup-package-extras {
+  font-size: 13px;
+}
+.setup-package-includes {
+  color: var(--ds-ink-soft, #3a3f47);
+  display: grid;
+  font-size: 13px;
+  gap: 2px;
+  list-style-type: disc;
+  margin: 0;
+  padding-left: 18px;
+}
+.setup-package-review .setup-package-issue {
+  align-items: center;
+  color: var(--ds-amber-text, #7d560f);
+  display: inline-flex;
+  font-size: 12.5px;
+  font-weight: 600;
+  gap: 6px;
+}
+.setup-package-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+}
+.setup-package-done {
+  justify-items: start;
+}
+.setup-package-done > svg {
+  color: var(--accent, #0a7a55);
+}
+.setup-package-added {
+  display: grid;
+  gap: 8px;
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+.setup-package-added li {
+  align-items: center;
+  border: 1px solid var(--ds-line, #dde1e7);
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 14px;
+  gap: 4px 16px;
+  justify-content: space-between;
+  padding: 10px 14px;
+}
+.setup-package-added a {
+  color: var(--accent, #0a7a55);
+  font-size: 13px;
+  font-weight: 700;
+}
+/* Once the packages are drafted, drafting again is the quieter choice: the
+   review's "Add" is the one dark button. */
+.ds-root .template-analyze-button.is-secondary {
+  background: var(--ds-paper, #fff);
+  border: 1px solid var(--ds-line, #dde1e7);
+  color: var(--ds-ink, #191b20);
+}
