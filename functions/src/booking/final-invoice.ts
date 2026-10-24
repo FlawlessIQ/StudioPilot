@@ -228,6 +228,10 @@ export async function raiseFinalInvoice(
   const due = new Date(`${options.dueDate ?? String(project.get("eventDate"))}T00:00:00Z`);
   // Two weeks before, or on the day for a makeup artist or hair stylist (trades.ts).
   if (!options.dueDate) due.setUTCDate(due.getUTCDate() - tradeProfile(tenant.get("trade")).balanceDueDaysBefore);
+  // Raised after that day (a job booked or imported late): due today, not on a
+  // date already gone — an invoice raised Oct 23 read "due Oct 17" (2026-10-23).
+  const todayIso = options.now.slice(0, 10);
+  if (due.toISOString().slice(0, 10) < todayIso) due.setTime(Date.parse(`${todayIso}T00:00:00Z`));
   const calculation = {
     lines: [
       { label: "Approved package and add-ons", amountCents: totalCents - taxCents, source },

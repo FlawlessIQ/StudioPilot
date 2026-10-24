@@ -153,3 +153,25 @@ test("the non-streaming structured call still retries a malformed generation", (
   assert.match(copilot, /function isMalformedGeneration/);
   assert.match(copilot, /return await generateStructuredOnce\(requestBody\)/);
 });
+
+test("a call that hangs is abandoned and tried again, like a 503", async () => {
+  // 2026-10-23: two Cue turns that normally take 8s ran out at 61s.
+  const { retryTransient } = await import("../functions/src/ai/vertex-transport");
+  let calls = 0;
+  const hung = () => Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+  const response = await retryTransient(
+    async () => {
+      calls += 1;
+      if (calls === 1) throw hung();
+      return new Response("{}", { status: 200 });
+    },
+    { sleep: async () => {} },
+  );
+  assert.equal(response.status, 200);
+  assert.equal(calls, 2);
+  // Hung every time: the error goes back to the turn, not an endless wait.
+  await assert.rejects(
+    retryTransient(async () => { throw hung(); }, { sleep: async () => {} }),
+    /timeout/,
+  );
+});

@@ -57,3 +57,9 @@ test("undoing a send refreshes every record so the card comes back without a rel
   assert.match(undo, /refreshTenantRecords\(\);\s*onUndone\(\);/);
   assert.doesNotMatch(undo, /refreshTenantRecords\("aiActions", "communicationDrafts", "emailJobs"\);/);
 });
+
+test("a final invoice raised after its usual due date is due today, never in the past", () => {
+  // 2026-10-23: an imported booking eight days out billed on Oct 23 "due Oct 17".
+  const source = readFileSync(`${process.cwd()}/functions/src/booking/final-invoice.ts`, "utf8");
+  assert.match(source, /if \(due\.toISOString\(\)\.slice\(0, 10\) < todayIso\) due\.setTime\(/);
+});

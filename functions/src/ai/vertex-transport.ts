@@ -94,11 +94,21 @@ export async function vertexGenerate(
           "content-type": "application/json",
         },
         body: JSON.stringify(body),
+        // A call that hangs is given up and tried again, rather than holding
+        // the turn until the function's own limit: twice on 2026-10-23 a turn
+        // that normally takes 8s ran out at 61s with nothing in the log.
+        signal: AbortSignal.timeout(VERTEX_CALL_TIMEOUT_MS[purpose]),
       },
       method,
     ),
   );
 }
+
+/** Per call: choosing records is quick; the answer streams for longer. */
+export const VERTEX_CALL_TIMEOUT_MS: Record<VertexPurpose, number> = {
+  retrieval: 30_000,
+  answer: 90_000,
+};
 
 /**
  * Nothing retried, until a studio was told Cue could not reach its model.
@@ -150,7 +160,18 @@ export async function retryTransient(
   const maxAttempts = options.maxAttempts ?? VERTEX_MAX_ATTEMPTS;
   let last: Response | undefined;
   for (let n = 1; n <= maxAttempts; n += 1) {
-    const response = await attempt();
+    let response: Response;
+    try {
+      response = await attempt();
+    } catch (caught: unknown) {
+      // A hung call (AbortSignal.timeout) is as transient as a 503.
+      const name = (caught as { name?: unknown })?.name;
+      if ((name === "TimeoutError" || name === "AbortError") && n < maxAttempts) {
+        await sleep(vertexRetryDelayMs(n, options.random));
+        continue;
+      }
+      throw caught;
+    }
     if (!isTransientVertexStatus(response.status)) return response;
     last = response;
     if (n < maxAttempts) await sleep(vertexRetryDelayMs(n, options.random));

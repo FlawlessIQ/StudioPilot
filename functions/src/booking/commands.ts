@@ -3198,6 +3198,7 @@ export const bookingCommand = onRequest(
             if (!bookableFrom.includes(String(project.get("state"))))
               throw new Error("INVALID_BOOKING_STATE");
             const priorStateVersion = Number(project.get("stateVersion"));
+            const priorState = String(project.get("state"));
             transaction.update(projectReference, {
               state: "BOOKED",
               stateVersion: priorStateVersion + 1,
@@ -3222,7 +3223,7 @@ export const bookingCommand = onRequest(
               entityId: command.input.projectId,
               timestamp,
               before: {
-                state: "RETAINER_PENDING",
+                state: priorState,
                 stateVersion: priorStateVersion,
               },
               after: {
@@ -3237,7 +3238,11 @@ export const bookingCommand = onRequest(
               automationRunId: null,
               providerEventId: null,
             });
-            transaction.create(
+            // Set, not create: a job booked again after a postponement
+            // already has this record from its first booking, and create
+            // failed every re-booking with ALREADY_EXISTS (prod walk,
+            // 2026-10-23). The same merge the orchestrator uses.
+            transaction.set(
               firestore.doc(`providerJobs/booking_${command.input.projectId}`),
               {
                 tenantId: command.tenantId,
@@ -3254,7 +3259,9 @@ export const bookingCommand = onRequest(
                   "confirmation",
                 ],
                 createdAt: timestamp,
+                updatedAt: timestamp,
               },
+              { merge: true },
             );
           }
           return {

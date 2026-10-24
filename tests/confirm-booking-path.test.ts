@@ -43,3 +43,13 @@ test("a paid deposit offers to confirm the booking, never to record it again", (
   assert.match(String(manualAdvanceFor("RETAINER_PENDING", "BOOKED", "p1", "dj", true)?.detail), /deposit is paid/);
   assert.match(read("components/projects/live-project-detail.tsx"), /manualAdvanceFor\(state, target, projectId, trade, retainerPaid\)/);
 });
+
+test("a postponed job can be booked again: the gate re-queues its booking work", () => {
+  // Prod walk, 2026-10-23: "Check and confirm" was disabled for POSTPONED, and
+  // once enabled the gate failed with ALREADY_EXISTS on providerJobs/booking_.
+  const gate = readFileSync(`${process.cwd()}/functions/src/booking/commands.ts`, "utf8");
+  assert.match(gate, /transaction\.set\(\s*firestore\.doc\(`providerJobs\/booking_\$\{command\.input\.projectId\}`\),[\s\S]{0,700}\{ merge: true \}/);
+  assert.doesNotMatch(gate, /transaction\.create\(\s*firestore\.doc\(`providerJobs\/booking_/);
+  const page = readFileSync(`${process.cwd()}/components/booking/project-booking-workspace.tsx`, "utf8");
+  assert.match(page, /\["RETAINER_PENDING", "POSTPONED"\]\.includes\(projectState\)/);
+});
