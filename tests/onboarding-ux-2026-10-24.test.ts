@@ -298,3 +298,33 @@ test("a photographer's list keeps its stated retainer and its add-ons, and no pr
   // Each package of the list shares one library entry per extra.
   assert.ok(essential.addOns.every((addOn) => addOn.id.startsWith("imported_addon_session_")));
 });
+
+test("a package the AI drafted without its price takes it from its own line in the list", async () => {
+  const { headingPriceCents, importedStudioPackage } = await import("../functions/src/studio-import/native-assets");
+  const list = [
+    "Essential - $3,200",
+    "6 hours of coverage, one photographer.",
+    "Essentials add-on - $90",
+    "Signature Collection — $4,800",
+    "A 30% retainer reserves your date.",
+  ].join("\n");
+  assert.equal(headingPriceCents(list, "Essential"), 320000);
+  assert.equal(headingPriceCents(list, "Signature Collection"), 480000);
+  assert.equal(headingPriceCents(list, "Heirloom"), null);
+  // The second draft production's AI made of the same list (2026-10-24):
+  // the inclusions as unpriced line items, the price nowhere.
+  const essential = importedStudioPackage({
+    name: "Essential",
+    structuredContent: {
+      lineItems: [{ name: "6 hours of coverage" }, { name: "one photographer" }],
+      options: [],
+      exclusions: [],
+      currency: "USD",
+    },
+    displayOrder: 0,
+    trade: "photographer",
+    sourceText: list,
+  });
+  assert.equal(essential.basePriceCents, 320000);
+  assert.deepEqual(essential.retainerRule, { type: "percentage", basisPoints: 3000 });
+});

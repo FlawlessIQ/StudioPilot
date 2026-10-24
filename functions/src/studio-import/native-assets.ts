@@ -485,6 +485,28 @@ export function packageSection(sourceText: string, name: string): string {
   return body.join(" ").slice(0, 3000);
 }
 
+/**
+ * The price on a package's own line of a pasted list: "Essential - $3,200",
+ * "Signature Collection — $4,800". Only a short line that starts with the
+ * package's name (and not a longer word: "Essentials" isn't "Essential");
+ * null when there is none.
+ */
+export function headingPriceCents(sourceText: string, name: string): number | null {
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) return null;
+  for (const raw of sourceText.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.length > 120 || !line.toLowerCase().startsWith(wanted)) continue;
+    const rest = line.slice(wanted.length);
+    if (/^[a-z0-9]/i.test(rest)) continue;
+    const match = /\$\s*(\d[\d,]*(?:\.\d{1,2})?)/.exec(rest);
+    if (!match) continue;
+    const cents = Math.round(Number(match[1]!.replace(/,/g, "")) * 100);
+    if (cents > 0) return cents;
+  }
+  return null;
+}
+
 export function sharedExtras(sourceText: string): Array<{ name: string; cents: number; unit: string | null; detail: string }> {
   const lines = sourceText.split(/\r?\n/).map((line) => line.trim());
   const start = lines.findIndex((line) => EXTRAS_HEADING.test(line));
@@ -648,7 +670,7 @@ export function importedStudioPackage(input: {
     ? [packageDescription, ...inclusions].filter(Boolean).join("\n")
     : source;
 
-  const basePriceCents = Math.round(
+  const draftedPriceCents = Math.round(
     base
       ? (base.cents ?? 0)
       : statedPriceCents !== null
@@ -657,6 +679,12 @@ export function importedStudioPackage(input: {
           // priced from its first priced line, written however the AI wrote it.
           (priced[0]?.cents ?? firstItemPriceCents),
   );
+  // The AI sometimes lists a package's inclusions as its line items and
+  // writes its price nowhere: three packages of a pasted list came out at $0
+  // on studio-cue.com (2026-10-24). The price is on the package's own line in
+  // the list the studio gave ("Essential - $3,200"), so it's read from there.
+  const basePriceCents =
+    draftedPriceCents > 0 ? draftedPriceCents : (headingPriceCents(pasted, input.name) ?? draftedPriceCents);
   const coverage = source.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)/i);
   /**
    * Coverage, per role.
