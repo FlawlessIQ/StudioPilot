@@ -796,7 +796,9 @@ export function LiveProjectRows({
   view: string;
 }) {
   const { records, error, loading } = useTenantDocuments("projects");
-  const trade = useWorkspace().tenantTrade;
+  const workspace = useWorkspace();
+  const trade = workspace.tenantTrade;
+  const canImport = workspace.role === "studio_owner" || workspace.role === "studio_admin";
   // The same journey engine Today runs, so the two screens can never name
   // different next steps for the same job. The document cache is shared, so
   // this costs no extra reads.
@@ -956,15 +958,22 @@ export function LiveProjectRows({
       <LiveRecordsState
         kind="empty"
         state={filtered ? "No jobs in this view" : "No booked jobs yet"}
+        // A new studio's season is usually booked somewhere else already:
+        // the empty list is where it looks for its jobs, so it says they can
+        // come straight in (ADR 0005; onboarding audit, 2026-10-24).
         detail={
           filtered
             ? "Nothing matches the current filters. Clear them, or create a project."
-            : "A couple becomes a job here when they book. Everyone still deciding is under Inquiries."
+            : canImport
+              ? "A client becomes a job here when they book. Booked clients from before StudioCue can come straight in."
+              : "A client becomes a job here when they book. Everyone still deciding is under Inquiries."
         }
         action={
           filtered
             ? { href: "/studio/projects/new", label: "New job" }
-            : { href: "/studio/leads", label: "Open Inquiries" }
+            : canImport
+              ? { href: "/studio/projects/import", label: "Import bookings" }
+              : { href: "/studio/leads", label: "Open Inquiries" }
         }
       />
     );

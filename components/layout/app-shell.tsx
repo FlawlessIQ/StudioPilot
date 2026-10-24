@@ -313,6 +313,15 @@ function StudioShell({
     billingAccess.level === "closed" &&
     !pathname.startsWith("/studio/subscription");
   const awaitingTrial = billingAccess?.status === "incomplete" || billingAccess?.status === "";
+  /**
+   * Signup's last step, not the workspace yet. Every destination in the nav,
+   * the search, "New job" and the bell led to the same "Start your trial to
+   * open your studio" panel, so the plan picker sat inside a full app that
+   * couldn't be used yet (onboarding audit, 2026-10-24). Until the trial
+   * starts, the shell keeps the brand, a line saying when it opens, the
+   * account menu, and Sign out in the top bar.
+   */
+  const signupFocus = billingAccess !== null && billingAccess.level === "closed" && awaitingTrial;
   const routeSegment = pathname.split("/").filter(Boolean)[1] ?? "";
   const resolvedActive =
     active ?? studioRouteLabels[routeSegment] ?? "Dashboard";
@@ -392,7 +401,10 @@ function StudioShell({
           </div>
 
           <nav className="ds-nav" aria-label="Studio navigation">
-            {visibleSections.map((section) => (
+            {signupFocus ? (
+              <p className="ds-nav-note">Your workspace opens the moment your trial starts.</p>
+            ) : null}
+            {(signupFocus ? [] : visibleSections).map((section) => (
               <div className="ds-nav-section" key={section.label}>
                 <span className="ds-nav-label">{section.label}</span>
                 {section.items.map((item) => {
@@ -460,7 +472,7 @@ function StudioShell({
         {/* Primary destinations within thumb reach. On a tool used on a phone
             during an event, burying navigation behind a hamburger costs a tap
             every time. */}
-        <nav aria-label="Primary" className="ds-tabbar">
+        <nav aria-label="Primary" className="ds-tabbar" hidden={signupFocus}>
           {mobileTabs.filter((item) => canSee(item)).map((item) => {
             const Icon = item.icon;
             return (
@@ -513,12 +525,20 @@ function StudioShell({
                   ? `${tradeVocab(workspace.tenantTrade).proposal}s`
                   : resolvedActive}
             </span>
-            <GlobalSearch />
-            <HowToButton variant="topbar" />
-            <Link href="/studio/projects/new" className="ds-action">
-              <Plus size={15} /> New job
-            </Link>
-            <OpenTasksBell active={resolvedActive === "Open tasks"} />
+            {signupFocus ? (
+              // The account menu sits in the drawer, and on a phone the
+              // drawer opens from the tab bar, which isn't shown yet.
+              <SignOutButton className="ds-btn ds-btn-ghost ds-btn-sm ds-topbar-signout" />
+            ) : (
+              <>
+                <GlobalSearch />
+                <HowToButton variant="topbar" />
+                <Link href="/studio/projects/new" className="ds-action">
+                  <Plus size={15} /> New job
+                </Link>
+                <OpenTasksBell active={resolvedActive === "Open tasks"} />
+              </>
+            )}
           </header>
           {workspace.error ? (
             <div className="ds-topbar-error" role="alert">

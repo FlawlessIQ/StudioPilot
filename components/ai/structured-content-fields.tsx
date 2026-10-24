@@ -71,6 +71,28 @@ function labelFor(key: string) {
   );
 }
 
+/**
+ * The button under a list. It read "Add {label} item" for every list, so a
+ * price list's draft offered "Add pricing items item", "Add variables item"
+ * and "Add exclusions item" (onboarding audit, 2026-10-24).
+ */
+const addLabels: Record<string, string> = {
+  exclusions: "Add an exclusion",
+  fields: "Add a field",
+  inclusions: "Add an inclusion",
+  items: "Add an item",
+  lineItems: "Add a pricing item",
+  options: "Add an option",
+  questions: "Add a question",
+  signatureAnchors: "Add a signature field",
+  signers: "Add a signer",
+  variables: "Add a variable",
+};
+
+function addLabelFor(key: string) {
+  return addLabels[key] ?? `Add to ${labelFor(key).toLowerCase()}`;
+}
+
 function isRecord(value: unknown): value is StructuredValue {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -259,7 +281,7 @@ function StructuredField({
           onClick={() => onChange([...value, defaultListItem(fieldKey)])}
           type="button"
         >
-          <Plus size={14} /> Add {labelFor(fieldKey).toLowerCase()}{" "} item
+          <Plus size={14} /> {addLabelFor(fieldKey)}
         </button>
       </fieldset>
     );

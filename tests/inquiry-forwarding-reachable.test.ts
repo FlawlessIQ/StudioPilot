@@ -59,7 +59,8 @@ test("Today offers it while no inquiry has ever arrived", () => {
   assert.match(today, /LeadCaptureStart/);
   assert.match(
     today,
-    /setup\.noInquiriesEver\s*\?\s*<LeadCaptureStart\s*\/>/,
+    // A way in that is set up and waiting says so on the same card (2026-10-24).
+    /setup\.noInquiriesEver\s*\?\s*<LeadCaptureStart\b[^>]*\/>/,
     "Today must gate the address on noInquiriesEver, not on the open-inquiry count",
   );
   const hook = read("components/today/use-today-inbox.ts");

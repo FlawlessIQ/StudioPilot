@@ -1096,6 +1096,18 @@
   text-transform: uppercase;
   color: var(--ds-muted);
 }
+/* Before the trial starts the topbar carries only the crumb and this. */
+.ds-topbar-signout {
+  margin-left: auto;
+}
+/* In place of the nav before the trial starts (app-shell.tsx, signupFocus). */
+.ds-nav-note {
+  margin: 0;
+  padding: 0 11px;
+  color: var(--ds-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
 .ds-nav-item {
   position: relative;
   display: flex;

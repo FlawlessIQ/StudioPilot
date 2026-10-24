@@ -51,6 +51,9 @@ import {
 } from "@/features/client/job-choice";
 import { preferredTenantId, rememberTenantId } from "@/lib/firebase/tab-tenant";
 
+/** Each plan by the name it's sold under (config/saas-plans.ts). */
+const PLAN_NAMES: Record<string, string> = { studio: "Studio", multi_brand: "Multi-Brand", vendor: "Pro" };
+
 type WorkspaceArea = "studio" | "client" | "crew";
 
 type WorkspaceMembership = {
@@ -482,8 +485,10 @@ export function WorkspaceProvider({
             tenantTrade: tradeOf(tenant.trade),
             tenantPlan: String(
               tenant.subscriptionPlan
-                ? // The vendor plan is sold as "Pro" (config/saas-plans.ts).
-                  `${tenant.subscriptionPlan === "vendor" ? "Pro" : tenant.subscriptionPlan} plan`
+                ? // The plans' sold names (config/saas-plans.ts): the vendor
+                  // plan is "Pro", and the sidebar read "studio plan" and
+                  // "multi_brand plan" under the studio's name.
+                  `${PLAN_NAMES[String(tenant.subscriptionPlan)] ?? tenant.subscriptionPlan} plan`
                 : roleLabel(membership.role),
             ),
             subscriptionStatus,

@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
+import { ArrowRight } from "lucide-react";
 import { currencyForTimezone, detectedTimezone } from "@/features/auth/locale-defaults";
+import { SignupSteps } from "@/features/auth/signup-steps";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
-import { invalidateMembershipCache } from "@/lib/firebase/membership-cache";
+import { invalidateMembershipCache, loadMembershipDocuments } from "@/lib/firebase/membership-cache";
 import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { pendingInvitations, type PendingInvitation } from "@/lib/auth/pending-invitations";
@@ -47,7 +49,14 @@ const noSubscribe = () => () => undefined;
  * is doing: an invited client is not told "You'll be the owner of this
  * studio" above a note saying they were invited somewhere else.
  */
-function SetupHeading({ invited }: { invited: boolean }) {
+function SetupHeading({ invited, existing = false }: { invited: boolean; existing?: boolean }) {
+  if (existing)
+    return (
+      <>
+        <span className="eyebrow">Studio setup</span>
+        <h1>Welcome back</h1>
+      </>
+    );
   return invited ? (
     <>
       <span className="eyebrow">You&rsquo;ve been invited</span>
@@ -55,15 +64,31 @@ function SetupHeading({ invited }: { invited: boolean }) {
     </>
   ) : (
     <>
+      <SignupSteps current={2} />
       <span className="eyebrow">Studio setup</span>
-      <h1>Create your workspace</h1>
-      <p>You&rsquo;ll be the owner of this studio.</p>
+      <h1>Set up your studio</h1>
+      <p>A name is all it needs. You&rsquo;ll be its owner, and everything here can be changed later.</p>
     </>
   );
 }
 
 export function OnboardingForm() {
   return <OnboardingFlow />;
+}
+
+/**
+ * Whether this account already owns a studio. Onboarding makes one studio per
+ * account and returns it to a second submit, so the form would only discard
+ * what was typed. Any failure is "no": this saves a wasted form, never blocks.
+ */
+async function ownsAStudio(userId: string): Promise<boolean> {
+  try {
+    const { firestore } = getFirebaseClient();
+    const documents = await loadMembershipDocuments(firestore, userId, { force: true });
+    return documents.some((document) => document.data().role === "studio_owner");
+  } catch {
+    return false;
+  }
 }
 
 function OnboardingFlow() {
@@ -79,11 +104,20 @@ function OnboardingFlow() {
   const zones = TIMEZONES.some((option) => option.value === zone)
     ? TIMEZONES
     : [{ value: zone, label: zone.replaceAll("_", " ") }, ...TIMEZONES];
+  // Both are detected, so they're said in one line and changed only on
+  // request: two required drop-downs a studio almost never needs to touch
+  // were half the form (onboarding audit, 2026-10-24).
+  const [chosenZone, setChosenZone] = useState<string | null>(null);
+  const [chosenCurrency, setChosenCurrency] = useState<string | null>(null);
+  const timezone = chosenZone ?? zone;
+  const currency = chosenCurrency ?? currencyForTimezone(zone);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // P4/P7: distinct states so the wall can offer a resend, and success stops
   // the form from staying interactive (double-submit) while the redirect lands.
-  const [phase, setPhase] = useState<"form" | "needs_verification" | "invited" | "done">(
+  // `has_studio`: this account already made its studio (onboarding is one
+  // studio per account), so the form would only have thrown its answers away.
+  const [phase, setPhase] = useState<"form" | "needs_verification" | "invited" | "has_studio" | "done">(
     "form",
   );
   // Studios that have invited this email. Someone a studio invited, signing in
@@ -131,6 +165,12 @@ function OnboardingFlow() {
       await user.reload().catch(() => undefined);
       if (active && !user.emailVerified) {
         setPhase("needs_verification");
+        return;
+      }
+      // Already the owner of a studio: the verification link opened on a
+      // phone after the studio was made on a laptop lands here too.
+      if (await ownsAStudio(user.uid)) {
+        if (active) setPhase("has_studio");
         return;
       }
       const waiting = await pendingInvitations(auth);
@@ -239,8 +279,8 @@ function OnboardingFlow() {
             // Not asked here: it was the studio name again for almost every
             // studio. Agreements use it; it's editable in Studio details.
             legalName: String(data.get("businessName")),
-            timezone: String(data.get("timezone")),
-            currency: String(data.get("currency")),
+            timezone,
+            currency,
             trade: pickedTrade,
             businessAddress: address?.formatted?.trim().slice(0, 240) || null,
             // Where the studio came from, for the Console's Sources page
@@ -310,6 +350,21 @@ function OnboardingFlow() {
         <h2>{checkoutNext ? "One last step: start your trial" : "Your studio is ready"}</h2>
         <p>{checkoutNext ? "Opening the plan picker…" : "Opening your workspace…"}</p>
       </div>
+      </>
+    );
+  }
+
+  if (phase === "has_studio") {
+    return (
+      <>
+        <SetupHeading existing invited={false} />
+        <div className="command-success">
+          <h2>Your studio is ready</h2>
+          <p>This account already has a studio. Open it to carry on where you left off.</p>
+          <a className="button button-dark" href="/studio">
+            Open your studio <ArrowRight size={15} />
+          </a>
+        </div>
       </>
     );
   }
@@ -386,21 +441,31 @@ function OnboardingFlow() {
     <>
     <SetupHeading invited={false} />
     <form className="sign-in-form" onSubmit={submit}>
+      {/* Five answers, all in view and one tap each: a drop-down hid them
+          and cut "Photography or video" off at its own width. */}
       {tradeChoices.length > 1 ? (
-        <label>
-          What do you do? <span className="required-mark">Required</span>
-          <select name="trade" onChange={(event) => setTrade(event.target.value as Trade)} value={pickedTrade}>
+        <fieldset className="onboarding-trades">
+          <legend>What do you do?</legend>
+          <div className="onboarding-trade-options">
             {tradeChoices.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
+              <label className="onboarding-trade" key={option.value}>
+                <input
+                  checked={pickedTrade === option.value}
+                  name="trade"
+                  onChange={() => setTrade(option.value)}
+                  type="radio"
+                  value={option.value}
+                />
+                <span>{option.label}</span>
+              </label>
             ))}
-          </select>
+          </div>
           <small>{tradeChoices.find((option) => option.value === pickedTrade)?.hint}</small>
-        </label>
+        </fieldset>
       ) : null}
       <label>
-        Studio name <span className="required-mark">Required</span>
+        {pickedTrade === "photographer" ? "Studio name" : "Business name"}{" "}
+        <span className="required-mark">Required</span>
         <input
           name="businessName"
           required
@@ -419,26 +484,35 @@ function OnboardingFlow() {
         placeholder="Start typing your address"
         value={address}
       />
-      <label>
-        Timezone <span className="required-mark">Required</span>
-        <select defaultValue={zone} key={zone} name="timezone">
-          {zones.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Currency <span className="required-mark">Required</span>
-        <select defaultValue={currencyForTimezone(zone)} key={zone} name="currency">
-          <option value="USD">USD</option>
-          <option value="CAD">CAD</option>
-          <option value="GBP">GBP</option>
-          <option value="EUR">EUR</option>
-          <option value="AUD">AUD</option>
-        </select>
-      </label>
+      <details className="onboarding-locale">
+        <summary>
+          <span>
+            Times in <strong>{zones.find((option) => option.value === timezone)?.label ?? timezone}</strong>
+            {" · "}prices in <strong>{currency}</strong>
+          </span>
+          <em>Change</em>
+        </summary>
+        <label>
+          Timezone
+          <select name="timezone" onChange={(event) => setChosenZone(event.target.value)} value={timezone}>
+            {zones.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Currency
+          <select name="currency" onChange={(event) => setChosenCurrency(event.target.value)} value={currency}>
+            <option value="USD">USD</option>
+            <option value="CAD">CAD</option>
+            <option value="GBP">GBP</option>
+            <option value="EUR">EUR</option>
+            <option value="AUD">AUD</option>
+          </select>
+        </label>
+      </details>
       <label>
         How did you hear about StudioCue?
         <select name="heard" onChange={(event) => setHeard(event.target.value as HeardValue | "")} value={heard}>
@@ -461,12 +535,21 @@ function OnboardingFlow() {
           {notice}
         </p>
       ) : null}
+      {/* It said "Start 14-day trial", and the trial started two screens
+          later, after a plan and a card: the next screen asked to start it
+          again. This one makes the studio. */}
       <button
         className="button button-dark sign-in-submit"
         disabled={busy}
         type="submit"
       >
-        {busy ? "Creating your studio…" : "Start 14-day trial"}
+        {busy ? (
+          "Creating your studio…"
+        ) : (
+          <>
+            Continue <ArrowRight size={17} />
+          </>
+        )}
       </button>
     </form>
     </>

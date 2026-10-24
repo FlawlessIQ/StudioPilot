@@ -146,7 +146,23 @@ export function RegisterForm({
    * `/studio/projects/new` already resolves its own success this way.
    */
   if (state === "sent" && intent === "studio" && authIsLive) {
-    return <CheckYourEmail sentTo={sentTo} message={message} />;
+    return (
+      <CheckYourEmail
+        message={message}
+        onStartOver={() => {
+          // A mistyped address: the account made for it stays unverified and
+          // unused, and the owner signs up again with the right one.
+          void signOut(getFirebaseClient().auth)
+            .catch(() => undefined)
+            .finally(() => {
+              setSentTo("");
+              setMessage("");
+              setState("idle");
+            });
+        }}
+        sentTo={sentTo}
+      />
+    );
   }
   if (state === "sent") {
     return (
@@ -248,7 +264,12 @@ export function RegisterForm({
         disabled={state === "submitting"}
       >
         {state === "submitting" ? (
-          <LoaderCircle className="spin" size={17} />
+          // Creating the account and sending its link can take a few
+          // seconds; a bare spinner read as stuck (onboarding audit, 2026-10-24).
+          <>
+            <LoaderCircle className="spin" size={17} />{" "}
+            {intent === "client" ? "Creating your access…" : "Creating your account…"}
+          </>
         ) : (
           <>
             {intent === "client" ? "Create client access" : "Create account"}{" "}
@@ -263,13 +284,55 @@ export function RegisterForm({
   );
 }
 
+/** The server sends one verification link a minute and quietly skips the rest (functions/src/auth/emails.ts). */
+const RESEND_WAIT_MS = 60_000;
+
 /**
  * "Check your email", for a new studio owner who is still signed in: it looks
  * every few seconds and carries on to setting up the studio the moment the
  * address is verified — here or on a phone.
+ *
+ * It had one way forward, "I've verified — continue". An owner whose email
+ * hadn't come, or who had mistyped the address, had nothing to press: the only
+ * resend was on the next page, which they couldn't reach without verifying
+ * (onboarding audit, 2026-10-24). It now says what to look for, sends the link
+ * again once the server will, and lets a wrong address be corrected.
  */
-function CheckYourEmail({ sentTo, message }: { sentTo: string; message: string }) {
+function CheckYourEmail({
+  sentTo,
+  message,
+  onStartOver,
+}: {
+  sentTo: string;
+  message: string;
+  onStartOver: () => void;
+}) {
   const [checking, setChecking] = useState(false);
+  const [resendAt, setResendAt] = useState(() => Date.now() + RESEND_WAIT_MS);
+  const [now, setNow] = useState(() => Date.now());
+  const [resend, setResend] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+  const secondsLeft = Math.max(0, Math.ceil((resendAt - now) / 1000));
+  useEffect(() => {
+    if (secondsLeft === 0) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [secondsLeft]);
+  async function sendAgain() {
+    setResend("sending");
+    try {
+      await requestBrandedAuthEmail({
+        type: "emailVerification",
+        idempotencyKey: crypto.randomUUID(),
+        input: { email: sentTo, next: "/auth/onboarding" },
+      });
+      setResend("sent");
+    } catch {
+      setResend("failed");
+    } finally {
+      setResendAt(Date.now() + RESEND_WAIT_MS);
+      setNow(Date.now());
+    }
+  }
   useEffect(() => {
     const { auth } = getFirebaseClient();
     let stopped = false;
@@ -318,6 +381,31 @@ function CheckYourEmail({ sentTo, message }: { sentTo: string; message: string }
         {checking ? <LoaderCircle className="spin" size={15} /> : <ArrowRight size={15} />}
         I&apos;ve verified — continue
       </button>
+      <p className="check-email-help">
+        Look for &ldquo;Verify your StudioCue email&rdquo;. Not there after a minute? Check spam
+        or promotions.
+      </p>
+      <p className="check-email-actions">
+        <button disabled={secondsLeft > 0 || resend === "sending"} onClick={() => void sendAgain()} type="button">
+          {resend === "sending"
+            ? "Sending…"
+            : secondsLeft > 0
+              ? `Send it again in ${secondsLeft}s`
+              : "Send it again"}
+        </button>
+        <button onClick={onStartOver} type="button">
+          Wrong address? Start again
+        </button>
+      </p>
+      {resend === "sent" ? (
+        <p className="form-success" role="status">
+          Sent again to {sentTo}. It can take a minute to arrive.
+        </p>
+      ) : resend === "failed" ? (
+        <p className="form-error" role="status">
+          We couldn&apos;t send it just now. Try again in a minute.
+        </p>
+      ) : null}
     </div>
   );
 }

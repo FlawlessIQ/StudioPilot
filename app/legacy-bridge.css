@@ -210,10 +210,12 @@
   background: rgba(255, 255, 255, 0.16);
   color: #ffffff;
 }
+/* Readable on the panel's lightest green (#0b7d57) as well as its darkest:
+   the contrast spec reads signup now (onboarding audit, 2026-10-24). */
 .ds-root .auth-back {
-  color: rgba(238, 247, 241, 0.82);
+  color: #f6fbf8;
 }
-.ds-root .auth-back:hover { color: #ffffff; }
+.ds-root .auth-back:hover { color: #ffffff; text-decoration: underline; }
 .ds-root .auth-quote blockquote {
   font-family: var(--ds-serif);
   font-optical-sizing: auto;
@@ -222,12 +224,12 @@
   color: #ffffff;
 }
 .ds-root .quote-author span {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.22);
   color: #ffffff;
 }
 .ds-root .quote-author strong { color: #ffffff; }
 .ds-root .quote-author small,
-.ds-root .auth-trust { color: rgba(238, 247, 241, 0.72); }
+.ds-root .auth-trust { color: #f6fbf8; }
 .ds-root .auth-trust svg { color: var(--ds-brass); }
 
 .ds-root .auth-form-wrap h1,
@@ -250,6 +252,13 @@
   font-size: 16px;
   min-height: 54px;
   padding: 0 16px;
+}
+/* The design system's select sizes to its text, so signup's drop-downs were
+   each their own width and "Photography or video" was cut off under its
+   arrow (onboarding audit, 2026-10-24). Full width, like the inputs. */
+.ds-root .auth-form-wrap .sign-in-form select {
+  padding-right: 40px;
+  width: 100%;
 }
 /* The address box draws its own border round the pin and the input. */
 .ds-root .auth-form-wrap .sign-in-form .address-field-input input:not([type="checkbox"]):not([type="radio"]) {
@@ -874,13 +883,6 @@
 .ds-root .booking-consultation-capture label > span,
 .ds-root .booking-consultation-capture label small,
 .ds-root .booking-evidence-heading p:last-child,
-/* "Tap more than one…" under the package picker (several packages on one wedding). */
-.ds-root .booking-package-hint {
-  margin: 10px 0 0;
-  font-size: 13px;
-  color: var(--ds-muted);
-}
-
 .ds-root .booking-package-options em,
 .ds-root .booking-package-rationale p,
 .ds-root .booking-package-rationale span,
@@ -1106,6 +1108,65 @@
 .ds-root .window-title,
 .ds-root .workflow-template-grid > a > p:not(.eyebrow) {
   font-size: 12.5px;
+}
+
+/* "Tap more than one…" under the package picker (several packages on one
+   wedding). It was added on 2026-09-30 in the middle of the list above, which
+   split it in two: the 42 selectors before it took this rule's margin, size
+   and grey instead of their own 12.5px — the sign-up page's "Card required,
+   nothing charged for 14 days" went grey on the dark green panel, and every
+   back link gained a 10px top margin (onboarding audit, 2026-10-24). */
+.ds-root .booking-package-hint {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--ds-muted);
+}
+
+/* Those 42 selectors kept that grey for three weeks, and the contrast spec
+   (2026-10-14) was set while they had it: several of their own greys are
+   under 4.5:1. The colour stays for all but the sign-up panel's two, which are
+   light on green (above); the stray margin and size are gone. */
+.ds-root .ai-confidence,
+.ds-root .ai-queue-card > footer button,
+.ds-root .ai-queue-card > header em,
+.ds-root .ai-queue-editor > span,
+.ds-root .ai-queue-empty small,
+.ds-root .ai-queue-explanation > div > span small,
+.ds-root .ai-queue-explanation p,
+.ds-root .ai-queue-explanation summary,
+.ds-root .ai-queue-hero > div > p:last-child,
+.ds-root .ai-queue-hero aside small,
+.ds-root .ai-queue-impact small,
+.ds-root .ai-queue-issues p,
+.ds-root .ai-queue-notice,
+.ds-root .ai-queue-page-error,
+.ds-root .ai-queue-tabs button,
+.ds-root .ai-queue-tabs button span,
+.ds-root .ai-receipt > button,
+.ds-root .ai-receipt em,
+.ds-root .ai-receipt p,
+.ds-root .ai-receipt small,
+.ds-root .album-status-track small,
+.ds-root .auth-legal,
+.ds-root .avatar,
+.ds-root .back-link,
+.ds-root .booking-ai-brief > div > div span,
+.ds-root .booking-ai-brief > div > p:not(.eyebrow),
+.ds-root .booking-ai-brief aside a,
+.ds-root .booking-ai-brief aside button,
+.ds-root .booking-ai-brief aside span,
+.ds-root .booking-autopilot-empty > a,
+.ds-root .booking-autopilot-empty small,
+.ds-root .booking-autopilot-hero > div > p:last-child,
+.ds-root .booking-autopilot-hero aside > span,
+.ds-root .booking-autopilot-loading small,
+.ds-root .booking-autopilot-notice,
+.ds-root .booking-consultation-capture > button,
+.ds-root .booking-consultation-capture > div > p:last-child,
+.ds-root .booking-consultation-capture label > span,
+.ds-root .booking-consultation-capture label small,
+.ds-root .booking-evidence-heading p:last-child {
+  color: var(--ds-muted);
 }
 
 /* Primary text (strong) — 30 selectors */

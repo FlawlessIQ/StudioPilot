@@ -264,7 +264,10 @@ test("Cue is told what a DJ studio is, and nothing changes for a photographer", 
 test("setup and help speak to a DJ", () => {
   const setup = read("components/setup/setup-conversation.tsx");
   assert.match(setup, /ask: "What events do you play\?"/);
-  assert.match(setup, /const base = defaultInquiryFormFor\(trade\);/);
+  // The trade's own form, with any kind ticked that it lacks added
+  // (features/setup/work-kinds.ts, 2026-10-24).
+  assert.match(setup, /const config = inquiryFormForKinds\(trade, chosen\);/);
+  assert.match(read("features/setup/work-kinds.ts"), /const base = defaultInquiryFormFor\(tradeOf\(trade\)\);/);
   assert.ok(glossaryFor("studio", "dj").some((term) => term.id === "mc-script"));
   assert.ok(!glossaryFor("studio").some((term) => term.id === "mc-script"));
   assert.equal(tradeVocab("dj").consultation, "Vibe call");

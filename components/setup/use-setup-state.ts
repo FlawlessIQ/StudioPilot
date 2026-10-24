@@ -16,6 +16,8 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { nativeSigningOn } from "@/features/contracts/rollout";
 import { inquiryFormChoices } from "@/features/questionnaires/inquiry-form-setting";
+import { hoursSummary } from "@/features/setup/hours-summary";
+import { offeredKindsSummary } from "@/features/setup/work-kinds";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -36,8 +38,27 @@ export function useSetupState(): {
   refresh: () => void;
   /** Google Calendar is connected. Offered beside hours; not a question of its own. */
   calendarConnected: boolean;
+  /**
+   * A way in is set up and nothing has come through it yet: the studio
+   * finished a route's guide or copied its form link (the `inquiry_capture`
+   * outside step, waiting). Counts as answered — the studio has done its
+   * part, and Today brings it back if nothing arrives (outside-steps).
+   */
+  inquiryWaiting: boolean;
+  /** What each answered question said, in words, to show back beside it. */
+  answers: {
+    /** The kinds the inquiry form offers: "Wedding and Portraits". */
+    work: string | null;
+    /** Call hours: "Mon–Fri, 9 AM–5 PM". */
+    availability: string | null;
+    /** Active price-list packages. */
+    packages: number;
+  };
 } {
   const workspace = useWorkspace();
+  const manages = workspace.role === "studio_owner" || workspace.role === "studio_admin";
+  // The tenant document, for its outside steps (owners and admins read it).
+  const tenants = useTenantDocuments("tenants", { enabled: manages });
   const packages = useTenantDocuments("packages");
   const questionnaireTemplates = useTenantDocuments("questionnaireTemplates");
   const projects = useTenantDocuments("projects");
@@ -58,6 +79,10 @@ export function useSetupState(): {
     work: boolean | undefined;
     /** The inquiry page's form has been chosen, or "none" chosen; undefined when it can't be read. */
     inquiryForm: boolean | undefined;
+    /** The saved form's kinds, in words. */
+    kinds: string | null;
+    /** The saved call hours, in words. */
+    hours: string | null;
   } | null>(null);
 
   const [reads, setReads] = useState(0);
@@ -105,6 +130,10 @@ export function useSetupState(): {
         work: capture ? Boolean(capture.get("inquiryForm")) : undefined,
         // Null is "no form": an answer. Absent is never asked.
         inquiryForm: capture ? capture.get("inquiryEventForm") !== undefined : undefined,
+        kinds: offeredKindsSummary(
+          (capture?.get("inquiryForm") as { eventTypes?: unknown } | undefined)?.eventTypes,
+        ),
+        hours: hoursSummary(windows),
       });
     });
     return () => {
@@ -121,12 +150,25 @@ export function useSetupState(): {
       ["docusign", "dropbox_sign"].includes(text(connection.provider)) &&
       text(connection.status) === "connected",
   );
+  // Finishing a route's guide (or copying the form link) records the step as
+  // waiting (components/intake/lead-capture-setup.tsx). Setup used to show
+  // the question exactly as before, so a studio that had just pasted the form
+  // into its site was left wondering whether anything had saved.
+  const tenantRecord = (tenants.records ?? []).find((record) => record.id === workspace.tenantId);
+  const outsideSteps = (tenantRecord?.outsideSteps ?? {}) as Record<string, { state?: unknown } | undefined>;
+  const captureStepWaiting = text(outsideSteps.inquiry_capture?.state) === "waiting";
+  const activePackages = (packages.records ?? []).filter(
+    (item) => item.active === true && isCataloguePackage(item),
+  ).length;
 
+  const captured =
+    Boolean(tenantDocs?.captured) ||
+    (leads.records ?? []).some(
+      (lead) => Boolean(text(lead.captureId)) || text(lead.source) === "public_inquiry",
+    );
   const state: SetupState = {
     // A one-off for one couple is not a price list (features/packages/one-off.ts).
-    hasActivePackage: (packages.records ?? []).some(
-      (item) => item.active === true && isCataloguePackage(item),
-    ),
+    hasActivePackage: activePackages > 0,
     // A configured default template or a connected signing provider both
     // mean the studio can send an agreement without pasting an id.
     hasAgreementTemplate:
@@ -154,11 +196,7 @@ export function useSetupState(): {
         ? undefined
         : tenantDocs.inquiryForm ||
           !inquiryFormChoices(questionnaireTemplates.records ?? []).some((choice) => choice.forWeddings),
-    hasInquiryCapture:
-      Boolean(tenantDocs?.captured) ||
-      (leads.records ?? []).some(
-        (lead) => Boolean(text(lead.captureId)) || text(lead.source) === "public_inquiry",
-      ),
+    hasInquiryCapture: captured || captureStepWaiting,
   };
 
   const nameOf = (projectId: unknown) =>
@@ -223,6 +261,16 @@ export function useSetupState(): {
     complete: setupComplete(state, workspace.tenantTrade),
     refresh: () => setReads((count) => count + 1),
     calendarConnected,
-    loading: dataIsLive && (packages.records === null || tenantDocs === null),
+    inquiryWaiting: captureStepWaiting && !captured,
+    answers: {
+      work: tenantDocs?.kinds ?? null,
+      availability: tenantDocs?.hours ?? null,
+      packages: activePackages,
+    },
+    // The tenant document too, for a manager: its outside steps can answer
+    // "How do inquiries reach you?", which otherwise flickered open first.
+    loading:
+      dataIsLive &&
+      (packages.records === null || tenantDocs === null || (manages && tenants.records === null)),
   };
 }

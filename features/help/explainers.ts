@@ -233,7 +233,7 @@ const GUIDES: readonly ExplainerSource[] = [
           ? "Setup asks seven questions: what you shoot, how inquiries reach you, when clients can book a call, what you charge, how clients sign, what you ask clients, and who sends your insurance certificates. Most are answered right on the page."
           : `Setup asks four questions: what you charge, when clients can book ${t.has.consultation ? "a call" : "a trial"}, how inquiries reach you, and how clients sign. Most are answered right on the page.`,
     steps: [
-      "On Today, tap **Continue setup**. Each question says why it matters.",
+      "On Today, tap **Continue setup**. Each question says what it's needed for, and the one to answer next is outlined.",
       "**How do inquiries reach you?** Pick a route, from **On your website** to **Inbox rules**.",
       // A makeup artist or hair stylist is asked about trials (setup-conversation.tsx).
       ({ has }) =>

@@ -13,15 +13,17 @@ import {
   Copy,
   ExternalLink,
   LoaderCircle,
+  Plus,
+  Upload,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { JourneySetupBanner, useOffersWeddingFilm } from "@/components/help/journey-film";
 import { useSetupState } from "@/components/setup/use-setup-state";
-import { useTenantDocuments } from "@/components/live/tenant-records";
+import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { perPersonPricesLink } from "@/features/packages/per-person-price";
-import { LeadCaptureRoutes } from "@/components/intake/lead-capture-setup";
+import { LeadCaptureRoutes, LeadCaptureTestButton } from "@/components/intake/lead-capture-setup";
 import { fromSetup } from "@/components/setup/back-to-setup";
-import { setSignatureMode, startProviderConnect } from "@/lib/integrations/command-client";
+import { setOutsideStep, setSignatureMode, startProviderConnect } from "@/lib/integrations/command-client";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -30,12 +32,13 @@ import {
   INQUIRY_FORM_SETTING_HREF,
   setupOrderFor,
   setupQuestionCount,
+  setupStepNeed,
   type SetupGap,
   type SetupGapKey,
 } from "@/features/today/setup-gaps";
 import { InquiryEventFormSetting } from "@/components/planning/inquiry-event-form-setting";
 import { JOB_KIND_LABELS, JOB_KINDS, type JobKind } from "@/features/job-kinds/job-kinds";
-import { defaultInquiryFormFor } from "@/features/leads/inquiry-form-config";
+import { inquiryFormForKinds, setupOfferedKinds } from "@/features/setup/work-kinds";
 import { runCrmCommand } from "@/lib/crm/command-client";
 
 /**
@@ -49,6 +52,13 @@ import { runCrmCommand } from "@/lib/crm/command-client";
  * inquiry routes open their sheets here, hours take one tap, the agreement
  * answer is one tap, and the details form starts answered. Every question is
  * skippable: what is skipped comes back in Today when it blocks real work.
+ *
+ * Onboarding audit, 2026-10-24: every unanswered question carried its own
+ * dark button, so the page offered five "first" things at once and said
+ * nothing about which could wait. Now only the next question's button is the
+ * dark one, each question says what it's needed for, answered ones say what
+ * was answered, and the top says a job can be started (or brought over)
+ * without finishing.
  */
 
 type Question = {
@@ -167,7 +177,7 @@ function orderedFor(trade: unknown): Question[] {
  * are add-ons, set in the Library from the trade's own examples.
  */
 const PER_PERSON_WHY =
-  "Paste or upload your price list and StudioCue drafts your packages — you confirm every price. Then price everyone else getting ready per person, so a quote reads \u201c4 people × $120\u201d.";
+  "Paste or upload your price list and StudioCue drafts your packages — you confirm every price. Then price everyone else getting ready per person, so a quote reads “4 people × $120”.";
 const PER_PERSON_PRICES = "/studio/library/add-ons";
 
 /**
@@ -233,20 +243,26 @@ function inTradeWords(question: Question, trade: unknown): Question {
 const IMPORT_PRICES = fromSetup("/studio/import?kind=Package");
 const IMPORT_FORM = fromSetup("/studio/import?kind=Questionnaire");
 
+/** The dark button for the question that's next; every other one is light. */
+const buttonClass = (primary: boolean) => (primary ? "button button-dark" : "button button-light");
+
 export function SetupConversation() {
   // The film is a photographer's wedding (useOffersWeddingFilm).
   const shootsWeddings = useOffersWeddingFilm();
   const workspace = useWorkspace();
-  const { gaps, complete, loading, refresh, calendarConnected } = useSetupState();
+  const { state, gaps, complete, loading, refresh, calendarConnected, inquiryWaiting, answers } = useSetupState();
   const gapByKey = new Map(gaps.map((gap) => [gap.key, gap]));
   // A photographer's seven, a vendor's four: counted over the questions this
   // studio is actually asked, as Today and Help's checklist count them.
   const ordered = orderedFor(workspace.tenantTrade);
   const answered = ordered.filter((question) => !gapByKey.has(question.key)).length;
+  // The one question whose button is the dark one: the first still open.
+  const nextKey = loading ? null : (ordered.find((question) => gapByKey.has(question.key))?.key ?? null);
   // `complete` is "ready to take bookings" (setupComplete), which leaves out
   // insurance on purpose. The page said "Your studio is set up." over "5 of 6
   // answered"; now it only says that when every question is answered.
   const allAnswered = !loading && gaps.length === 0;
+  const manages = workspace.role === "studio_owner" || workspace.role === "studio_admin";
   // Any package answers "What do you charge?", so a makeup artist or hair
   // stylist who imported one lost the way to her per-person prices with it
   // (Priya Shah, Jess Styles Bridal, 2026-10-10). Only her trade reads the
@@ -259,21 +275,29 @@ export function SetupConversation() {
     addOns: addOnRead,
     packages: packageRead,
   });
+  const calls = tradeProfile(workspace.tenantTrade).consultation;
 
   /** What a question offers when it isn't answered yet. */
-  const answer = (question: Question, gap: SetupGap): ReactNode => {
+  const answer = (question: Question, gap: SetupGap, primary: boolean): ReactNode => {
     switch (question.key) {
       case "work":
-        return <WorkAnswer onAnswered={refresh} />;
+        return <WorkAnswer onAnswered={refresh} primary={primary} />;
       case "inquiries":
-        // Answered in place: the three routes open their sheets here.
-        return <LeadCaptureRoutes />;
+        // Answered in place: the routes open their sheets here.
+        return (
+          <>
+            <LeadCaptureRoutes />
+            {workspace.tenantSlug ? (
+              <HostedFormLink onCopied={recordFormLinkShared} slug={workspace.tenantSlug} />
+            ) : null}
+          </>
+        );
       case "availability":
-        return <HoursAnswer onAnswered={refresh} />;
+        return <HoursAnswer onAnswered={refresh} primary={primary} />;
       case "packages":
         return (
           <div className="setup-answer-row">
-            <Link className="button button-dark" href={IMPORT_PRICES}>
+            <Link className={buttonClass(primary)} href={IMPORT_PRICES}>
               Paste or upload your prices <ArrowRight size={14} />
             </Link>
             <Link className="setup-answer-link" href={fromSetup("/studio/packages/new")}>
@@ -289,21 +313,21 @@ export function SetupConversation() {
       case "agreement":
         return gap.href === NATIVE_AGREEMENT_HREF ? (
           <div className="setup-answer-row">
-            <Link className="button button-dark" href={fromSetup(gap.href)}>
+            <Link className={buttonClass(primary)} href={fromSetup(gap.href)}>
               {gap.actionLabel} <ArrowRight size={14} />
             </Link>
           </div>
         ) : (
           /* It linked to Integrations, where no signing app is offered: a
              dead end, and the one step setup could never tick. */
-          <SendOwnAgreement onAnswered={refresh} />
+          <SendOwnAgreement onAnswered={refresh} primary={primary} />
         );
       case "questionnaire":
         // Forms are in; what's left is which one the inquiry link asks for.
         if (gap.href === INQUIRY_FORM_SETTING_HREF) return <InquiryEventFormSetting onSaved={refresh} />;
         return (
           <div className="setup-answer-row">
-            <Link className="button button-dark" href={IMPORT_FORM}>
+            <Link className={buttonClass(primary)} href={IMPORT_FORM}>
               Paste or upload your form <ArrowRight size={14} />
             </Link>
           </div>
@@ -311,7 +335,7 @@ export function SetupConversation() {
       case "insurance":
         return (
           <div className="setup-answer-row">
-            <Link className="button button-dark" href={fromSetup("/studio/settings/insurance")}>
+            <Link className={buttonClass(primary)} href={fromSetup("/studio/settings/insurance")}>
               Save who sends them <ArrowRight size={14} />
             </Link>
           </div>
@@ -319,8 +343,52 @@ export function SetupConversation() {
     }
   };
 
+  /**
+   * Copying StudioCue's form link is setting a way in up, as finishing a
+   * route's guide is: recorded as the waiting outside step, so the question
+   * counts as answered and Today asks after it if nothing arrives.
+   */
+  function recordFormLinkShared() {
+    if (state.hasInquiryCapture || !workspace.tenantId) return;
+    void setOutsideStep("inquiry_capture", "waiting", workspace.tenantId)
+      .then(() => refreshTenantRecords("tenants"))
+      .catch(() => undefined);
+  }
+
+  /** An answered question, in words: what was said, not only that it was. */
+  const doneText = (question: Question, words: Question): string => {
+    if (question.key === "work" && answers.work) return `Your inquiry form offers ${answers.work}.`;
+    if (question.key === "inquiries" && inquiryWaiting)
+      return "Set up. Waiting for your first inquiry — it lands in Today, filled in, the moment it arrives.";
+    if (question.key === "availability" && answers.availability)
+      return `${calls ? "Calls" : "Trials"} can be booked ${answers.availability}.`;
+    return words.doneLabel;
+  };
+
   /** What an answered question still offers. */
   const afterwards = (question: Question): ReactNode => {
+    if (question.key === "work")
+      return (
+        <div className="setup-answer-row">
+          <Link className="setup-answer-link" href={fromSetup("/studio/settings/job-types")}>
+            Change
+          </Link>
+        </div>
+      );
+    if (question.key === "inquiries")
+      return (
+        <>
+          {inquiryWaiting ? (
+            <div className="setup-answer-row">
+              <LeadCaptureTestButton />
+              <Link className="setup-answer-link" href={fromSetup("/studio/settings/inquiry-capture")}>
+                Other ways in
+              </Link>
+            </div>
+          ) : null}
+          {workspace.tenantSlug ? <HostedFormLink slug={workspace.tenantSlug} /> : null}
+        </>
+      );
     // Packages answer the question; per-person prices are what is left of it,
     // so here they are the button (beside the prices themselves, before any
     // package, they were the quieter link) until one exists.
@@ -339,6 +407,14 @@ export function SetupConversation() {
         </div>
       );
     }
+    if (question.key === "packages" && answers.packages)
+      return (
+        <div className="setup-answer-row">
+          <Link className="setup-answer-link" href="/studio/packages">
+            {answers.packages === 1 ? "See your package" : `See your ${answers.packages} packages`}
+          </Link>
+        </div>
+      );
     if (question.key === "availability")
       return (
         <div className="setup-answer-row">
@@ -377,22 +453,63 @@ export function SetupConversation() {
               ? "Everything Cue needs is in place. Change any of it whenever your studio does."
               : complete
                 ? "Everything a booking needs is in place. What's left below only matters if venues ask for it."
-                : `${setupQuestionCount(workspace.tenantTrade).replace(/^./, (first) => first.toUpperCase())} questions about how your studio runs, most answered right here. Skip anything; Cue will bring it back when a job actually needs it.`}
+                : `${setupQuestionCount(workspace.tenantTrade).replace(/^./, (first) => first.toUpperCase())} questions about how your studio runs, most answered right here. Each says what it's needed for — skip the rest, and Cue brings it back when a job needs it.`}
           </p>
           {!loading ? (
-            <p className="setup-progress">
-              {answered} of {ordered.length}{" "} answered
-            </p>
+            <div className="setup-progress">
+              <span aria-hidden="true" className="setup-progress-bar">
+                <b style={{ width: `${Math.round((answered / Math.max(ordered.length, 1)) * 100)}%` }} />
+              </span>
+              <span>
+                {answered} of {ordered.length}{" "} answered
+              </span>
+            </div>
           ) : null}
         </header>
+
+        {/* The point of setup is getting to work, and nothing here has to be
+            finished first: a studio with clients already booked elsewhere
+            can bring them over now (ADR 0005), and anyone can start a job. */}
+        {!allAnswered ? (
+          <section aria-label="Start working now" className="setup-start-now">
+            <p>
+              <strong>You don&apos;t have to finish first.</strong>{" "}
+              {manages
+                ? "Start a job whenever you're ready, or bring over the bookings you already have."
+                : "Start a job whenever you're ready."}
+            </p>
+            <div className="setup-answer-row">
+              <Link className="setup-answer-link" href="/studio/projects/new">
+                <Plus size={14} /> Start a job
+              </Link>
+              {manages ? (
+                <Link className="setup-answer-link" href="/studio/projects/import">
+                  <Upload size={14} /> Import bookings
+                </Link>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
 
         <ol className="setup-questions">
           {ordered.map((question, index) => {
             const gap = gapByKey.get(question.key);
-            const done = !gap;
+            // Not while loading: a question whose answer hasn't been read yet
+            // has no gap either, and flashed "Done" before its real state.
+            const done = !loading && !gap;
+            const next = question.key === nextKey;
+            const words = inTradeWords(question, workspace.tenantTrade);
+            // The details form's second ask is which form the inquiry link
+            // asks for, and that one is read before the call, not after booking.
+            const need =
+              question.key === "questionnaire" && gap?.href === INQUIRY_FORM_SETTING_HREF
+                ? { label: "Needed for inquiries", optional: false }
+                : setupStepNeed(question.key, workspace.tenantTrade);
             return (
               <li
-                className={done ? "is-done" : gap?.blocking ? "is-blocking" : ""}
+                className={[done ? "is-done" : gap?.blocking ? "is-blocking" : "", next ? "is-next" : ""]
+                  .filter(Boolean)
+                  .join(" ")}
                 key={question.key}
               >
                 <span className="setup-question-marker" aria-hidden="true">
@@ -405,23 +522,30 @@ export function SetupConversation() {
                   )}
                 </span>
                 <div className="setup-question-body">
-                  <strong>{inTradeWords(question, workspace.tenantTrade).ask}</strong>
+                  <span className="setup-question-title">
+                    <strong>{words.ask}</strong>
+                    {!loading && !done ? (
+                      <em className={need.optional ? "setup-need is-optional" : "setup-need"}>
+                        {next ? `Next · ${need.label}` : need.label}
+                      </em>
+                    ) : null}
+                  </span>
                   <p>
                     {done
-                      ? inTradeWords(question, workspace.tenantTrade).doneLabel
+                      ? doneText(question, words)
                       : question.key === "agreement" &&
                           gap?.href === NATIVE_AGREEMENT_HREF
                         ? NATIVE_AGREEMENT_WHY
                         : gap?.href === INQUIRY_FORM_SETTING_HREF
                           ? inquiryFormWhy(workspace.tenantTrade)
-                          : inTradeWords(question, workspace.tenantTrade).why}
+                          : words.why}
                   </p>
                   {gap?.blocking ? (
                     <span className="setup-blocking">
                       <CircleAlert size={12} /> {gap.detail}
                     </span>
                   ) : null}
-                  {!loading && gap ? answer(question, gap) : null}
+                  {!loading && gap ? answer(question, gap, next) : null}
                   {!loading && done ? afterwards(question) : null}
                   {/* Beside the hours it decides, answered or not; optional,
                       so it never counts as a question. */}
@@ -443,8 +567,6 @@ export function SetupConversation() {
             (own invoicing — every invoice StudioCue sends says it). */}
         <PaymentDetailsQuestion />
 
-        {workspace.tenantSlug ? <HostedFormLink slug={workspace.tenantSlug} /> : null}
-
         <p className="setup-footnote">
           Prefer to wander? Everything here also lives in{" "}
           <Link href="/studio/library">your library</Link> and{" "}
@@ -465,13 +587,13 @@ export function SetupConversation() {
  * Consultation hours in one tap: Mon–Fri, 9–5 is what the settings page
  * pre-fills anyway, but it only counted once saved there — two pages away.
  */
-function HoursAnswer({ onAnswered }: { onAnswered: () => void }) {
+function HoursAnswer({ onAnswered, primary }: { onAnswered: () => void; primary: boolean }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   return (
     <div className="setup-answer-row">
       <button
-        className="button button-dark"
+        className={buttonClass(primary)}
         disabled={busy}
         onClick={() => {
           setBusy(true);
@@ -509,26 +631,20 @@ function HoursAnswer({ onAnswered }: { onAnswered: () => void }) {
   );
 }
 
-/** The kinds setup leaves out for each trade, by what its forms cover; a trade not listed is offered every kind (a photographer). */
-const NOT_OFFERED: Partial<Record<string, readonly JobKind[]>> = {
-  dj: ["sacrament", "prom", "portraits", "sports"],
-  makeup: ["sacrament", "portraits", "corporate", "sports"],
-  hair: ["portraits", "corporate", "sports"],
-  planner: ["sacrament", "prom", "portraits", "sports"],
-};
-
 /**
  * "What do you shoot?", answered in place: the inquiry form keeps the types of
  * the kinds ticked (and "General question"), saved through the same command as
- * the form editor. Weddings start ticked; nothing is saved until Save.
+ * the form editor. Weddings start ticked; nothing is saved until Save. A kind
+ * the trade's starting form doesn't have is added to it
+ * (features/setup/work-kinds.ts) — it used to be dropped without a word.
  */
-function WorkAnswer({ onAnswered }: { onAnswered: () => void }) {
+function WorkAnswer({ onAnswered, primary }: { onAnswered: () => void; primary: boolean }) {
   // Each trade's kinds of work, by what its forms cover
   // (docs/new-job-kinds-execution-plan-2026-10-15.md): a DJ plays the parties,
   // a beauty studio does the getting ready, a planner plans the celebrations.
   const trade = tradeOf(useWorkspace().tenantTrade);
   const beauty = trade === "makeup" || trade === "hair";
-  const kinds: readonly JobKind[] = JOB_KINDS.filter((kind) => !NOT_OFFERED[trade]?.includes(kind));
+  const kinds = setupOfferedKinds(trade);
   // The first kind (weddings) starts ticked.
   const [chosen, setChosen] = useState<JobKind[]>([JOB_KINDS[0]]);
   const [busy, setBusy] = useState(false);
@@ -552,18 +668,12 @@ function WorkAnswer({ onAnswered }: { onAnswered: () => void }) {
         ))}
       </div>
       <button
-        className="button button-dark"
+        className={buttonClass(primary)}
         disabled={busy || chosen.length === 0}
         onClick={() => {
           setBusy(true);
           setNotice(null);
-          const base = defaultInquiryFormFor(trade);
-          const config = {
-            ...base,
-            eventTypes: base.eventTypes.filter(
-              (type) => type.kind === "general" || chosen.includes(type.kind as JobKind),
-            ),
-          };
+          const config = inquiryFormForKinds(trade, chosen);
           runCrmCommand("setInquiryForm", { config })
             .then(() => onAnswered())
             .catch((caught: unknown) => setNotice(friendlyError(caught, "That couldn't be saved. Try again.")))
@@ -623,52 +733,73 @@ function CalendarConnect({ connected }: { connected: boolean }) {
 /**
  * StudioCue's own inquiry form — the other way in, for a studio without a
  * website form of its own. It said "Share this link" with no link to share:
- * only a Preview. Now the full address copies in one tap.
+ * only a Preview. Now the full address copies in one tap. It sat under the
+ * last question, apart from "How do inquiries reach you?"; it is one of the
+ * answers to it, so it lives there now (onboarding audit, 2026-10-24).
  */
-function HostedFormLink({ slug }: { slug: string }) {
+function HostedFormLink({ slug, onCopied }: { slug: string; onCopied?: () => void }) {
   const [copied, setCopied] = useState(false);
+  // Where the clipboard is refused (an in-app browser, a denied permission),
+  // the link is shown to copy by hand: the button did nothing at all.
+  const [manualUrl, setManualUrl] = useState<string | null>(null);
   const path = `/inquiry?studio=${encodeURIComponent(slug)}`;
   return (
-    <section className="setup-aside">
-      <div>
-        <strong>Or use StudioCue&apos;s own inquiry form.</strong>
-        <p>
-          It&apos;s already live. Paste it into your website (&ldquo;On your
-          website&rdquo;, under inquiry capture, has the code) or link to it from
-          Instagram, and inquiries arrive in Today with nothing to forward.
-        </p>
-      </div>
-      <div className="setup-aside-actions">
+    <div className="setup-hosted-form">
+      <p>
+        <strong>No form of your own?</strong>{" "}
+        StudioCue&apos;s inquiry form is already live — link to it from your website, Instagram or
+        email signature.
+      </p>
+      <div className="setup-answer-row">
         <button
           className="button button-light button-sm"
           onClick={() => {
-            void navigator.clipboard?.writeText(`${window.location.origin}${path}`).then(() => {
-              setCopied(true);
-              window.setTimeout(() => setCopied(false), 2000);
-            });
+            const url = `${window.location.origin}${path}`;
+            const showIt = () => {
+              setManualUrl(url);
+              onCopied?.();
+            };
+            const writing = navigator.clipboard?.writeText(url);
+            if (!writing) return showIt();
+            void writing
+              .then(() => {
+                setCopied(true);
+                onCopied?.();
+                window.setTimeout(() => setCopied(false), 2000);
+              })
+              .catch(showIt);
           }}
           type="button"
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
-          {copied ? "Copied" : "Copy link"}
+          {copied ? "Copied" : "Copy your form link"}
         </button>
-        <Link href={`${path}&preview=studio`} prefetch={false} target="_blank">
+        <Link className="setup-answer-link" href={`${path}&preview=studio`} prefetch={false} target="_blank">
           Preview <ExternalLink size={13} />
         </Link>
       </div>
-    </section>
+      {manualUrl ? (
+        <input
+          aria-label="Your inquiry form link"
+          className="setup-hosted-url"
+          onFocus={(event) => event.currentTarget.select()}
+          readOnly
+          value={manualUrl}
+        />
+      ) : null}
+    </div>
   );
 }
 
 /** "I send my own agreement": the answer, saved in one tap. */
-function SendOwnAgreement({ onAnswered }: { onAnswered: () => void }) {
+function SendOwnAgreement({ onAnswered, primary }: { onAnswered: () => void; primary: boolean }) {
   const workspace = useWorkspace();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   return (
     <div className="setup-question-answer">
       <button
-        className="button button-dark"
+        className={buttonClass(primary)}
         disabled={busy || !workspace.tenantId}
         onClick={() => {
           if (!workspace.tenantId) return;

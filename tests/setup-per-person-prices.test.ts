@@ -160,7 +160,8 @@ test("setup's answered prices row keeps the link for a per-person trade only", (
   );
   // The unanswered row still offers it beside the import.
   assert.match(conversation, /tradeProfile\(workspace\.tenantTrade\)\.perPersonPricing \? \(\s*<Link className="setup-answer-link" href=\{PER_PERSON_PRICES\}>\s*Set per-person prices/);
-  // Done and the count are untouched: still any question with no gap.
+  // Done and the count are untouched: still any question with no gap (once
+  // the answers have loaded — it flashed "Done" before, 2026-10-24).
   assert.match(conversation, /const answered = ordered\.filter\(\(question\) => !gapByKey\.has\(question\.key\)\)\.length;/);
-  assert.match(conversation, /const done = !gap;/);
+  assert.match(conversation, /const done = !loading && !gap;/);
 });

@@ -616,7 +616,7 @@ export function TodayInbox() {
               has no nav entry and which they had no reason to visit. The three
               ways in — the website form, the inbox, a forward by hand — each
               open their setup sheet here, without leaving Today. */}
-          {!loading && setup.noInquiriesEver ? <LeadCaptureStart /> : null}
+          {!loading && setup.noInquiriesEver ? <LeadCaptureStart waiting={setup.inquiryWaiting} /> : null}
           {/* Not beneath "Let's get you set up": a brand-new studio has
               nothing waiting because it has nothing yet, and the setup card
               above is what to do. */}
@@ -790,6 +790,7 @@ export function TodayInbox() {
           loading={loading}
           upcoming={inbox.upcoming}
           calls={calls}
+          canImport={workspace.role === "studio_owner" || workspace.role === "studio_admin"}
           trade={workspace.tenantTrade}
         />
       </div>
@@ -951,9 +952,12 @@ function TodayRail({
   loading,
   bands,
   calls,
+  canImport,
   trade,
 }: {
   inMotion: number;
+  /** Owners and admins: an empty calendar offers to bring bookings over. */
+  canImport: boolean;
   calls: TodayCall[];
   trade: unknown;
   upcoming: Array<{ projectId: string; name: string; eventDate: string; inDays: number }>;
@@ -1013,7 +1017,17 @@ function TodayRail({
       <section className="today-rail-card">
         <p className="eyebrow">{headlinedProjectId ? "After that" : "Coming up"}</p>
         {rest.length === 0 ? (
-          <p className="today-rail-empty">No events on the books yet.</p>
+          <>
+            <p className="today-rail-empty">No events on the books yet.</p>
+            {/* A studio arrives with a season already booked somewhere else,
+                and nothing on Today said it could bring it over (ADR 0005;
+                onboarding audit, 2026-10-24). */}
+            {canImport ? (
+              <Link className="today-card-secondary" href="/studio/projects/import">
+                Bring over bookings you already have <ArrowRight size={14} />
+              </Link>
+            ) : null}
+          </>
         ) : (
           <ul className="today-upcoming">
             {rest.map((event) => (

@@ -191,6 +191,16 @@ function importStatusLabel(status: string | undefined) {
  * pre-selected. The server still reads the content and can find more.
  */
 type KindCopy = {
+  /**
+   * The page's own heading when setup opened it for one thing. It opened on
+   * "Bring your current business. Leave the retyping." and a before-and-after
+   * of admin hours, with the paste box below the fold, for a studio that had
+   * pressed "Paste or upload your prices" (onboarding audit, 2026-10-24).
+   */
+  title: string;
+  lede: string;
+  /** The upload box, named for what it's waiting for. */
+  drop: string;
   paste: string;
   name: string;
   /**
@@ -204,6 +214,9 @@ type KindCopy = {
 
 const KIND_COPY: Partial<Record<ImportKind, KindCopy>> = {
   Package: {
+    title: "Add your prices",
+    drop: "Drop your price list here",
+    lede: "Paste your price list or upload it. StudioCue drafts each package for you to check, price by price. Nothing goes live until you approve it.",
     paste: "Paste your price list",
     name: "Pasted price list",
     label: "Paste your price list",
@@ -212,6 +225,9 @@ const KIND_COPY: Partial<Record<ImportKind, KindCopy>> = {
     hint: "StudioCue reads each price as you wrote it. Nothing goes live until you approve it.",
   },
   Questionnaire: {
+    title: "Bring in your details form",
+    drop: "Drop your form here",
+    lede: "Paste or upload the form you already send before the day. StudioCue keeps your questions, in your order, for you to check.",
     paste: "Paste your details form",
     name: "Pasted details form",
     label: "Paste your details form",
@@ -676,24 +692,34 @@ export function TemplateImportStudio({
 
   return (
     <div className="template-import-page">
-      <header className="template-import-hero">
-        <div>
-          <p className="template-import-kicker">
-            <Sparkles size={15} /> AI import studio
-          </p>
-          <h1>Bring your current business.<br />Leave the retyping.</h1>
-          <p>
-            Give StudioCue the files, messages, and pages you already use. It
-            will map them to real app templates, preserve your voice, and ask
-            for approval before anything goes live.
-          </p>
+      {kindCopy ? (
+        <div className="dashboard-heading">
+          <div>
+            <p className="eyebrow">Getting started</p>
+            <h1>{kindCopy.title}</h1>
+            <p>{kindCopy.lede}</p>
+          </div>
         </div>
-        <aside>
-          <span><strong>5–6 hrs</strong><small>admin per wedding today</small></span>
-          <ArrowRight size={18} />
-          <span><strong>&lt; 1 hr</strong><small>target with one workflow</small></span>
-        </aside>
-      </header>
+      ) : (
+        <header className="template-import-hero">
+          <div>
+            <p className="template-import-kicker">
+              <Sparkles size={15} /> AI import studio
+            </p>
+            <h1>Bring your current business.<br />Leave the retyping.</h1>
+            <p>
+              Give StudioCue the files, messages, and pages you already use. It
+              will map them to real app templates, preserve your voice, and ask
+              for approval before anything goes live.
+            </p>
+          </div>
+          <aside>
+            <span><strong>5–6 hrs</strong><small>admin per wedding today</small></span>
+            <ArrowRight size={18} />
+            <span><strong>&lt; 1 hr</strong><small>target with one workflow</small></span>
+          </aside>
+        </header>
+      )}
 
       <div className="template-import-layout">
         <section className="template-source-panel">
@@ -757,9 +783,9 @@ export function TemplateImportStudio({
                 type="button"
               >
                 <span><Upload size={23} /></span>
-                <strong>Drop your working files here</strong>
+                <strong>{kindCopy ? kindCopy.drop : "Drop your working files here"}</strong>
                 <small>
-                  Contracts, email copy, questionnaires, schedules, packages ·{" "}
+                  {kindCopy ? "PDF, Word, text or CSV" : "Contracts, email copy, questionnaires, schedules, packages"} ·{" "}
                   {STUDIO_IMPORT_MAX_FILE_BYTES / (1024 * 1024)}{" "} MB each
                 </small>
                 <em>Browse files</em>

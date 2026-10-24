@@ -113,6 +113,8 @@ export function useTodayInbox(): {
     next: SetupGapKey | null;
     brandNew: boolean;
     noInquiriesEver: boolean;
+    /** A way in is set up and waiting for its first inquiry (useSetupState). */
+    inquiryWaiting: boolean;
     /** Whether any job has ever booked: until one has, Today offers "A wedding, start to finish". */
     bookedAJob: boolean;
   };
@@ -556,6 +558,7 @@ export function useTodayInbox(): {
        * forwarding address exists. This is the moment to say so.
        */
       noInquiriesEver: (leads.records ?? []).length === 0,
+      inquiryWaiting: setup.inquiryWaiting,
       bookedAJob: studioHasBookedAJob(projects.records),
     },
     // The studio's pulse, from the same engine the old dashboard used.

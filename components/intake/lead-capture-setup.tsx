@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import Link from "next/link";
 import {
   Check,
   ChevronRight,
@@ -236,18 +237,26 @@ export function LeadCaptureSetup() {
  * buttons, each opening the same sheet as settings — so a studio can put its
  * address on its website form without leaving the page it landed on.
  */
-export function LeadCaptureStart() {
+export function LeadCaptureStart({ waiting = false }: { waiting?: boolean }) {
   const { setup, actions, unavailable } = useLeadCaptureSetup();
   if (unavailable || !setup?.address) return null;
-  return <LeadCaptureStartView actions={actions} setup={{ ...setup, address: setup.address }} />;
+  return <LeadCaptureStartView actions={actions} setup={{ ...setup, address: setup.address }} waiting={waiting} />;
 }
 
+/**
+ * Today's way in, until the first inquiry. Once a route is set up and nothing
+ * has come through it yet (`waiting`), the same three routes asked "Get your
+ * inquiries in" again, as if the studio hadn't just done it; it says what it
+ * is waiting for instead, and offers the test (onboarding audit, 2026-10-24).
+ */
 export function LeadCaptureStartView({
   setup,
   actions,
+  waiting = false,
 }: {
   setup: LeadCaptureSetupState & { address: string };
   actions: LeadCaptureActions;
+  waiting?: boolean;
 }) {
   return (
     <section aria-labelledby="capture-start-title" className="capture-start">
@@ -255,10 +264,24 @@ export function LeadCaptureStartView({
         <Inbox size={20} />
       </span>
       <div className="capture-start-copy">
-        <strong id="capture-start-title">Get your inquiries in</strong>
-        <small>Each one arrives filled in, with a reply drafted.</small>
+        <strong id="capture-start-title">{waiting ? "Waiting for your first inquiry" : "Get your inquiries in"}</strong>
+        <small>
+          {waiting
+            ? "Your way in is set up. Send yourself a test to see one arrive, filled in, with a reply drafted."
+            : "Each one arrives filled in, with a reply drafted."}
+        </small>
       </div>
-      <CaptureRouteButtons actions={actions} setup={setup} />
+      {waiting ? (
+        <div className="capture-start-routes">
+          <TestSheetButton actions={actions} className="capture-start-route" setup={setup} />
+          <Link className="capture-start-route" href="/studio/settings/inquiry-capture">
+            <Inbox size={16} />
+            <span>Other ways in</span>
+          </Link>
+        </div>
+      ) : (
+        <CaptureRouteButtons actions={actions} setup={setup} />
+      )}
     </section>
   );
 }
@@ -301,6 +324,53 @@ export function LeadCaptureRoutes() {
   const { setup, actions, unavailable } = useLeadCaptureSetup();
   if (unavailable || !setup?.address) return null;
   return <CaptureRouteButtons actions={actions} setup={{ ...setup, address: setup.address }} />;
+}
+
+/**
+ * "Send yourself a test", on its own: for a way in that is set up and still
+ * waiting for its first inquiry. Finishing a route's guide used to leave the
+ * setup question exactly as it was, with nothing to check it against
+ * (onboarding audit, 2026-10-24).
+ */
+export function LeadCaptureTestButton({ className = "setup-answer-link" }: { className?: string }) {
+  const { setup, actions, unavailable } = useLeadCaptureSetup();
+  if (unavailable || !setup) return null;
+  return <TestSheetButton actions={actions} className={className} setup={setup} />;
+}
+
+/** The test sheet behind a button, for a studio whose way in is waiting. */
+function TestSheetButton({
+  setup,
+  actions,
+  className,
+}: {
+  setup: LeadCaptureSetupState;
+  actions: LeadCaptureActions;
+  className: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button className={className} onClick={() => setOpen(true)} type="button">
+        <FlaskConical size={14} /> Send yourself a test
+      </button>
+      <SheetDialog label="Send a test inquiry" onClose={() => setOpen(false)} open={open}>
+        <div className="capture-sheet">
+          <header>
+            <p className="eyebrow">Check it works</p>
+            <h3>Send a test inquiry</h3>
+          </header>
+          <TestStep actions={actions} setup={setup} />
+          <footer>
+            <span />
+            <button className="button button-dark" onClick={() => setOpen(false)} type="button">
+              Done
+            </button>
+          </footer>
+        </div>
+      </SheetDialog>
+    </>
+  );
 }
 
 /* ── The panel ────────────────────────────────────────────────────────── */

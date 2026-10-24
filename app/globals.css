@@ -3554,6 +3554,168 @@ textarea:focus-visible {
   outline: 3px solid rgb(90 119 100 / 9%);
 }
 
+/* Signup's three steps, on the account form, the studio form and the plan
+   picker (features/auth/signup-steps.tsx; onboarding audit, 2026-10-24). */
+.signup-steps {
+  color: var(--ds-muted, #545c66);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 650;
+  gap: 6px 18px;
+  list-style-type: none;
+  margin: 0 0 22px;
+  padding: 0;
+}
+.signup-steps li {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+}
+.signup-steps li > span {
+  border: 1.5px solid var(--ds-line, #dde1e7);
+  border-radius: 50%;
+  display: grid;
+  font-size: 12px;
+  height: 22px;
+  place-items: center;
+  width: 22px;
+}
+.signup-steps li.is-current {
+  color: var(--ds-ink, #191b20);
+}
+.signup-steps li.is-current > span {
+  background: var(--ds-action, #0b7d57);
+  border-color: var(--ds-action, #0b7d57);
+  color: #fff;
+}
+.signup-steps li.is-done > span {
+  background: #e3f1eb;
+  border-color: transparent;
+  color: var(--accent, #0a7a55);
+}
+
+/* "What do you do?": every trade in view, one tap each. */
+.onboarding-trades {
+  border: 0;
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+.onboarding-trades > legend {
+  color: var(--ds-ink-soft, #444a46);
+  font-size: 14px;
+  font-weight: 620;
+  margin-bottom: 9px;
+  padding: 0;
+}
+.onboarding-trade-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sign-in-form label.onboarding-trade {
+  display: inline-flex;
+  flex-direction: row;
+  gap: 0;
+  position: relative;
+}
+.sign-in-form .onboarding-trade > input {
+  height: 1px;
+  margin: 0;
+  min-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 1px;
+}
+.onboarding-trade > span {
+  background: var(--ds-paper, #fff);
+  border: 1px solid var(--ds-line, #dde1e7);
+  border-radius: 999px;
+  color: var(--ds-ink, #191b20);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 16px;
+}
+.onboarding-trade:has(> input:checked) > span {
+  background: #e8f3ee;
+  border-color: var(--ds-action, #0b7d57);
+  color: var(--accent, #0a7a55);
+}
+.onboarding-trade:has(> input:focus-visible) > span {
+  box-shadow: 0 0 0 3px rgb(11 125 87 / 25%);
+}
+.onboarding-trades > small {
+  color: var(--ds-muted, #545c66);
+  font-size: 13px;
+}
+
+/* Timezone and currency are detected: one line, opened only to change. */
+.onboarding-locale {
+  border: 1px solid var(--ds-line, #dde1e7);
+  border-radius: 11px;
+}
+.onboarding-locale > summary {
+  align-items: center;
+  color: var(--ds-muted, #545c66);
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 14px;
+  gap: 4px 12px;
+  justify-content: space-between;
+  list-style-type: none;
+  padding: 14px 16px;
+}
+.onboarding-locale > summary::-webkit-details-marker {
+  display: none;
+}
+.onboarding-locale > summary strong {
+  color: var(--ds-ink, #191b20);
+  font-weight: 650;
+}
+.onboarding-locale > summary em {
+  color: var(--accent, #0a7a55);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
+}
+.onboarding-locale > label {
+  margin: 0 16px 16px;
+}
+
+/* "Check your email": what to look for, a resend, and a way back from a
+   mistyped address. */
+.command-success .check-email-help {
+  margin: 16px 0 0;
+}
+.check-email-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 8px 0 0;
+}
+.check-email-actions button {
+  background: none;
+  border: 0;
+  color: var(--accent, #0a7a55);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0;
+}
+.check-email-actions button:disabled {
+  color: var(--ds-muted, #545c66);
+  cursor: default;
+  font-weight: 600;
+}
+
 .label-row {
   display: flex;
   justify-content: space-between;
@@ -8546,6 +8708,46 @@ textarea:focus-visible {
   margin-top: auto;
 }
 
+/* Monthly or yearly, chosen once above the plans before a trial
+   (onboarding audit, 2026-10-24). Wraps under the heading on a narrow
+   column rather than squeezing it. */
+.subscription-plan-section .section-heading-row:has(> .subscription-cadence) {
+  align-items: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+.subscription-plan-section .section-heading-row:has(> .subscription-cadence) > div:first-child {
+  flex: 1 1 320px;
+}
+.subscription-cadence button {
+  font-size: 13px;
+  padding: 9px 14px;
+}
+
+/* Back from Checkout with the trial live, before setup opens. */
+.subscription-welcome {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  margin: 40px auto;
+  max-width: 560px;
+  padding: 32px;
+}
+.subscription-welcome > svg {
+  color: var(--accent, #0a7a55);
+}
+.subscription-welcome h1 {
+  font-size: 30px;
+  margin: 0;
+}
+.subscription-welcome p {
+  color: var(--ds-muted, #545c66);
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 0 0 8px;
+}
+
 .billing-boundary {
   background: #f9faf8;
   border-color: #d8dfd8;
@@ -12973,6 +13175,14 @@ form:has(> .address-field) > .address-field,
 .form-grid:has(.address-field) > label,
 .form-grid:has(.address-field) > .address-field {
   align-self: start;
+}
+/* Not in signup's one-column form: there it shrank every field to its own
+   content once the business address joined it (2026-10-13), so the drop-downs
+   were each a different width and "Photography or video" was cut off under
+   its arrow (onboarding audit, 2026-10-24). */
+.sign-in-form:has(> .address-field) > label,
+.sign-in-form:has(> .address-field) > .address-field {
+  align-self: stretch;
 }
 
 /* The address box on the create-your-studio step (onboarding-form.tsx)

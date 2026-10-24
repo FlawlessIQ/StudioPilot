@@ -105,6 +105,35 @@ export function setupStepName(key: SetupGapKey, trade?: unknown): string {
 }
 
 /**
+ * What each question holds up while it's unanswered, for the chip beside it.
+ *
+ * Every question can be skipped, and the page said so, but nothing said which
+ * ones a new studio actually needs before what — so seven questions read as
+ * seven things to finish before starting (onboarding audit, 2026-10-24). This
+ * names the moment each answer is needed: inquiries need a way in, a call
+ * needs hours, a proposal (a quote) needs a price, a booking needs an
+ * agreement.
+ * "What you shoot" and insurance never hold anything up.
+ */
+export function setupStepNeed(key: SetupGapKey, trade?: unknown): { label: string; optional: boolean } {
+  switch (key) {
+    case "work":
+    case "insurance":
+      return { label: "Optional", optional: true };
+    case "inquiries":
+      return { label: "Needed for inquiries", optional: false };
+    case "availability":
+      return { label: tradeProfile(trade).consultation ? "Needed for calls" : "Needed for trials", optional: false };
+    case "packages":
+      return { label: `Needed for ${tradeVocab(trade).proposal.toLowerCase()}s`, optional: false };
+    case "agreement":
+      return { label: "Needed to book", optional: false };
+    case "questionnaire":
+      return { label: "Needed after booking", optional: false };
+  }
+}
+
+/**
  * The first unanswered question, in this studio's setup order. A vendor's
  * order has no "work", forms or insurance question, so Today's "Next:" can
  * never point her at one. Absent trade is a photographer's seven.

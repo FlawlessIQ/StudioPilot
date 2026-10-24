@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
-import { BrainCircuit, CheckCircle2, CreditCard, UsersRound } from "lucide-react";
+import { ArrowRight, BrainCircuit, CheckCircle2, CreditCard, UsersRound } from "lucide-react";
+import { SignupSteps } from "@/features/auth/signup-steps";
 import { doc, onSnapshot } from "firebase/firestore";
 import { BillingAction } from "@/components/saas/billing-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -39,9 +40,14 @@ export function LiveSubscription() {
       doc(firestore, "subscriptions", workspace.tenantId),
       (snapshot) => setSubscription(snapshot.data() ?? {}),
     );
+    // This month's counter doesn't exist until the studio's first AI action,
+    // and the rules read its tenant from the document itself, so a new
+    // studio's listener was refused and logged an uncaught error on the
+    // signup page. No counter yet is no usage yet.
     const unsubscribeUsage = onSnapshot(
       doc(firestore, "usageCounters", `${workspace.tenantId}_${period}`),
       (snapshot) => setUsage(snapshot.data() ?? {}),
+      () => setUsage({}),
     );
     return () => {
       unsubscribeSubscription();
@@ -106,12 +112,24 @@ export function LiveSubscription() {
     if (checkoutOutcome === "success" && trialActive) {
       // Into setup, not Today: a studio that has just started its trial has
       // nothing on Today yet, and setup had no way in but a card there
-      // (docs/onboarding-assessment-2026-09-26.md).
-      const timer = setTimeout(() => window.location.assign("/studio/setup"), 1200);
+      // (docs/onboarding-assessment-2026-09-26.md). Long enough to read that
+      // the trial started and when it ends (the panel below).
+      const timer = setTimeout(() => window.location.assign("/studio/setup"), 2500);
       return () => clearTimeout(timer);
     }
     return undefined;
   }, [checkoutOutcome, trialActive]);
+  /**
+   * Monthly or yearly, chosen once above the plans: each plan offered a
+   * monthly and an annual button, four dark buttons of equal weight on the
+   * last step of signup (onboarding audit, 2026-10-24).
+   */
+  const [cadence, setCadence] = useState<"monthly" | "yearly">("monthly");
+  // When a trial started now would end: the date the studio is promised
+  // nothing is charged before.
+  const [trialEndsLabel] = useState(() =>
+    new Date(Date.now() + 14 * 86_400_000).toLocaleDateString("en-US", { month: "long", day: "numeric" }),
+  );
 
   /**
    * Back from Checkout: confirm from the Session rather than only waiting on
@@ -179,15 +197,47 @@ export function LiveSubscription() {
   const maxAi = Number(entitlements.aiActionsMonthly ?? 0);
   const subcontractors = Number(subscription?.activeSubcontractorCount ?? 0);
   const maxSubcontractors = entitlements.maxActiveSubcontractors;
+  // The plan the picker leads with: the one chosen on the website, else the
+  // trade's own first plan. Its button is the dark one.
+  const leading = tradeCards.some((card) => card.key === picked) ? picked : tradeCards[0]?.key;
+  const monthly = cadence === "monthly";
+  /**
+   * Back from Checkout with the trial live: say so, and when it ends, before
+   * setup opens. The page used to flip to plan management — usage meters and
+   * "Choose the operating capacity your studio needs" — for a second, over a
+   * studio that had just chosen (onboarding audit, 2026-10-24).
+   */
+  if (checkoutOutcome === "success" && trialActive) {
+    return (
+      <div className="saas-page">
+        <section className="panel subscription-welcome" role="status">
+          <CheckCircle2 aria-hidden="true" size={28} />
+          <h1>Your trial has started</h1>
+          <p>
+            {periodEndLabel
+              ? `Nothing is charged until ${periodEndLabel}, and you can cancel any time before then.`
+              : "Nothing is charged for 14 days, and you can cancel any time before then."}{" "}
+            Next, show Cue how your studio works: a few questions, most answered in a tap.
+          </p>
+          {/* A full load, as the timer above does: the workspace re-reads the
+              subscription and opens. */}
+          <a className="button button-dark" href="/studio/setup">
+            Set up your studio <ArrowRight size={15} />
+          </a>
+        </section>
+      </div>
+    );
+  }
   return (
     <div className="saas-page">
       <header className="page-heading">
         <div>
+          {preTrial ? <SignupSteps current={3} /> : null}
           <p className="eyebrow">{preTrial ? "Start your trial" : "Plan & usage"}</p>
           <h1>{preTrial ? "Start your 14-day trial" : "Subscription"}</h1>
           <p>
             {preTrial
-              ? "Pick the plan that fits your studio to open your workspace. Your card is collected now but nothing is charged until the trial ends — cancel any time before then."
+              ? `Pick a plan and add a card to open your workspace. Nothing is charged until ${trialEndsLabel}, and you can cancel any time before then.`
               : "Manage your plan and billing securely through Stripe."}
             {preTrial && referredBy
               ? referredBy.workedWith
@@ -202,7 +252,9 @@ export function LiveSubscription() {
                   : null}
           </p>
         </div>
-        <div className="subscription-status">
+        {/* Before a trial, "Trial not started" beside "Start your 14-day
+            trial" said the same thing twice. */}
+        <div className="subscription-status" hidden={preTrial}>
           <StatusBadge tone={["active", "trialing"].includes(status) ? "success" : "warning"}>
             {preTrial
               ? statusLabel
@@ -222,10 +274,10 @@ export function LiveSubscription() {
           ) : null}
         </div>
       </header>
-      {/* Plan A1: what's on the other side of the card wall. Hides itself
-          without a media base, or if the teaser fails to load. */}
-      {preTrial && checkoutOutcome !== "success" ? <TrialTeaser /> : null}
-      {!trialActive && status !== "loading" ? (
+      {/* Not for a studio that hasn't checked out and isn't coming back from
+          Checkout: the heading above already says the trial hasn't started,
+          and this repeated it a third time. */}
+      {!trialActive && status !== "loading" && (!preTrial || checkoutOutcome) ? (
         <section
           className="panel"
           style={{ margin: "0 0 20px", padding: "16px 20px" }}
@@ -288,15 +340,39 @@ export function LiveSubscription() {
             <p className="eyebrow">Plans</p>
             <h2>
               {preTrial
-                ? "Choose a plan to start your trial"
+                ? tradeCards.length > 1
+                  ? "Choose a plan"
+                  : "Your plan"
                 : "Choose the operating capacity your studio needs"}
             </h2>
             <p>
               {preTrial
-                ? `${tradeCards.length > 1 ? "Each plan starts" : "It starts"} with a 14-day free trial. Switch plan or cadence any time — nothing is charged until the trial ends.`
+                ? `${tradeCards.length > 1 ? "Each plan starts" : "It starts"} with a 14-day free trial. Switch plan or billing any time.`
                 : "Upgrade or change cadence without contacting support."}
             </p>
           </div>
+          {preTrial ? (
+            <div aria-label="Billing" className="segmented-control subscription-cadence" role="radiogroup">
+              <button
+                aria-checked={monthly}
+                className={monthly ? "active" : ""}
+                onClick={() => setCadence("monthly")}
+                role="radio"
+                type="button"
+              >
+                Monthly
+              </button>
+              <button
+                aria-checked={!monthly}
+                className={monthly ? "" : "active"}
+                onClick={() => setCadence("yearly")}
+                role="radio"
+                type="button"
+              >
+                Yearly · two months free
+              </button>
+            </div>
+          ) : null}
         </div>
         <div className="plan-grid">
           {tradeCards.map((card) => (
@@ -322,6 +398,15 @@ export function LiveSubscription() {
                   <strong>{dollars(halfOff(card.monthlyCents))}<small>/month</small></strong>
                   <p>{`half price for your first 12 months, or ${dollars(halfOff(card.yearlyCents))} your first year · ${referredBy.workedWith ? "from an event with" : "referred by"} ${referredBy.referrerName}`}</p>
                 </>
+              ) : preTrial && cadence === "yearly" ? (
+                <>
+                  <strong>{card.yearly}<small>/year</small></strong>
+                  <p>
+                    {card.yearlyCents % 1200 === 0
+                      ? `two months free · works out to ${dollars(card.yearlyCents / 12)} a month`
+                      : `two months free · about ${dollars(Math.round(card.yearlyCents / 1200) * 100)} a month`}
+                  </p>
+                </>
               ) : (
                 <>
                   <strong>{card.monthly}<small>/month</small></strong>
@@ -338,13 +423,30 @@ export function LiveSubscription() {
                 ))}
               </ul>
               <div className="plan-billing-actions">
-                <BillingAction plan={card.key} cadence="monthly" label={`${card.name} monthly`} />
-                <BillingAction plan={card.key} cadence="yearly" label={`${card.name} annual`} />
+                {preTrial ? (
+                  <BillingAction
+                    ariaLabel={`Start a free trial of ${card.name}, billed ${cadence}`}
+                    cadence={cadence}
+                    label="Start free trial"
+                    plan={card.key}
+                    tone={card.key === leading ? "dark" : "light"}
+                  />
+                ) : (
+                  <>
+                    <BillingAction plan={card.key} cadence="monthly" label={`${card.name} monthly`} />
+                    <BillingAction plan={card.key} cadence="yearly" label={`${card.name} annual`} />
+                  </>
+                )}
               </div>
             </article>
           ))}
         </div>
       </section>
+      {/* Plan A1: what's on the other side of the card wall. Hides itself
+          without a media base, or if the teaser fails to load. Under the
+          plans, not above them: the plans are the step, and they were below
+          the fold on a laptop (onboarding audit, 2026-10-24). */}
+      {preTrial && checkoutOutcome !== "success" ? <TrialTeaser /> : null}
       {/* Every trade refers (Conor, 2026-10-13): a code gives a photographer
           the Studio plan's referral price and a vendor the vendor offer. */}
       {!preTrial && trialActive && workspace.role === "studio_owner" ? <ReferralCard /> : null}

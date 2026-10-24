@@ -22,9 +22,11 @@ test("onboarding asks for the studio name, not the same name twice", () => {
   const form = read("features/auth/onboarding-form.tsx");
   assert.doesNotMatch(form, /name="legalName"/);
   assert.match(form, /legalName: String\(data\.get\("businessName"\)\)/);
-  // Defaults come from the browser, not a hard-coded New York / USD.
-  assert.match(form, /defaultValue=\{zone\}/);
-  assert.match(form, /defaultValue=\{currencyForTimezone\(zone\)\}/);
+  // Defaults come from the browser, not a hard-coded New York / USD — and
+  // since 2026-10-24 they're said in one line, changed only on request.
+  assert.match(form, /const timezone = chosenZone \?\? zone;/);
+  assert.match(form, /const currency = chosenCurrency \?\? currencyForTimezone\(zone\);/);
+  assert.match(form, /<details className="onboarding-locale">/);
   // And the server refuses a timezone that isn't one.
   assert.match(read("functions/src/saas/onboarding.ts"), /Unknown timezone/);
 });

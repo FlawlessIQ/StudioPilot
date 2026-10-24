@@ -11,14 +11,22 @@ import { auditContrast } from "./support/contrast-audit";
  * already darkened the tokens: hardcoded greys crept back in around them.
  * This reads what is drawn, so a new grey fails here the day it lands.
  *
- * Studio pages only, at one laptop width; the couple and crew portals get
- * their own pass with the phone audit. Pages are found from app/studio, so a
- * page added tomorrow is checked tomorrow.
+ * Studio pages and signup's, at one laptop width; the couple and crew
+ * portals get their own pass with the phone audit. Pages are found from
+ * app/studio, so a page added tomorrow is checked tomorrow.
  */
 const staticRoutes = globSync("app/studio/**/page.tsx")
   .map((file) => file.replace(/^app/, "").replace(/\/page\.tsx$/, ""))
   .filter((route) => !route.includes("["))
   .sort();
+
+/**
+ * Signup, where a studio decides whether to start at all. A CSS rule cut in
+ * half on 2026-09-30 turned the sign-up page's "Card required, nothing
+ * charged for 14 days" grey on its dark green panel, and nothing here looked
+ * (onboarding audit, 2026-10-24).
+ */
+const signupRoutes = ["/auth/register", "/auth/login", "/auth/onboarding"];
 
 const recordRoutes = [
   "/studio/projects/demo-project",
@@ -32,7 +40,7 @@ const recordRoutes = [
   "/studio/post-production/demo-project",
 ];
 
-for (const route of [...staticRoutes, ...recordRoutes]) {
+for (const route of [...signupRoutes, ...staticRoutes, ...recordRoutes]) {
   test(`readable on a laptop: ${route}`, async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop-chromium");
     test.setTimeout(60_000);

@@ -936,12 +936,114 @@
 }
 
 .setup-progress {
-  margin: 10px 0 0;
-  color: var(--muted, #8a938d);
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 12px 0 0;
+  color: var(--ds-muted, #5f6b64);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+/* How far through setup, at a glance (onboarding audit, 2026-10-24). */
+.setup-progress-bar {
+  background: var(--ds-line, #dde1e7);
+  border-radius: 999px;
+  display: block;
+  flex: 0 1 220px;
+  height: 6px;
+  overflow: hidden;
+}
+.setup-progress-bar > b {
+  background: var(--ds-action, #0b7d57);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+/* "You don't have to finish first": a job can be started, or bookings
+   brought over, before every question is answered. */
+.setup-start-now {
+  align-items: center;
+  background: #edf6f2;
+  border-radius: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  padding: 12px 18px;
+}
+.setup-start-now > p {
+  color: var(--ds-ink, #1f2a24);
+  flex: 1 1 280px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin: 0;
+}
+.setup-start-now > .setup-answer-row {
+  margin-top: 0;
+}
+
+/* The title and what it's needed for: the chip wraps under a long title
+   rather than squeezing it. */
+.setup-question-title {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.setup-need {
+  background: var(--ds-amber-soft, #fbf1dc);
+  border-radius: 999px;
+  color: var(--ds-amber-text, #7a5410);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.setup-need.is-optional {
+  background: var(--ds-line-soft, #eef1ee);
+  color: var(--ds-muted, #5f6b64);
+}
+
+/* The one question to answer next: its button is the dark one. */
+.setup-questions li.is-next {
+  border-color: var(--ds-action, #0b7d57);
+  box-shadow: 0 0 0 1px var(--ds-action, #0b7d57);
+}
+.setup-questions li.is-next .setup-question-marker {
+  background: var(--ds-action, #0b7d57);
+  color: #fff;
+}
+.setup-questions li.is-next .setup-need {
+  background: #e3f1eb;
+  color: var(--accent, #0a7a55);
+}
+
+/* StudioCue's own form link, under "How do inquiries reach you?". */
+.setup-hosted-form {
+  border-top: 1px dashed var(--ds-line, #dfe4df);
+  margin-top: 14px;
+  padding-top: 12px;
+}
+.setup-hosted-form > p {
+  color: var(--ds-muted, #5f6b64);
+  font-size: 13px;
+  margin: 0;
+}
+.setup-hosted-form > p > strong {
+  color: var(--ds-ink, #1f2a24);
+}
+.setup-hosted-form > .setup-answer-row {
+  margin-top: 8px;
+}
+.setup-hosted-form > .setup-hosted-url {
+  margin-top: 10px;
+  width: 100%;
 }
 
 .setup-questions {
@@ -1000,7 +1102,7 @@
   min-width: 0;
 }
 
-.setup-question-body strong {
+.setup-question-title > strong {
   font-family: var(--font-display);
   font-size: 17px;
   letter-spacing: -0.01em;
@@ -1047,11 +1149,14 @@
 }
 
 .setup-answer-link {
+  align-items: center;
   background: none;
   border: 0;
   color: var(--green, #2e7042);
   cursor: pointer;
+  display: inline-flex;
   font: inherit;
+  gap: 5px;
   font-size: 13px;
   font-weight: 700;
   padding: 0;
@@ -1831,7 +1936,7 @@
     margin-top: 8px;
     min-height: 36px;
   }
-  .setup-question-body strong {
+  .setup-question-title > strong {
     font-size: 16px;
   }
 }

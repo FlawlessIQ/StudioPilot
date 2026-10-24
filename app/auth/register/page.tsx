@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, CircleCheck } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { RegisterForm } from "@/features/auth/register-form";
+import { SignupSteps } from "@/features/auth/signup-steps";
 import { vendorPlanCards } from "@/config/saas-plans";
 import { adminFirestore } from "@/server/firebase/admin";
 import { signupOfferFor, signupReferralFor } from "@/server/vendors/vendor-offer";
@@ -53,7 +54,9 @@ export default async function RegisterPage({
           <blockquote>
             {isClientInvite
               ? "Create one secure client login, then StudioCue will connect the exact project your studio invited you to."
-              : "Start with a calm operating system for every project—not another disconnected tool."}
+              : // What Cue does, as the sign-in page says it (positioning,
+                // 2026-10-06); this still sold "a calm operating system".
+                "Cue prepares every inquiry, contract and crew offer. You review it and send it."}
           </blockquote>
         </div>
         <div className="auth-trust">
@@ -92,6 +95,7 @@ export default async function RegisterPage({
           </Link>
         ) : null}
         <div className="auth-form-wrap">
+          {isClientInvite ? null : <SignupSteps current={1} />}
           <span className="eyebrow">
             {isClientInvite ? "Secure client access" : "Start your trial"}
           </span>
@@ -99,13 +103,16 @@ export default async function RegisterPage({
             {isClientInvite ? "Create your client access" : "Create your account"}
           </h1>
           <p>
+            {/* The card is said here as well as in the brand panel: phones
+                have no brand panel, so it was first mentioned in the small
+                print under the button (onboarding audit, 2026-10-24). */}
             {isClientInvite
               ? "Use the email that received the invitation. After verification, your project will connect automatically."
               : vendorWord && offer
                 ? `Verify your work email, then set up your ${vendorWord} business. ${offer.studioName ? `Because you worked an event with ${offer.studioName}: ` : ""}${offer.summary}.`
                 : vendorWord
                 ? `Verify your work email, then set up your ${vendorWord} business. ${referralLine ?? `${vendorPlanCards[0]!.monthly} a month after the 14-day trial.`}`
-                : `Verify your work email, then set up your own private studio.${referralLine ? ` ${referralLine}` : ""}`}
+                : `Verify your work email, then name your studio and start your 14-day trial. Card required, nothing charged for 14 days.${referralLine ? ` ${referralLine}` : ""}`}
           </p>
           <RegisterForm
             intent={isClientInvite ? "client" : "studio"}
