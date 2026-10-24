@@ -11,7 +11,8 @@
  * CLOSED: the last third of the lifecycle had no entrance.
  *
  * This creates it when a project enters POST_PRODUCTION, with every step
- * incomplete — the studio still has to do the work and say so. It is the same
+ * incomplete but "Editing started" — the move into Editing is the studio
+ * saying exactly that — and the studio still has to do the rest and say so. It is the same
  * shape of fault as PLANNING → READY having no performer, and the same shape of
  * fix: the state change is the occasion, and nothing is claimed on the studio's
  * behalf.
@@ -91,12 +92,38 @@ export const postProductionOnProjectEditing = onDocumentWritten(
         })
         .catch(() => undefined);
     }
-    // A record from an earlier pass through editing is the studio's work.
-    if (existing.exists) return;
+    /**
+     * Moving the job to Editing is the studio saying editing has started, so
+     * that one step is ticked with it — on its own word, by whoever moved the
+     * job. The job read "Editing" above a checklist still asking "Editing
+     * started — Mark done" (prod walk, 2026-10-23). Nothing else is claimed.
+     */
+    const startedBy = String(project.get("updatedBy") ?? "") || "post-production-opener";
+    const editingStarted = {
+      complete: true,
+      completedAt: now,
+      completedBy: startedBy,
+      evidenceId: null,
+      notes: "Recorded when the job moved to Editing.",
+    };
+    // A record from an earlier pass through editing is the studio's work:
+    // only an unticked "Editing started" is filled in.
+    if (existing.exists) {
+      const step = (existing.get("steps") ?? {}) as Record<string, { complete?: boolean } | undefined>;
+      if (step.editing_started?.complete !== true) {
+        await reference.update({
+          "steps.editing_started": editingStarted,
+          updatedAt: now,
+          updatedBy: startedBy,
+        });
+      }
+      return;
+    }
 
-    const steps = Object.fromEntries(
+    const steps: Record<string, unknown> = Object.fromEntries(
       STEP_KEYS.map((key) => [key, emptyStep()]),
     );
+    steps.editing_started = editingStarted;
     await reference.create({
       id: projectId,
       tenantId,

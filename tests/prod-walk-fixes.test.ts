@@ -75,3 +75,12 @@ test("the spreadsheet import has no 'Import 0 bookings' button", () => {
   const form = readFileSync(`${process.cwd()}/components/imports/spreadsheet-booking-import.tsx`, "utf8");
   assert.match(form, /\{phase === "importing" \|\| selectedCount > 0 \? \(/);
 });
+
+test("moving a job to Editing ticks 'Editing started' on its checklist, and nothing else", () => {
+  // 2026-10-23: the job read "Editing" above "Editing started — Mark done".
+  const opener = readFileSync(`${process.cwd()}/functions/src/post-event/post-production-start.ts`, "utf8");
+  assert.match(opener, /steps\.editing_started = editingStarted;/);
+  assert.match(opener, /"steps\.editing_started": editingStarted/);
+  // Only that step: the backup gate is never claimed for the studio.
+  assert.doesNotMatch(opener, /steps\.backup_complete\s*=/);
+});
