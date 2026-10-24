@@ -121,6 +121,11 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
   // The role the job is still short of, not a photography constant
   // (features/crew/direct-offer.ts). Derived like the times below: the job
   // and its packages load after the first render.
+  const [crewProfileId, setCrewProfileId] = useState("");
+  const chosenTrades = useMemo(() => {
+    const trades = (profiles ?? []).find((profile) => profile.id === crewProfileId)?.trades;
+    return Array.isArray(trades) ? trades.map(String) : [];
+  }, [profiles, crewProfileId]);
   const defaults = useMemo(() => {
     const snapshotIds = jobPackageSnapshotIds(project);
     return directOfferDefaults({
@@ -129,10 +134,10 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
       ),
       assignments: (assignments ?? []).filter((item) => item.projectId === projectId),
       ownerCovers: ownerShootsJob(project),
+      holds: chosenTrades,
     });
-  }, [assignments, packageSnapshots, project, projectId]);
+  }, [assignments, chosenTrades, packageSnapshots, project, projectId]);
 
-  const [crewProfileId, setCrewProfileId] = useState("");
   const [roleEdit, setRoleEdit] = useState<string | null>(null);
   const role = roleEdit ?? defaults.role;
   // Derived, not stored. State initialises on the first render, when the
@@ -378,8 +383,9 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
           <p className="crew-direct-invite-note">
             This skips candidate ranking and offers the job to{" "}
             {chosen ? <strong>{text(chosen.name)}</strong> : "one person"}{" "} only.
-            They get an email with a link to accept, and the offer expires in
-            seven days.
+            They get an email with a link to accept, and this offer stays open
+            for seven days (the response window under Fill this role is for the
+            ranked list, not this).
           </p>
         )}
         <button

@@ -63,3 +63,15 @@ test("a final invoice raised after its usual due date is due today, never in the
   const source = readFileSync(`${process.cwd()}/functions/src/booking/final-invoice.ts`, "utf8");
   assert.match(source, /if \(due\.toISOString\(\)\.slice\(0, 10\) < todayIso\) due\.setTime\(/);
 });
+
+test("Change it reopens a booking change on what was written, not a blank form", () => {
+  // 2026-10-23: the package just added was dropped, so writing it up again said "Nothing would change".
+  const form = readFileSync(`${process.cwd()}/components/booking/booking-amendment.tsx`, "utf8");
+  assert.match(form, /onClick=\{\(\) => reopenForEditing\(pending\)\}/);
+  assert.match(form, /setAdd\(\s*added\s*\.map\(/);
+});
+
+test("the spreadsheet import has no 'Import 0 bookings' button", () => {
+  const form = readFileSync(`${process.cwd()}/components/imports/spreadsheet-booking-import.tsx`, "utf8");
+  assert.match(form, /\{phase === "importing" \|\| selectedCount > 0 \? \(/);
+});

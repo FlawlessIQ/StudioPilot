@@ -166,6 +166,25 @@ export function BookingAmendmentPanel({
   // A one-off package written for this couple, added by the change.
   const [oneOff, setOneOff] = useState<OneOffPackageInput | null>(null);
   const [writingOneOff, setWritingOneOff] = useState(false);
+  /**
+   * "Change it" opens on the change as written, not a blank form: it dropped
+   * the package just added, so writing it up again said "Nothing would
+   * change" (prod walk, 2026-10-23). Extras and a one-off are re-entered.
+   */
+  const reopenForEditing = (written: Rec) => {
+    const next = (written.next ?? {}) as Rec;
+    if (written.dateChanged === true && str(next.eventDate)) setDate(str(next.eventDate));
+    const removed = Array.isArray(written.removedPackageSnapshotIds) ? (written.removedPackageSnapshotIds as unknown[]).map(String) : [];
+    setKeep(onJobIds.filter((id) => !removed.includes(id)));
+    const added = Array.isArray(written.addedPackageSnapshotIds) ? (written.addedPackageSnapshotIds as unknown[]).map(String) : [];
+    setAdd(
+      added
+        .map((id) => str(((snapshots as Rec[] | null) ?? []).find((snapshot) => snapshot.id === id)?.packageId))
+        .filter(Boolean),
+    );
+    if (str(written.note)) setNote(str(written.note));
+    setEditing(true);
+  };
 
   if (!project) return <p className="cue-action-note">Loading the job…</p>;
   if (!AMENDABLE_STATES.includes(str(project.state)))
@@ -491,7 +510,7 @@ export function BookingAmendmentPanel({
         ) : null}
         <footer className="amendment-actions" hidden={confirming !== null}>
           {!sent ? (
-            <button className="button button-light" disabled={busy} onClick={() => setEditing(true)} type="button">
+            <button className="button button-light" disabled={busy} onClick={() => reopenForEditing(pending)} type="button">
               Change it
             </button>
           ) : null}

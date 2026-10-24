@@ -25,13 +25,25 @@ export function directOfferDefaults(input: {
   coverage: readonly CoverageItem[];
   assignments: readonly CrewDemandAssignment[];
   ownerCovers: boolean;
+  /**
+   * What the person chosen shoots (crewProfiles.trades). The first open role
+   * they hold, before the first open role: a video-only crew member opened on
+   * "Second photographer" with photo duties (prod walk, 2026-10-23).
+   */
+  holds?: readonly string[];
 }): { role: string; responsibilities: string } {
-  const role =
-    crewDemand({
-      coverage: input.coverage,
-      assignments: input.assignments,
-      ownerCovers: input.ownerCovers,
-    }).open[0]?.role ?? "Crew";
+  const open = crewDemand({
+    coverage: input.coverage,
+    assignments: input.assignments,
+    ownerCovers: input.ownerCovers,
+  }).open;
+  const theirs = input.holds?.length
+    ? open.find((slot) => {
+        const trade = coverageTradeNamed(slot.role);
+        return trade !== null && input.holds!.includes(trade);
+      })
+    : undefined;
+  const role = (theirs ?? open[0])?.role ?? "Crew";
   return { role, responsibilities: offerResponsibilities(role) };
 }
 

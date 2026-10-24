@@ -304,3 +304,15 @@ test("the questions offered to studios, and the wedding starter, are worded for 
   assert.equal(labels.get("restrictions"), "Any photography or filming restrictions at the venue?");
   assert.match(read("functions/src/planning/crew-brief-trigger.ts"), /video: await jobHasVideo\(/);
 });
+
+test("a direct booking opens on a role the chosen person actually shoots", () => {
+  // Prod walk, 2026-10-23: a video-only crew member opened on "Second photographer".
+  const coverage = [
+    { role: "photographer" as const, count: 2 },
+    { role: "videographer" as const, count: 1 },
+  ];
+  const forVideo = directOfferDefaults({ coverage, assignments: [], ownerCovers: true, holds: ["videographer"] });
+  assert.equal(forVideo.role, "Videographer");
+  const forPhoto = directOfferDefaults({ coverage, assignments: [], ownerCovers: true, holds: ["photographer"] });
+  assert.match(forPhoto.role, /photographer/i);
+});

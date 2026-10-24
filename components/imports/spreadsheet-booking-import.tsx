@@ -461,19 +461,23 @@ export function SpreadsheetBookingImport() {
             })}
           </ul>
           <div className="booking-import-actions">
-            <button
-              className="button button-dark"
-              disabled={phase === "importing" || selectedCount === 0}
-              onClick={() => void importSelected()}
-              type="button"
-            >
-              {phase === "importing" ? <LoaderCircle className="spin" size={15} aria-hidden="true" /> : null}
-              {phase === "importing"
-                ? "Importing…"
-                : failedRetryable && selectedCount
-                  ? `Try ${selectedCount} again`
-                  : `Import ${selectedCount} booking${selectedCount === 1 ? "" : "s"}`}
-            </button>
+            {/* Nothing left to bring in: no button, rather than "Import 0
+                bookings" under the rows just imported (prod walk, 2026-10-23). */}
+            {phase === "importing" || selectedCount > 0 ? (
+              <button
+                className="button button-dark"
+                disabled={phase === "importing"}
+                onClick={() => void importSelected()}
+                type="button"
+              >
+                {phase === "importing" ? <LoaderCircle className="spin" size={15} aria-hidden="true" /> : null}
+                {phase === "importing"
+                  ? "Importing…"
+                  : failedRetryable
+                    ? `Try ${selectedCount} again`
+                    : `Import ${selectedCount} booking${selectedCount === 1 ? "" : "s"}`}
+              </button>
+            ) : null}
             {phase !== "importing" ? (
               <button className="button button-light" onClick={() => setPhase("mapping")} type="button">
                 Change columns

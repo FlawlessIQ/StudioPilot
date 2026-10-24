@@ -120,11 +120,11 @@ export function CreateCrewProfileForm() {
       </div>
       <form onSubmit={(event) => void submit(event)}>
         <label>
-          Name
+          Name <span className="required-mark">Required</span>
           <input name="name" required minLength={2} placeholder="Jordan Reid" />
         </label>
         <label>
-          Email
+          Email <span className="required-mark">Required</span>
           <input
             name="email"
             required
@@ -137,7 +137,7 @@ export function CreateCrewProfileForm() {
           <input name="phone" type="tel" placeholder="212-555-0140" />
         </label>
         <label>
-          Specialties
+          Specialties <span className="required-mark">Required</span>
           <input
             name="specialties"
             required

@@ -141,7 +141,10 @@ export function PlaceTagsField({
 
   return (
     <div className="address-field place-tags" ref={box}>
-      <label htmlFor={`${label}-input`}>{label}</label>
+      <label htmlFor={`${label}-input`}>
+        {label}
+        {required ? <> <span className="required-mark">Required</span></> : null}
+      </label>
       <div className="address-field-input">
         <MapPin aria-hidden="true" size={15} />
         <span className="place-tag-list">
