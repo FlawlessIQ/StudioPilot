@@ -43,8 +43,13 @@ const wordsToNumber: Record<string, number> = {
  * "…high-resolution downloads. 3,200" was saved as something it includes
  * (onboarding audit, 2026-10-24).
  */
-function lineItemText(value: unknown, packageName = ""): string[] {
+function lineItemText(value: unknown, packageName = "", withPrices = true): string[] {
   const own = packageName.trim().toLowerCase();
+  // One priced line among the inclusions is the package's own price hung on
+  // its first inclusion; several are a list of priced things, kept as written.
+  const pricedLines = Array.isArray(value)
+    ? value.filter((item) => typeof item !== "string" && Boolean(text(record(item).amount ?? record(item).price))).length
+    : 0;
   return Array.isArray(value)
     ? value.flatMap((item) => {
         if (typeof item === "string" && item.trim()) return [item.trim()];
@@ -53,7 +58,7 @@ function lineItemText(value: unknown, packageName = ""): string[] {
           entry.description ?? entry.label ?? entry.name ?? entry.title,
         );
         const itself = Boolean(own) && text(entry.name).toLowerCase() === own && Boolean(text(entry.description));
-        const amount = itself ? "" : text(entry.amount ?? entry.price);
+        const amount = itself || (!withPrices && pricedLines === 1) ? "" : text(entry.amount ?? entry.price);
         return label ? [`${label}${amount ? ` ${amount}` : ""}`] : [];
       })
     : [];
@@ -549,9 +554,13 @@ export function importedStudioPackage(input: {
   const content = record(input.structuredContent);
   const trade = tradeOf(input.trade);
   const vendor = trade !== DEFAULT_TRADE;
+  // The AI also hangs a photographer's package price on its first inclusion
+  // ("6 hours of coverage $3,200"); that price isn't something it includes.
+  // A vendor's lines are read with theirs (priceListItems).
   const details = lineItemText(
     content.lineItems ?? content.pricingItems ?? content.items,
     input.name,
+    vendor,
   );
   const source = [
     text(content.description),
@@ -697,8 +706,11 @@ export function importedStudioPackage(input: {
    * same role twice, once in a summary and once in a line item.
    */
   const roles = tradeRoles(trade);
+  // Within one line, and never the tail of a price: "$3,200" on the line
+  // above "one photographer" read as 200 photographers, capped at 50
+  // (studio-cue.com, 2026-10-24).
   const crewPattern = new RegExp(
-    String.raw`\b(\d+|one|two|three|four|five|six)\s+((?:[a-z]+\s+){0,2})(${roles
+    String.raw`(?<![\d,.$])\b(\d+|one|two|three|four|five|six)[^\S\r\n]+((?:[a-z]+[^\S\r\n]+){0,2})(${roles
       .map((role) => ROLE_WORDS[role])
       .join("|")})\b`,
     "gi",

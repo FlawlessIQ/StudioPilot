@@ -328,3 +328,30 @@ test("a package the AI drafted without its price takes it from its own line in t
   assert.equal(essential.basePriceCents, 320000);
   assert.deepEqual(essential.retainerRule, { type: "percentage", basisPoints: 3000 });
 });
+
+test("a price hung on a package's first inclusion is neither included nor counted as crew", async () => {
+  const { importedStudioPackage } = await import("../functions/src/studio-import/native-assets");
+  // The third draft production's AI made of the list (2026-10-24).
+  const essential = importedStudioPackage({
+    name: "Essential",
+    structuredContent: {
+      lineItems: [
+        { name: "6 hours of coverage", price: "$3,200" },
+        { name: "one photographer" },
+        { name: "online gallery with high-resolution downloads" },
+      ],
+      currency: "USD",
+    },
+    displayOrder: 0,
+    trade: "photographer",
+    sourceText: "Essential - $3,200\n6 hours of coverage, one photographer.\nA 30% retainer reserves your date.",
+  });
+  assert.equal(essential.basePriceCents, 320000);
+  assert.deepEqual(essential.includedCoverage, [{ role: "photographer", count: 1 }]);
+  assert.deepEqual(essential.includedDeliverables, [
+    "6 hours of coverage",
+    "one photographer",
+    "online gallery with high-resolution downloads",
+  ]);
+  assert.equal(essential.includedCoverageMinutes, 360);
+});
