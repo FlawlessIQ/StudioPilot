@@ -36,7 +36,15 @@ const wordsToNumber: Record<string, number> = {
   six: 6,
 };
 
-function lineItemText(value: unknown): string[] {
+/**
+ * A draft's line items as words. The line that is the package itself — the
+ * AI writes { name: "Essential", price: "3,200", description: "6 hours…" } —
+ * gives its description without the price: the price is the package's, and
+ * "…high-resolution downloads. 3,200" was saved as something it includes
+ * (onboarding audit, 2026-10-24).
+ */
+function lineItemText(value: unknown, packageName = ""): string[] {
+  const own = packageName.trim().toLowerCase();
   return Array.isArray(value)
     ? value.flatMap((item) => {
         if (typeof item === "string" && item.trim()) return [item.trim()];
@@ -44,7 +52,8 @@ function lineItemText(value: unknown): string[] {
         const label = text(
           entry.description ?? entry.label ?? entry.name ?? entry.title,
         );
-        const amount = text(entry.amount ?? entry.price);
+        const itself = Boolean(own) && text(entry.name).toLowerCase() === own && Boolean(text(entry.description));
+        const amount = itself ? "" : text(entry.amount ?? entry.price);
         return label ? [`${label}${amount ? ` ${amount}` : ""}`] : [];
       })
     : [];
@@ -181,7 +190,7 @@ function depositField(value: unknown): ImportedRetainerRule | null {
  * The deposit.
  *
  * A photographer's import reads its structured retainer fields exactly as it
- * always has, and nothing else.
+ * always has; with no field at all, the deposit its list states in words.
  *
  * A vendor's reads a structured field when the draft has one; else a
  * deposit line in its price list ("Deposit — 30%"); else what the draft's
@@ -192,15 +201,23 @@ function depositField(value: unknown): ImportedRetainerRule | null {
 function importedRetainerRule(
   content: Json,
   vendor: { sourceText: string; listed: readonly PriceListItem[] } | null,
+  sourceText = "",
 ): ImportedRetainerRule {
   if (!vendor) {
     const retainerAmount = money(
       content.retainer ?? content.retainerAmount ?? content.bookingFee,
     );
     const retainerPercent = money(content.retainerPercent);
-    return retainerPercent !== null
-      ? percentRule(retainerPercent)
-      : fixedRule(retainerAmount ?? 0);
+    if (retainerPercent !== null) return percentRule(retainerPercent);
+    // A field, however it reads, is read as it always has been. With none at
+    // all, the deposit the list states in words: "A 30% retainer reserves
+    // your date" imported as $0 down on every package (onboarding audit,
+    // 2026-10-24). Two that disagree, or none, is still $0 — never a guess.
+    const hasField = [content.retainer, content.retainerAmount, content.bookingFee].some(
+      (value) => value !== undefined && value !== null,
+    );
+    if (hasField || retainerAmount !== null) return fixedRule(retainerAmount ?? 0);
+    return statedDeposit(...strings(content), sourceText) ?? fixedRule(0);
   }
   const percent = money(content.retainerPercent ?? content.depositPercent);
   if (percent !== null) return percentRule(percent);
@@ -512,6 +529,7 @@ export function importedStudioPackage(input: {
   const vendor = trade !== DEFAULT_TRADE;
   const details = lineItemText(
     content.lineItems ?? content.pricingItems ?? content.items,
+    input.name,
   );
   const source = [
     text(content.description),
@@ -582,8 +600,10 @@ export function importedStudioPackage(input: {
   // list's shared extras, from the studio's text (packageSection above).
   const pasted = text(input.sourceText);
   const ownSection = vendor && !base ? packageSection(pasted, input.name) : "";
+  // A photographer's list has its add-ons section too ("Extra hour — $400"):
+  // it was dropped whole (onboarding audit, 2026-10-24).
   const listExtras =
-    vendor && !base
+    !base
       ? sharedExtras(pasted).map((extra) => ({ name: extra.name, detail: extra.detail, cents: extra.cents, byQuantity: Boolean(extra.unit), unit: extra.unit }))
       : [];
   const addOnSource = base ? priced.filter((item) => item !== base) : listExtras;
@@ -720,6 +740,7 @@ export function importedStudioPackage(input: {
     retainerRule: importedRetainerRule(
       content,
       vendor ? { sourceText: text(input.sourceText), listed } : null,
+      text(input.sourceText),
     ),
     includedCoverageMinutes,
     includedCoverage,

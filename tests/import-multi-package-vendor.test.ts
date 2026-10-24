@@ -51,7 +51,8 @@ test("one package of a vendor's several keeps its own paragraph, hours, the shar
   assert.equal(pkg.planningScope, "full");
   assert.equal(pkg.basePriceCents, 650000);
 
-  // A photographer's list reads as it always did: no tier, no shared-extras parse.
+  // A photographer's list: no planner's tier, but its shared extras are its
+  // add-ons too — they were dropped whole (onboarding audit, 2026-10-24).
   const photo = importedStudioPackage({
     name: "Full Planning",
     structuredContent: { description: "Full Planning 6,500", lineItems: [{ name: "Full Planning", price: 6500 }] },
@@ -59,7 +60,7 @@ test("one package of a vendor's several keeps its own paragraph, hours, the shar
     sourceText: LIST,
   }) as Record<string, unknown>;
   assert.equal(photo.planningScope, undefined);
-  assert.equal((photo.addOns as unknown[]).length, 0);
+  assert.equal((photo.addOns as unknown[]).length, 3);
 });
 
 test("a planner's agreement preview is a planner's, not a photographer's", async () => {

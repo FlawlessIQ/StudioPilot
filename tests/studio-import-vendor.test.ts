@@ -368,11 +368,12 @@ test("guests per stylist is a ratio, not the crew", () => {
   );
 });
 
-test("a photographer's deposit reads its fields exactly as before, and nothing else", () => {
-  const cases: Array<[Record<string, unknown>, { type: "fixed"; amountCents: number }]> = [
-    // A stated deposit in words, the pasted list, the cited excerpts: unread.
-    [JESS_DRAFT, { type: "fixed", amountCents: 0 }],
-    [{ ...JESS_DRAFT, terms: "A 30% deposit holds the date." }, { type: "fixed", amountCents: 0 }],
+test("a photographer's deposit reads its fields exactly as before, and the list's words only when it has none", () => {
+  const cases: Array<[Record<string, unknown>, { type: "fixed"; amountCents: number } | { type: "percentage"; basisPoints: number }]> = [
+    // No deposit field: the deposit the list states in words (onboarding
+    // audit, 2026-10-24 — "A 30% retainer reserves your date" imported as $0).
+    [JESS_DRAFT, { type: "percentage", basisPoints: 3000 }],
+    [{ ...JESS_DRAFT, terms: "A 30% deposit holds the date." }, { type: "percentage", basisPoints: 3000 }],
     // "30%" in the retainer field has always been $30 for a photographer.
     [{ ...JESS_DRAFT, retainer: "30%" }, { type: "fixed", amountCents: 3000 }],
     // An empty or wordy retainer has always been $0, whatever comes after it.

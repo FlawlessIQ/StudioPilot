@@ -257,3 +257,44 @@ test("setup's price import ends in the plain review, and its one button approves
   // The full workspace is still one press away.
   assert.match(card, /Review every detail instead/);
 });
+
+test("a photographer's list keeps its stated retainer and its add-ons, and no price in what's included", async () => {
+  const { importedStudioPackage } = await import("../functions/src/studio-import/native-assets");
+  // The list pasted on studio-cue.com on 2026-10-24, and the draft the AI
+  // made of its first package.
+  const list = [
+    "2027 Wedding Collections",
+    "",
+    "Essential - $3,200",
+    "6 hours of coverage, one photographer, online gallery with high-resolution downloads.",
+    "",
+    "Add-ons",
+    "Extra hour of coverage - $400",
+    "Second photographer - $600",
+    "",
+    "A 30% retainer reserves your date. The balance is due 30 days before the wedding.",
+  ].join("\n");
+  const essential = importedStudioPackage({
+    name: "Essential",
+    structuredContent: {
+      lineItems: [{ name: "Essential", price: "3,200", description: "6 hours of coverage, one photographer, online gallery with high-resolution downloads." }],
+      currency: "USD",
+    },
+    displayOrder: 0,
+    trade: "photographer",
+    sourceText: list,
+    sharedAddOnIdPrefix: "imported_addon_session",
+  });
+  assert.equal(essential.basePriceCents, 320000);
+  assert.deepEqual(essential.retainerRule, { type: "percentage", basisPoints: 3000 });
+  assert.deepEqual(
+    essential.addOns.map((addOn) => [addOn.name, addOn.unitPriceCents]),
+    [["Extra hour of coverage", 40000], ["Second photographer", 60000]],
+  );
+  assert.deepEqual(essential.includedDeliverables, [
+    "6 hours of coverage, one photographer, online gallery with high-resolution downloads.",
+  ]);
+  assert.equal(essential.includedCoverageMinutes, 360);
+  // Each package of the list shares one library entry per extra.
+  assert.ok(essential.addOns.every((addOn) => addOn.id.startsWith("imported_addon_session_")));
+});
