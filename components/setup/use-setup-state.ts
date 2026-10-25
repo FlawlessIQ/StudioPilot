@@ -53,6 +53,8 @@ export function useSetupState(): {
     availability: string | null;
     /** Active price-list packages. */
     packages: number;
+    /** StudioCue's own agreement saved, or the studio sends its own. */
+    agreement: "native" | "own" | null;
   };
 } {
   const workspace = useWorkspace();
@@ -266,6 +268,13 @@ export function useSetupState(): {
       work: tenantDocs?.kinds ?? null,
       availability: tenantDocs?.hours ?? null,
       packages: activePackages,
+      // How "How do your clients sign?" was answered: StudioCue's agreement,
+      // or their own sent elsewhere (setup-conversation.tsx doneText).
+      agreement: tenantDocs?.nativeAgreement
+        ? ("native" as const)
+        : tenantDocs?.recordsOwnSignatures
+          ? ("own" as const)
+          : null,
     },
     // The tenant document too, for a manager: its outside steps can answer
     // "How do inquiries reach you?", which otherwise flickered open first.

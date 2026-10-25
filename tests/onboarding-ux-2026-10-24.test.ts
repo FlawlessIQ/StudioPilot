@@ -138,7 +138,7 @@ test("checking your email has a resend, a way back from a typo, and the real sub
   assert.match(form, /Send it again/);
   assert.match(form, /Wrong address\? Start again/);
   // The subject it tells the owner to look for is the one the email has.
-  const subject = /case "email_verification":\s*return \{\s*subject: "([^"]+)"/.exec(
+  const subject = /case "email_verification": \{[\s\S]*?subject: "([^"]+)"/.exec(
     read("functions/src/communications/email-templates.ts"),
   )?.[1];
   assert.ok(subject, "the verification email's subject moved");
@@ -354,4 +354,108 @@ test("a price hung on a package's first inclusion is neither included nor counte
     "online gallery with high-resolution downloads",
   ]);
   assert.equal(essential.includedCoverageMinutes, 360);
+});
+
+// ── The rest of the audit's open list, built the same weekend ─────────────
+
+test("every trade's starter agreement can be finished from its own questions", async () => {
+  const { starterAgreementFor } = await import("@/features/contracts/sample");
+  const { fillStarterBlank, starterBlanks, starterQuestion } = await import("@/features/contracts/starter-blanks");
+  const { depositWordingClash } = await import("@/features/contracts/document");
+  for (const trade of TRADES) {
+    let body = starterAgreementFor(trade).body;
+    const blanks = starterBlanks(body);
+    assert.ok(blanks.length > 0, `${trade}'s starter has nothing to fill in`);
+    for (const blank of blanks) {
+      const question = starterQuestion(blank, trade);
+      assert.ok(question.ask.length > 10, `${trade}: "${blank.hint}" has no question`);
+      // Every section a studio must write has an example to start from.
+      if (blank.wholeSection) assert.ok(question.example, `${trade}: "${blank.heading}" has no example`);
+    }
+    // Answered from the examples alone, it saves (the server refuses "[Replace
+    // with") and never names the booking payment two ways.
+    for (let blank = starterBlanks(body)[0]; blank; blank = starterBlanks(body)[0]) {
+      body = fillStarterBlank(body, blank, starterQuestion(blank, trade).example ?? "$150 an hour");
+    }
+    assert.doesNotMatch(body, /\[Replace with/i, trade);
+    assert.equal(starterBlanks(body).length, 0, trade);
+    assert.equal(depositWordingClash(trade, body), null, `${trade}'s examples call the deposit two things`);
+  }
+});
+
+test("a starter section left out takes its heading with it, and the rest are numbered on", async () => {
+  const { starterAgreementFor } = await import("@/features/contracts/sample");
+  const { leaveOutStarterSection, fillStarterBlank, starterBlanks } = await import("@/features/contracts/starter-blanks");
+  const { body } = starterAgreementFor("photographer");
+  const image = starterBlanks(body).find((blank) => blank.heading === "Image use and copyright")!;
+  const without = leaveOutStarterSection(body, image);
+  assert.doesNotMatch(without, /Image use and copyright/);
+  assert.match(without, /## 4\. Limitation of liability/);
+  assert.match(without, /This agreement was prepared on/);
+  // The last section can go too, and the closing line stays.
+  const liability = starterBlanks(without).find((blank) => blank.heading === "Limitation of liability")!;
+  assert.ok(liability.wholeSection);
+  assert.match(leaveOutStarterSection(without, liability), /## 3\. Cancellation[\s\S]*\n\nThis agreement was prepared on/);
+  // A planner who takes no referral fees removes the inline blank and its space.
+  const planner = starterAgreementFor("planner").body;
+  const referral = starterBlanks(planner).find((blank) => blank.hint.startsWith("If you do"))!;
+  assert.match(fillStarterBlank(planner, referral, ""), /from the vendors it recommends\.\n/);
+});
+
+test("the agreement page walks a new studio through the starter, and won't save a blank", () => {
+  const editor = code("components/contracts/agreement-editor.tsx");
+  assert.match(editor, /<StarterGuide body=\{body\} onChange=\{setBody\}/);
+  assert.match(editor, /blanksLeft > 0/);
+  const guide = code("components/contracts/starter-guide.tsx");
+  // The example is offered, never typed in for them.
+  assert.match(guide, /Start from this example/);
+  assert.match(guide, /const draft = drafts\[currentKey\] \?\? "";/);
+  assert.match(code("components/setup/setup-conversation.tsx"), /finish StudioCue's starter/);
+});
+
+test("the verification email says what comes after the button", async () => {
+  const { renderEmailTemplate } = await import("../functions/src/communications/email-templates.ts");
+  const brand = { studioName: "StudioCue", productName: "StudioCue", accentColor: "#35664a", logoUrl: null, contactEmail: null };
+  const owner = renderEmailTemplate({
+    key: "email_verification",
+    brand,
+    recipientName: "Jordan",
+    projectName: null,
+    values: { actionUrl: "https://studio-cue.com/auth/verify-email?oobCode=x&next=%2Fauth%2Fonboarding" },
+  });
+  assert.match(owner.text, /set up your studio/);
+  assert.match(owner.text, /Verify and set up my studio/);
+  assert.doesNotMatch(owner.text, /before accessing a StudioCue workspace or portal/);
+  // A client or crew member isn't told about a studio they aren't making.
+  const client = renderEmailTemplate({
+    key: "email_verification",
+    brand,
+    recipientName: "Sam",
+    projectName: null,
+    values: { actionUrl: "https://studio-cue.com/auth/verify-email?oobCode=x&next=%2Fclient" },
+  });
+  assert.doesNotMatch(client.text, /set up your studio|trial/i);
+  assert.match(client.text, /Verify email address/);
+});
+
+test("a new package asks for three things to type and shows the rest as one line", () => {
+  const form = code("components/crm/create-package-form.tsx");
+  const fold = form.indexOf('className="package-more-details form-span"');
+  assert.ok(fold > 0, "the fold is gone");
+  // Name, description and price stay out of it; the prefilled fields go in.
+  for (const field of ['register("name")', 'register("description")', 'register("basePrice")']) {
+    assert.ok(form.indexOf(field) < fold, `${field} is folded away`);
+  }
+  for (const field of ['register("coverageHours")', 'register("travelArea")', 'register("terms")', 'register("retainerMode")']) {
+    assert.ok(form.indexOf(field) > fold, `${field} is outside the fold`);
+  }
+  // A mistake in the fold opens it: a closed <details> hides the error.
+  assert.match(form, /if \(foldedError\) setMoreOpen\(true\)/);
+  assert.match(form, /<span>\{filledIn\}<\/span>/);
+});
+
+test("plan cards say what a studio gets done, not what features are called", async () => {
+  const { allPlanCards } = await import("@/config/saas-plans");
+  const lines = allPlanCards.flatMap((plan) => [plan.description, plan.users, plan.ai, ...plan.features]).join(" | ");
+  assert.doesNotMatch(lines, /\bCOI\b|workflows|schedule generation|readiness reporting|internal users|Standardized operations/i);
 });

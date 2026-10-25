@@ -10,6 +10,13 @@
  * Two plans, not three, because there are no customers yet and a ladder
  * nobody has climbed is a guess presented as a structure.
  */
+/**
+ * Each line says what the studio gets done, not what the feature is called:
+ * "COI workflows", "AI schedule generation" and "Advanced readiness
+ * reporting" meant nothing on the plan picker a new studio meets before setup
+ * (onboarding assessment, 2026-10-24). The limits stay numbers the
+ * entitlements check (tests/pricing.test.ts).
+ */
 export const planCards = [
   {
     key: "studio",
@@ -18,15 +25,15 @@ export const planCards = [
     yearlyCents: 150_000,
     monthly: "$150",
     yearly: "$1,500",
-    description: "Complete event operations for a photographer and their crew.",
-    users: "3 internal users",
-    ai: "2,500 AI actions",
+    description: "Your studio's office, from the first inquiry to the final delivery, for you and your crew.",
+    users: "3 people on your team",
+    ai: "2,500 AI actions a month: the drafts, replies and checks Cue prepares",
     highlight: true,
     features: [
-      "Unlimited clients and projects, up to 25 crew",
-      "COI workflows and custom automations",
-      "AI schedule generation and crew acknowledgment",
-      "Advanced readiness reporting and priority support",
+      "Unlimited clients and jobs, and up to 25 crew",
+      "Insurance certificates asked for and chased for each venue",
+      "Crew booked and briefed, and the day's schedule drafted for you",
+      "Your own follow-up automations, what every job is waiting on, and priority support",
     ],
   },
   {
@@ -36,13 +43,13 @@ export const planCards = [
     yearlyCents: 299_000,
     monthly: "$299",
     yearly: "$2,990",
-    description: "Standardized operations across larger teams and brands.",
-    users: "15 internal users",
-    ai: "7,500 AI actions",
+    description: "One way of working across a bigger team, or more than one brand.",
+    users: "15 people on your team",
+    ai: "7,500 AI actions a month",
     highlight: false,
     features: [
-      "Everything in Studio, up to 100 crew",
-      "3 separately branded businesses",
+      "Everything in Studio, and up to 100 crew",
+      "Run 3 businesses, each under its own brand",
     ],
   },
 ] as const;
@@ -69,8 +76,8 @@ export const vendorPlanCards = [
     monthly: "$100",
     yearly: "$1,000",
     description: "Bookings, planning and payments for wedding and event vendors.",
-    users: "2 internal users",
-    ai: "1,000 AI actions",
+    users: "2 people on your team",
+    ai: "1,000 AI actions a month",
     highlight: true,
     features: [
       "Unlimited clients and jobs, up to 10 crew",

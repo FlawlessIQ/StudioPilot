@@ -4598,6 +4598,13 @@ textarea:focus-visible {
 .form-error {
   color: var(--rose-dark);
 }
+/* An error slot with nothing in it is a slot, not an error: `.form-error`
+   paints a rose box, so every field of the package form a new studio fills
+   in setup sat over an empty pink bar (2026-10-25). */
+.form-grid label > small.form-error:empty {
+  background: none;
+  padding: 0;
+}
 
 .form-span {
   grid-column: 1 / -1;
@@ -24101,3 +24108,15 @@ label {
     grid-column: 1 / -1;
   }
 }
+
+/* The package form's fold: what starts filled in, as one line to open
+   (components/crm/create-package-form.tsx). The line wraps, never squeezes. */
+.package-more-details { border: 1px solid var(--line); border-radius: 13px; }
+.package-more-details > summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 4px 12px; list-style: none; padding: 13px 15px; }
+.package-more-details > summary::-webkit-details-marker { display: none; }
+.package-more-details > summary strong { flex: 1 1 14rem; font-size: 12.5px; }
+.package-more-details > summary strong::after { color: var(--ds-muted, var(--muted)); content: " +"; }
+.package-more-details[open] > summary strong::after { content: " −"; }
+.package-more-details > summary span { color: var(--ds-muted, var(--muted)); flex: 1 1 100%; font-size: 12px; }
+.package-more-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.package-more-details > .form-grid { border-top: 1px solid var(--line); padding: 15px; }

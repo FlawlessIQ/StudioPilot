@@ -149,7 +149,7 @@ const QUESTIONS: Question[] = [
  */
 const NATIVE_AGREEMENT_HREF = "/studio/contracts/agreement";
 const NATIVE_AGREEMENT_WHY =
-  "Bring in the agreement you already use. StudioCue writes each client's contract from it, with their details and the price they accepted, and they sign in their portal.";
+  "Upload the agreement you already use, or finish StudioCue's starter: a few short sections, each with an example to start from. Every client's contract is written from it, with their details and the price they accepted, and they sign in their portal.";
 
 // Forms are in; the question left is which one the first reply's link asks for.
 const INQUIRY_FORM_WHY =
@@ -360,6 +360,12 @@ export function SetupConversation() {
     if (question.key === "work" && answers.work) return `Your inquiry form offers ${answers.work}.`;
     if (question.key === "inquiries" && inquiryWaiting)
       return "Set up. Waiting for your first inquiry — it lands in Today, filled in, the moment it arrives.";
+    // "StudioCue knows how you handle signatures" was written before StudioCue
+    // wrote contracts; a saved agreement is a stronger answer, so say it.
+    if (question.key === "agreement" && answers.agreement === "native")
+      return "Your agreement is saved. Every client's contract is written from it, and they sign in their portal.";
+    if (question.key === "agreement" && answers.agreement === "own")
+      return "You send your own agreement and record the signature on the job.";
     if (question.key === "availability" && answers.availability)
       return `${calls ? "Calls" : "Trials"} can be booked ${answers.availability}.`;
     return words.doneLabel;
@@ -412,6 +418,14 @@ export function SetupConversation() {
         <div className="setup-answer-row">
           <Link className="setup-answer-link" href="/studio/packages">
             {answers.packages === 1 ? "See your package" : `See your ${answers.packages} packages`}
+          </Link>
+        </div>
+      );
+    if (question.key === "agreement" && answers.agreement === "native")
+      return (
+        <div className="setup-answer-row">
+          <Link className="setup-answer-link" href={fromSetup(NATIVE_AGREEMENT_HREF)}>
+            Read or change it
           </Link>
         </div>
       );

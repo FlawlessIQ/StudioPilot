@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { AlertTriangle, FileInput, LoaderCircle, Save, Upload } from "lucide-react";
 import { ContractDocumentView } from "@/components/contracts/contract-document-view";
+import { StarterGuide } from "@/components/contracts/starter-guide";
+import { starterBlanks } from "@/features/contracts/starter-blanks";
 import { useNativeSigning } from "@/components/contracts/use-native-signing";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import {
@@ -83,6 +87,11 @@ export function AgreementEditor() {
   const [autoSendName, setAutoSendName] = useState("");
   const [autoSendConsent, setAutoSendConsent] = useState(false);
   const textarea = useRef<HTMLTextAreaElement | null>(null);
+  // The starter's blanks when it was opened, for "Finish your agreement"
+  // (starter-guide.tsx); none for an agreement the studio has saved.
+  const [startedWith, setStartedWith] = useState(0);
+  // Setup sends a studio here to finish its agreement; a save says how to go back.
+  const fromSetup = useSearchParams()?.get("from") === "setup";
 
   const importedTemplates = (templates ?? []).filter(
     (template) => String(template.id).startsWith("imported_agreement_") && template.body,
@@ -130,6 +139,7 @@ export function AgreementEditor() {
       setName(next.name);
       setTitle(next.title);
       setBody(next.body);
+      setStartedWith(starterBlanks(next.body).length);
       setLabels(Object.fromEntries(next.customFields.map((field) => [field.key, field.label])));
     })();
     return () => {
@@ -198,6 +208,7 @@ export function AgreementEditor() {
     // The agreement's own title, or its name — never the starter's.
     setTitle(draft.title ?? draft.name);
     setBody(draft.body);
+    setStartedWith(starterBlanks(draft.body).length);
     setLabels(Object.fromEntries(draft.customFields.map((field) => [field.key, field.label])));
     setLoaded((current) => (current ? { ...current, templateId: draft.templateId } : current));
     const mapped = draft.mapped.filter((entry) => !entry.key.startsWith("custom.")).length;
@@ -362,6 +373,10 @@ export function AgreementEditor() {
   }
 
   const autoSendEnabled = autoSendOn ?? native.autoSend.enabled;
+  // Blanks still in the text: a save would send "[Replace with …]" to clients
+  // (the server refuses it), so the button waits and says where they are.
+  const blanksLeft = starterBlanks(body).length;
+  const guiding = startedWith > 0 && !loaded?.version;
   const tokensUsed = new Set(templateFieldKeys(body));
   const priceLines = pricingClauses(body);
   // A vendor's text that calls the booking payment both a deposit and a
@@ -370,6 +385,7 @@ export function AgreementEditor() {
 
   return (
     <div className="agreement-editor">
+      {guiding ? <StarterGuide body={body} onChange={setBody} startedWith={startedWith} trade={workspace.tenantTrade} /> : null}
       {importedTemplates.length && !loaded?.version ? (
         <section className="panel">
           <p className="eyebrow">From your import</p>
@@ -398,7 +414,7 @@ export function AgreementEditor() {
       <section className="panel agreement-upload">
         <div>
           <p className="eyebrow">Your own wording</p>
-          <h2>Upload your contract</h2>
+          <h2>{guiding ? "Or upload the contract you already use" : "Upload your contract"}</h2>
           <p>
             A DOCX or PDF of the agreement you already send. StudioCue maps its blanks to each job&rsquo;s
             details and removes the paper signature lines; you read it through before anything is saved.
@@ -540,14 +556,20 @@ export function AgreementEditor() {
           <div className="agreement-editor-actions">
             <button
               className="button button-dark"
-              disabled={busy !== null || body.trim().length < 50}
+              disabled={busy !== null || body.trim().length < 50 || blanksLeft > 0}
               onClick={() => void save()}
               type="button"
             >
               {busy === "save" ? <LoaderCircle className="spin" aria-hidden size={15} /> : <Save aria-hidden size={15} />}
               {busy === "save" ? "Saving…" : loaded?.version ? "Save a new version" : "Save your agreement"}
             </button>
-            {loaded?.version ? (
+            {blanksLeft ? (
+              <span className="native-contract-note">
+                {blanksLeft === 1
+                  ? "One section still says what to put there. Fill it in first."
+                  : `${blanksLeft} sections still say what to put there. Fill them in first.`}
+              </span>
+            ) : loaded?.version ? (
               <span className="native-contract-note">Current version: {loaded.version}</span>
             ) : null}
           </div>
@@ -558,7 +580,15 @@ export function AgreementEditor() {
           {error && busy === null ? (
             <p className="client-contract-error" role="alert">{error}</p>
           ) : notice && busy === null ? (
-            <p className="agreement-editor-notice" role="status">{notice}</p>
+            <p className="agreement-editor-notice" role="status">
+              {notice}
+              {fromSetup && loaded?.version ? (
+                <>
+                  {" "}
+                  <Link href="/studio/setup">Back to setup</Link>
+                </>
+              ) : null}
+            </p>
           ) : null}
         </section>
 

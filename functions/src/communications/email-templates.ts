@@ -353,6 +353,15 @@ const numberValue = (
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 };
 
+/** Where a verification link goes once applied: its `next` (auth/emails.ts appActionUrl). */
+function verificationNext(actionUrl: string): string | null {
+  try {
+    return actionUrl ? new URL(actionUrl).searchParams.get("next") : null;
+  } catch {
+    return null;
+  }
+}
+
 const safeUrl = (value: string): string => {
   try {
     const url = new URL(value);
@@ -1030,22 +1039,39 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         note:
           "For your security, this link expires after seven days and can be revoked by us.",
       };
-    case "email_verification":
+    case "email_verification": {
+      /**
+       * Say what the button leads to. "Confirm that this email belongs to you
+       * before accessing a StudioCue workspace or portal" told a new studio
+       * nothing about the five minutes ahead (onboarding assessment,
+       * 2026-10-24). The link carries where it goes (auth/emails.ts
+       * appActionUrl): a studio signing up goes on to make its studio.
+       */
+      const settingUp = verificationNext(actionUrl)?.startsWith("/auth/onboarding") ?? false;
       return {
         subject: "Verify your StudioCue email",
-        preheader: "Confirm your email to secure your account.",
+        preheader: settingUp
+          ? "One tap, then name your studio and start your free trial."
+          : "Confirm your email to secure your account.",
         eyebrow: "Account security",
         heading: "Verify your email address",
-        paragraphs: [
-          greeting,
-          "Confirm that this email belongs to you before accessing a StudioCue workspace or portal.",
-        ],
+        paragraphs: settingUp
+          ? [
+              greeting,
+              "Tap the button to confirm this is your address. You'll go straight on to set up your studio: its name and what you do, then your plan, with nothing charged during the 14-day trial.",
+              "After that, a few questions get your first inquiry in. Each says what it's needed for, and none has to be finished before you start a job.",
+            ]
+          : [
+              greeting,
+              "Tap the button to confirm this is your address, and you'll go straight back to StudioCue.",
+            ],
         action: actionUrl
-          ? { label: "Verify email address", url: actionUrl }
+          ? { label: settingUp ? "Verify and set up my studio" : "Verify email address", url: actionUrl }
           : undefined,
         note:
           "If you did not create a StudioCue account, you can safely ignore this email.",
       };
+    }
     case "password_reset":
       return {
         subject: "Reset your StudioCue password",

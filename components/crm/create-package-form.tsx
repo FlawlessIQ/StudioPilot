@@ -212,6 +212,29 @@ export function CreatePackageForm({
   // Only a deposit has a retainer to set: paid in full takes the whole price
   // to book, and "on the day" or "invoiced after" take nothing up front.
   const hasDeposit = paymentShape === "deposit_and_balance";
+  // The fold opens itself when something in it is wrong: a closed
+  // <details> hides the error and the button looks dead.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const foldedError = Boolean(
+    errors.paymentShape ?? errors.retainerMode ?? errors.retainerAmount ?? errors.billPhotographers ??
+      errors.coverageHours ?? errors.photographers ?? errors.videographers ?? errors.travelArea ??
+      errors.deliverables ?? errors.terms,
+  );
+  useEffect(() => {
+    if (foldedError) setMoreOpen(true);
+  }, [foldedError]);
+  const current = watch();
+  const filledIn = packageDefaultsLine({
+    hours: Number(current.coverageHours),
+    crew: [Number(current.photographers), Number(current.videographers)],
+    roles,
+    paymentShape,
+    retainerMode,
+    retainerAmount: Number(current.retainerAmount),
+    deposit: words.deposit,
+    paidLabel: paymentShapeLabel(paymentShape, tradeProfile(trade).journey.balanceOnTheDay),
+    travelArea: String(current.travelArea ?? ""),
+  });
   const submit = handleSubmit(async (values) => {
     setError(null);
     try {
@@ -320,16 +343,6 @@ export function CreatePackageForm({
           </select>
           <small className="form-error">{errors.eventType?.message}</small>
         </label>
-        <label>
-          How it&rsquo;s paid <span className="required-mark">Required</span>
-          <select {...register("paymentShape")}>
-            {PAYMENT_SHAPES.map((shape) => (
-              <option key={shape} value={shape}>
-                {paymentShapeLabel(shape, tradeProfile(trade).journey.balanceOnTheDay)}
-              </option>
-            ))}
-          </select>
-        </label>
         {/* After the kind it follows: the examples change with it. */}
         <div className="form-span package-examples" role="group" aria-label="Start from an example">
           <span>Start from an example</span>
@@ -340,134 +353,160 @@ export function CreatePackageForm({
           ))}
           <small>Fills in the shape. The price is always yours to set.</small>
         </div>
-        {scoped ? (
-          <label>
-            Planning tier
-            <select {...register("planningScope")}>
-              <option value="">Not set</option>
-              {PLANNING_SCOPES.map((scope) => (
-                <option key={scope} value={scope}>
-                  {PLANNING_SCOPE_LABELS[scope]}
-                </option>
-              ))}
-            </select>
-            <small>{planningScope ? PLANNING_SCOPE_HINTS[planningScope] : "When the job's work starts. Full and partial start at booking."}</small>
-          </label>
-        ) : null}
         <label>
           Base price (USD) <span className="required-mark">Required</span>
           <input {...register("basePrice")} min="0.01" step="0.01" type="number" />
           <small className="form-error">{errors.basePrice?.message ?? (typicalPrice ? `Planners often charge ${typicalPrice} for this.` : null)}</small>
         </label>
-        {hasDeposit ? (
-        <>
-        <label>
-          {words.deposit === "deposit" ? "Deposit type" : "Retainer type"} <span className="required-mark">Required</span>
-          <select {...register("retainerMode")}>
-            <option value="percentage">Percent of total</option>
-            <option value="fixed">Fixed amount</option>
-            <option value="per_crew_member">Per crew member</option>
-          </select>
-          <small className="form-error">{errors.retainerMode?.message}</small>
-        </label>
-        <label>
-          {retainerMode === "percentage"
-            ? `${Deposit} percent`
-            : retainerMode === "fixed"
-              ? `${Deposit} amount (USD)`
-              : "Amount per crew member (USD)"}{" "}
-          <span className="required-mark">Required</span>
-          <input
-            {...register("retainerAmount")}
-            max={retainerMode === "percentage" ? 100 : undefined}
-            min="0"
-            step="0.01"
-            type="number"
-          />
-          <small className="form-error">{errors.retainerAmount?.message}</small>
-        </label>
-        {retainerMode === "per_crew_member" ? (
-          <>
-            <label className="form-checkbox">
-              <input {...register("billPhotographers")} type="checkbox" />
-              <span>{`Charge this per ${coverageRoleLabel(roles[0] ?? COVERAGE_ROLES[0]!, 1)}`}</span>
-              <small className="form-error">{errors.billPhotographers?.message}</small>
+        {/* Everything below starts filled in, so a new studio types three
+            things — a name, a sentence and a price — and sees the rest as
+            one line it can open (onboarding assessment, 2026-10-24: eleven
+            fields marked Required, most of them already set). */}
+        <details
+          className="package-more-details form-span"
+          onToggle={(event) => setMoreOpen((event.currentTarget as HTMLDetailsElement).open)}
+          open={moreOpen}
+        >
+          <summary>
+            <strong>Hours, crew, {words.deposit} and terms</strong>
+            <span>{filledIn}</span>
+          </summary>
+          <div className="form-grid">
+            <label>
+              How it&rsquo;s paid <span className="required-mark">Required</span>
+              <select {...register("paymentShape")}>
+                {PAYMENT_SHAPES.map((shape) => (
+                  <option key={shape} value={shape}>
+                    {paymentShapeLabel(shape, tradeProfile(trade).journey.balanceOnTheDay)}
+                  </option>
+                ))}
+              </select>
             </label>
-            {roles[1] ? (
-              <label className="form-checkbox">
-                <input {...register("billVideographers")} type="checkbox" />
-                <span>{`Charge this per ${coverageRoleLabel(roles[1], 1)}`}</span>
+            {scoped ? (
+              <label>
+                Planning tier
+                <select {...register("planningScope")}>
+                  <option value="">Not set</option>
+                  {PLANNING_SCOPES.map((scope) => (
+                    <option key={scope} value={scope}>
+                      {PLANNING_SCOPE_LABELS[scope]}
+                    </option>
+                  ))}
+                </select>
+                <small>{planningScope ? PLANNING_SCOPE_HINTS[planningScope] : "When the job's work starts. Full and partial start at booking."}</small>
               </label>
             ) : null}
-          </>
-        ) : null}
-        <label>
-          Payment plan
-          <select {...register("installments")}>
-            <option value={0}>{`None: ${words.deposit} and final balance`}</option>
-            {[1, 2, 3, 4, 5, 6].map((count) => (
-              <option key={count} value={count}>
-                {count === 1 ? "1 installment" : `${count} installments`}
-              </option>
-            ))}
-          </select>
-          <small>{`Installments between the ${words.deposit} and the final balance, spread evenly. You can change them on each ${words.proposal.toLowerCase()}.`}</small>
-        </label>
-        </>
-        ) : null}
-        <label>
-          {words.hoursLabel}{" "}
-          <span className="required-mark">Required</span>
-          <input {...register("coverageHours")} min="0.5" step="0.5" type="number" />
-          <small className="form-error">{errors.coverageHours?.message}</small>
-        </label>
-        {/*
-          Neither count is required on its own — the pair is. Marking
-          Photographers "Required" and leaving Videographers bare told a
-          video-led studio that this product thinks in photographers, and left
-          them zeroing out a field the schema never needed. The rule the form
-          actually enforces is in the superRefine above: at least one person.
-        */}
-        <label>
-          {roleHeading(roles[0])}
-          <input {...register("photographers")} min="0" type="number" />
-          <small className="form-error">{errors.photographers?.message}</small>
-        </label>
-        {roles[1] ? (
-          <label>
-            {roleHeading(roles[1])}
-            <input {...register("videographers")} min="0" type="number" />
-            <small className="form-error">{errors.videographers?.message}</small>
-          </label>
-        ) : null}
-        <p className="field-hint form-span">
-          {roles[1] ? "Who your studio sends. At least one, in either row." : "Who your studio sends. At least one."}{" "}
-          {/* The glossary's "Coverage" is a photographer's: photographers, videographers and hours. */}
-          {photoStudio ? (
-            <InfoHint term="coverage" />
-          ) : (
-            <InfoHint label={words.coverage}>
-              {`Who you send and for how long: your ${words.crew} and their hours. It fills your contract and can set a per-crew ${words.deposit}.`}
-            </InfoHint>
-          )}
-        </p>
-        <label>
-          Travel area <span className="required-mark">Required</span>
-          <input {...register("travelArea")} />
-          <small className="form-error">{errors.travelArea?.message}</small>
-        </label>
-        <label className="form-span">
-          {`${words.includedLabel} (comma separated)`}{" "}
-          <span className="required-mark">Required</span>
-          <input {...register("deliverables")} />
-          <small className="form-error">{errors.deliverables?.message}</small>
-        </label>
-        <label className="form-span">
-          Terms <span className="required-mark">Required</span>
-          <textarea {...register("terms")} rows={3} />
-          <small className="form-error">{errors.terms?.message}</small>
-        </label>
-        <PackageAddOnPicker currency="USD" onChange={setAddOnIds} value={addOnIds} />
+            {hasDeposit ? (
+            <>
+            <label>
+              {words.deposit === "deposit" ? "Deposit type" : "Retainer type"} <span className="required-mark">Required</span>
+              <select {...register("retainerMode")}>
+                <option value="percentage">Percent of total</option>
+                <option value="fixed">Fixed amount</option>
+                <option value="per_crew_member">Per crew member</option>
+              </select>
+              <small className="form-error">{errors.retainerMode?.message}</small>
+            </label>
+            <label>
+              {retainerMode === "percentage"
+                ? `${Deposit} percent`
+                : retainerMode === "fixed"
+                  ? `${Deposit} amount (USD)`
+                  : "Amount per crew member (USD)"}{" "}
+              <span className="required-mark">Required</span>
+              <input
+                {...register("retainerAmount")}
+                max={retainerMode === "percentage" ? 100 : undefined}
+                min="0"
+                step="0.01"
+                type="number"
+              />
+              <small className="form-error">{errors.retainerAmount?.message}</small>
+            </label>
+            {retainerMode === "per_crew_member" ? (
+              <>
+                <label className="form-checkbox">
+                  <input {...register("billPhotographers")} type="checkbox" />
+                  <span>{`Charge this per ${coverageRoleLabel(roles[0] ?? COVERAGE_ROLES[0]!, 1)}`}</span>
+                  <small className="form-error">{errors.billPhotographers?.message}</small>
+                </label>
+                {roles[1] ? (
+                  <label className="form-checkbox">
+                    <input {...register("billVideographers")} type="checkbox" />
+                    <span>{`Charge this per ${coverageRoleLabel(roles[1], 1)}`}</span>
+                  </label>
+                ) : null}
+              </>
+            ) : null}
+            <label>
+              Payment plan
+              <select {...register("installments")}>
+                <option value={0}>{`None: ${words.deposit} and final balance`}</option>
+                {[1, 2, 3, 4, 5, 6].map((count) => (
+                  <option key={count} value={count}>
+                    {count === 1 ? "1 installment" : `${count} installments`}
+                  </option>
+                ))}
+              </select>
+              <small>{`Installments between the ${words.deposit} and the final balance, spread evenly. You can change them on each ${words.proposal.toLowerCase()}.`}</small>
+            </label>
+            </>
+            ) : null}
+            <label>
+              {words.hoursLabel}{" "}
+              <span className="required-mark">Required</span>
+              <input {...register("coverageHours")} min="0.5" step="0.5" type="number" />
+              <small className="form-error">{errors.coverageHours?.message}</small>
+            </label>
+            {/*
+              Neither count is required on its own — the pair is. Marking
+              Photographers "Required" and leaving Videographers bare told a
+              video-led studio that this product thinks in photographers, and left
+              them zeroing out a field the schema never needed. The rule the form
+              actually enforces is in the superRefine above: at least one person.
+            */}
+            <label>
+              {roleHeading(roles[0])}
+              <input {...register("photographers")} min="0" type="number" />
+              <small className="form-error">{errors.photographers?.message}</small>
+            </label>
+            {roles[1] ? (
+              <label>
+                {roleHeading(roles[1])}
+                <input {...register("videographers")} min="0" type="number" />
+                <small className="form-error">{errors.videographers?.message}</small>
+              </label>
+            ) : null}
+            <p className="field-hint form-span">
+              {roles[1] ? "Who your studio sends. At least one, in either row." : "Who your studio sends. At least one."}{" "}
+              {/* The glossary's "Coverage" is a photographer's: photographers, videographers and hours. */}
+              {photoStudio ? (
+                <InfoHint term="coverage" />
+              ) : (
+                <InfoHint label={words.coverage}>
+                  {`Who you send and for how long: your ${words.crew} and their hours. It fills your contract and can set a per-crew ${words.deposit}.`}
+                </InfoHint>
+              )}
+            </p>
+            <label>
+              Travel area <span className="required-mark">Required</span>
+              <input {...register("travelArea")} />
+              <small className="form-error">{errors.travelArea?.message}</small>
+            </label>
+            <label className="form-span">
+              {`${words.includedLabel} (comma separated)`}{" "}
+              <span className="required-mark">Required</span>
+              <input {...register("deliverables")} />
+              <small className="form-error">{errors.deliverables?.message}</small>
+            </label>
+            <label className="form-span">
+              Terms <span className="required-mark">Required</span>
+              <textarea {...register("terms")} rows={3} />
+              <small className="form-error">{errors.terms?.message}</small>
+            </label>
+            <PackageAddOnPicker currency="USD" onChange={setAddOnIds} value={addOnIds} />
+          </div>
+        </details>
       </div>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <button className="button button-dark" disabled={isSubmitting} type="submit">{isSubmitting ? <LoaderCircle className="spin" size={16} /> : null}Create package</button>
@@ -479,4 +518,40 @@ export function CreatePackageForm({
 function roleHeading(role: CoverageRole | undefined): string {
   const label = coverageRoleLabel(role ?? COVERAGE_ROLES[0]!, 2);
   return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+/** "5 hours · 1 DJ · 30% deposit · Within 50 miles": what the fold holds. */
+function packageDefaultsLine(input: {
+  hours: number;
+  crew: number[];
+  roles: readonly CoverageRole[];
+  paymentShape: string;
+  retainerMode: string;
+  retainerAmount: number;
+  deposit: string;
+  paidLabel: string;
+  travelArea: string;
+}): string {
+  const crew = input.roles
+    .map((role, index) => ({ role, count: input.crew[index] ?? 0 }))
+    .filter((entry) => entry.count > 0)
+    .map((entry) => `${entry.count} ${coverageRoleLabel(entry.role, entry.count)}`);
+  const amount = Number.isFinite(input.retainerAmount) ? input.retainerAmount : 0;
+  const money = `$${amount.toLocaleString("en-US")}`;
+  const deposit =
+    input.paymentShape !== "deposit_and_balance"
+      ? input.paidLabel
+      : input.retainerMode === "percentage"
+        ? `${amount}% ${input.deposit}`
+        : input.retainerMode === "fixed"
+          ? `${money} ${input.deposit}`
+          : `${money} ${input.deposit} per crew member`;
+  return [
+    Number.isFinite(input.hours) && input.hours > 0 ? `${input.hours} hours` : null,
+    ...crew,
+    deposit,
+    input.travelArea.trim() || null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }

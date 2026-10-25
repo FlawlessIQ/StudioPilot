@@ -312,7 +312,7 @@ export function setupGaps(
       title: "Set up your agreement",
       detail: blocked
         ? `${blocked} accepted their ${offer}. Set up your agreement and StudioCue writes their contract from it — they sign in their portal.`
-        : "Bring in the agreement you already use. StudioCue writes each client's contract from it, and they sign in their portal.",
+        : "Upload the agreement you already use, or finish StudioCue's starter in a few short sections. StudioCue writes each client's contract from it, and they sign in their portal.",
       actionLabel: "Set up your agreement",
       href: "/studio/contracts/agreement",
       blocking: Boolean(blocked),

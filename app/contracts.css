@@ -555,3 +555,116 @@
 .final-balance-buttons{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .final-invoice-unbilled{display:grid;gap:12px}
 .final-invoice-unbilled > span{display:grid;gap:4px}
+
+/* "Finish your agreement": the starter's blanks as questions
+   (components/contracts/starter-guide.tsx). Sized by its own width: the
+   chips and buttons wrap, the text never squeezes. */
+.starter-guide {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.starter-guide-heading h2,
+.starter-guide-heading p {
+  margin: 0;
+}
+
+.starter-guide-heading {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.starter-guide-heading > p:not(.eyebrow) {
+  color: var(--ds-muted);
+  font-size: 0.9rem;
+  max-width: 62ch;
+}
+
+.starter-guide-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.starter-guide-question {
+  border: 1px solid var(--ds-line, #e4e1da);
+  border-radius: var(--ds-r-sm, 11px);
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+}
+
+.starter-guide-question > small {
+  color: var(--ds-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.starter-guide-question label {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.starter-guide-question textarea,
+.starter-guide-question input {
+  font: inherit;
+  width: 100%;
+}
+
+.starter-guide-example {
+  background: var(--ds-brass-soft, #f4ecdb);
+  border-radius: var(--ds-r-sm, 11px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.75rem 0.9rem;
+}
+
+.starter-guide-example p {
+  flex: 1 1 100%;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.starter-guide-example small {
+  color: var(--ds-muted);
+  flex: 1 1 14rem;
+  font-size: 12px;
+}
+
+.starter-guide.is-done {
+  align-items: start;
+  display: flex;
+  gap: 0.6rem;
+}
+
+.starter-guide.is-done svg {
+  color: var(--ds-forest, #40694f);
+  flex: none;
+  margin-top: 0.2rem;
+}
+
+.starter-guide.is-done h2,
+.starter-guide.is-done p {
+  margin: 0;
+}
+
+/* An answer, not the whole agreement: the editor's 28rem monospace box is wrong here. */
+.agreement-editor .starter-guide textarea {
+  font-family: inherit;
+  font-weight: 400;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  min-height: 7.5rem;
+}
+
+/* The section being answered. Static tints: lightningcss flattens color-mix(var()). */
+.starter-guide-steps .schedule-moment-chip[aria-pressed="true"] {
+  background: #e7f0e9;
+  border-color: var(--ds-forest, #40694f);
+  color: var(--ds-forest, #40694f);
+  font-weight: 700;
+}

@@ -169,24 +169,46 @@ deterministic stand-in, which reads a whole list as one package; production's
 splits a list into packages, so the cards there will usually be one per
 package.
 
-## Still open (not built here)
-- **The agreement question needs a real document.** Native signing makes the
-  starter agreement editable, but its terms read "[Replace with your own …]".
-  A guided "use the starter, fill in three paragraphs" path would make it
-  answerable in one sitting. It is needed before the first booking, not
-  before the first inquiry, which the chip now says.
-- **Plan cards speak in features** ("2,500 AI actions", "COI workflows",
-  "Advanced readiness reporting"). They're shared with the public pricing
-  page and guarded by the marketing-claims test, so a rewrite should go with
-  the site copy.
-- **The manual package form marks 11 fields Required**, most pre-filled.
-  A "More details" fold would show the three that need typing.
-- **The verification email** says "Confirm that this email belongs to you
-  before accessing a StudioCue workspace or portal". It could name the next
-  step. Needs a functions deploy (render worker).
+## Built the next day (2026-10-25)
+
+- **The starter agreement is a short guided task.** Each "[Replace with …]"
+  is now a question on the agreement page ("What happens if the client
+  cancels or moves the date?"), one at a time, with an example of common
+  terms to start from. The studio puts in its own words or the example
+  (edited or not), or leaves the section out, and the later sections are
+  renumbered. Save waits until no blank is left, which the server already
+  required. Examples use the trade's word for the booking payment (a
+  photographer's retainer, a DJ's or stylist's deposit), so the agreement
+  never names it two ways. Setup and Today say the starter is a way in, and
+  once it's saved setup says "Your agreement is saved", not "StudioCue knows
+  how you handle signatures". The example wording is new and was written
+  here: it should be read before a studio relies on it.
+  (`features/contracts/starter-blanks.ts`, `components/contracts/starter-guide.tsx`)
+- **The manual package form asks for three things to type.** Name,
+  description and price (and the kind of job) stay in view. Hours, crew,
+  retainer, payment plan, travel area, what's included, terms and add-ons are
+  already filled in, so they fold into one line that shows their values
+  ("8 hours · 2 photographers · 30% retainer · Within 50 miles"). The fold
+  opens itself when something in it is wrong. Every empty error slot on the
+  form had also been painted as a pink bar; it isn't any more.
+- **Plan cards say what a studio gets done.** "COI workflows", "AI schedule
+  generation", "Advanced readiness reporting" and "internal users" are
+  replaced by insurance certificates asked for and chased, crew booked and
+  briefed with the day's schedule drafted, what every job is waiting on, and
+  "people on your team". The prices and limits are unchanged.
+- **The verification email names the next step.** For a studio signing up
+  (its link continues to `/auth/onboarding`) it says the button leads
+  straight to setting up the studio, with nothing charged during the trial,
+  and the button reads "Verify and set up my studio". Anyone else gets a
+  plain "you'll go straight back to StudioCue".
+
+## Still open
 - **Not walked on production:** real Stripe Checkout, Google sign-in, real
   email delivery, and how long the verification email takes to send cold.
   The emulator walk simulated the Stripe webhook.
+- **The price import on other list shapes** (a PDF, per-person pricing, a
+  vendor's list). Only the sample photographer list has been checked on
+  production.
 
 ## Guarding it
 
