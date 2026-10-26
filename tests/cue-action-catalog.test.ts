@@ -266,6 +266,11 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   // One time blocked or unblocked on the calendar (blocked-slots.ts), beside Book.
   setSlotBlocked: "the calendar's Block button on a time",
   setPlanningChecklist: "Settings → Planning checklist (a planner's own list)",
+  // The spreadsheet import's own review (2026-10-26): filling in a job a
+  // later sheet found already here, and rows kept until the studio answers.
+  updateImportedBooking: "the spreadsheet import's Update it on a job already here",
+  holdImportRows: "the spreadsheet import, rows waiting for an answer",
+  resolveImportDraft: "the spreadsheet import, a waiting row imported or left out",
   // Own invoicing, Phase 0 (docs/own-invoicing-plan-2026-10-09.md). Cue
   // offers the per-job choice in Phase 6; until then it's on the booking page.
   setStudioInvoiceSettings: "Settings → Invoices and payments",

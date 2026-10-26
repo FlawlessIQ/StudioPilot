@@ -261,6 +261,7 @@ const GUIDES: readonly ExplainerSource[] = [
       "Open **Jobs** and choose **Import bookings**.",
       "For one job, fill in **The couple**, **The event**, **The crew**, **The contract** and **Paid so far**, then **Check booking** and **Import booking**. Past jobs too: **Where it's at** says where it is now.",
       "For many, go to **A spreadsheet of bookings**, **Choose a spreadsheet** (Excel or CSV) and check the columns. **What StudioCue read** shows each row in full; **Fix and import this one** corrects it.",
+      "Where a row's notes and figures disagree, it asks you first: has the retainer been received, is the crew right. Rows you haven't answered can wait on Today, and a job already here can be filled in from the sheet.",
       "When you're ready to work with a client, open their job and tap **Bring this couple into StudioCue**.",
     ],
     next: "Imported jobs come in quiet: no emails, invoices or reminders reach the client until you bring them in. Inviting them to their portal is a separate checkbox.",

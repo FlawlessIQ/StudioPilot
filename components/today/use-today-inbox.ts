@@ -178,6 +178,8 @@ export function useTodayInbox(): {
   const billingAddressRequests = useTenantDocuments("billingAddressRequests");
   const detailChangeRequests = useTenantDocuments("detailChangeRequests");
   const clientShotLists = useTenantDocuments("clientShotLists");
+  // Spreadsheet rows waiting for an answer: owners and admins import.
+  const importDrafts = useTenantDocuments("importDrafts", { enabled: ownerOperations });
   const clientVendorTeams = useTenantDocuments("clientVendorTeams");
   const detailSignoffs = useTenantDocuments("detailSignoffs");
   // The studio's planning timeline: when Today starts offering "Send the form".
@@ -500,6 +502,7 @@ export function useTodayInbox(): {
     journeys,
     setupGaps: setup.gaps,
     outsideStepReminders: outsideSteps.reminders,
+    importDrafts: importDrafts.records,
   });
 
   const now = new Date();

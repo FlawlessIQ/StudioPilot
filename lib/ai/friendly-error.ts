@@ -485,6 +485,9 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PDF_GENERATION_FAILED: "The invoice PDF couldn't be made just now. Try again in a minute.",
   PDF_SERVICE_NOT_CONFIGURED: "Invoice PDFs aren't set up in this environment.",
   INVALID_GENERATED_PDF: "The invoice PDF came back damaged. Try again in a minute.",
+  // Spreadsheet rows kept for later (functions/src/imports/commands.ts).
+  IMPORT_DRAFT_NOT_FOUND: "That row was already answered or removed. Reload the page to see what's still waiting.",
+  IMPORT_DRAFT_TOO_LARGE: "That row has too much in it to keep for later. Answer its questions and import it now, or shorten its notes in the sheet.",
   BOOKING_IMPORT_PERMISSION_REQUIRED:
     "Only a studio owner or admin can import bookings, because importing one records that its contract was signed and its payments made.",
   NOT_AN_IMPORTED_BOOKING:

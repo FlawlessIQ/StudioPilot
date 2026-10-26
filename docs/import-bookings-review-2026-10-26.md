@@ -166,3 +166,56 @@ shooter, videographer, named photo assistant), a delivered wedding with its
 gallery link, and a phone-only elopement in editing. All three imported in
 their states, 4 crew booked, 3 names added to the crew list with no email,
 and no email or calendar job queued for any of them.
+
+## Confirm before import (2026-10-26, after GR's sheet)
+
+Gabe's real sheet (11 jobs) would have imported nine rows as fact that its
+own notes contradicted: eight retainers listed as paid beside "no payment
+confirmation in contract", one $3,000 "paid" where the notes said the
+retainer was $1,000, another $3,000 against a $2,000 retainer, a photo-only
+wedding with a videographer, a nine-digit phone. Two more were refused
+outright (an unsigned contract; a bride and groom sharing one email). Conor:
+add a human step when confidence is low.
+
+What was built:
+
+- **Questions** (`features/imports/import-questions.ts`, pure): fixed rules
+  read each row against its own notes. Payment unconfirmed → "Has the $3,000
+  been received?" (received / still owed). A different retainer in the notes
+  → both figures and "Nothing yet · $1,000 owed". Photo only with a
+  videographer → keep or drop. A phone that isn't 10 digits → blank or keep.
+  A mitzvah child named only in the notes → save as who it celebrates. No
+  signing date → add as an inquiry or leave out; "unsigned" in the notes of a
+  signed row → booked, inquiry, or leave out. An answer only picks between
+  what the row already says; the server still checks the result.
+- **The review** asks on each row, rows asking first; "Same answer for the N
+  others like this" settles a run of the same question (never a child's name).
+  Answers stay changeable until import.
+- **A retainer still owed** (`retainerOwedCents`) imports as a retainer bill
+  due now: no provider, no customer, nothing sent. "Record a payment" on the
+  booking page settles it; the journey no longer ticks "Retainer paid" on a
+  booked job whose retainer is still out (features/journey/steps.ts — the same
+  was wrong for a job booked on a retainer exception).
+- **Inquiries:** an unsigned row becomes a LEAD job through the ordinary
+  createContact/createProject commands, its package, quote and notes kept in
+  the job's source message.
+- **Shared email:** kept on the first person, the partner left without, with a
+  note — no longer a refusal.
+- **Child's name:** a column the reader knows ("Child's name", "Honoree"), in
+  the template, and the mitzvah variant read from the sheet's own type.
+- **Already here → Update it** (`updateImportedBooking`): for an imported job,
+  what it lacks is filled; where it disagrees with the sheet the studio picks.
+  Crew counts change through a new package snapshot. Money and the signature
+  are never changed this way; a different total is said.
+- **Keep for later** (`holdImportRows` → `importDrafts`, owner/admin read
+  only): unanswered rows wait as one Today card, "N imported jobs need an
+  answer", and reopen on the import page with their answers.
+- What was confirmed is kept on the job (`importConfirmations`, with who and
+  when) and shown in the import banner: "Checked when it was imported".
+
+Walked locally with Gabe's own sheet: 10 rows asked, the 5-row bulk answer,
+9 imported (5 with retainers owed), 2 kept for later → Today card → answered
+→ the shared-email row imported with its phone blank and the unsigned one
+added as an inquiry; one
+owed retainer recorded as paid with no email queued; a later sheet updated
+one job's city and crew through a new snapshot.

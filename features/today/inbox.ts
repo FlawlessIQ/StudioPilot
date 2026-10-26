@@ -527,6 +527,11 @@ export type TodayInput = {
    * that the other company says went wrong (features/outside-steps).
    */
   outsideStepReminders?: OutsideStepReminder[] | null;
+  /**
+   * Spreadsheet rows kept until the studio answers what the import asked
+   * (importDrafts, 2026-10-26): "Has the $3,000 been received?"
+   */
+  importDrafts?: TodayRecord[] | null;
 };
 
 const text = (value: unknown): string =>
@@ -2858,6 +2863,30 @@ export function todayInbox(input: TodayInput): TodayInbox {
       eventDate: null,
       // Setup that blocks a job ranks with exceptions: work has stopped.
       score: score({ lane: "act", severity: "exception", now }),
+    });
+  }
+
+  // ── Act · spreadsheet rows waiting for an answer ───────────────────
+  // Kept from an import because their notes and their figures disagreed.
+  // One card for them all: they're answered together, on the import page.
+  const heldRows = rows(input.importDrafts).filter((draft) => draft.status === "held");
+  if (heldRows.length) {
+    const oldest = heldRows.map((draft) => text(draft.heldAt)).filter(Boolean).sort()[0] ?? null;
+    act.push({
+      id: "import-drafts",
+      lane: "act",
+      kind: null,
+      title: `${heldRows.length} imported job${heldRows.length === 1 ? " needs" : "s need"} an answer`,
+      detail: "Your spreadsheet and its notes disagreed, so these wait for you before they come in.",
+      evidence: "From your spreadsheet import",
+      projectId: null,
+      projectName: null,
+      action: { kind: "link", label: "Answer them", href: "/studio/projects/import#held-rows" },
+      jobHref: null,
+      facts: heldRows.map((draft) => text(draft.label)).filter(Boolean).slice(0, 3),
+      band: "soon",
+      eventDate: null,
+      score: score({ lane: "act", severity: "step", updatedAt: oldest, now }),
     });
   }
 

@@ -101,3 +101,18 @@ Decided by Conor (docs/import-bookings-review-2026-10-26.md).
    with `completionAuthority: "imported"`, no
    calendar invite and no email. A roster entry with no email is never offered
    work and cannot be invited until the studio adds one.
+
+## Amendment, 2026-10-26: signed and owed, and what was confirmed
+
+An import can now say the contract is signed and the retainer is not in yet
+(`retainerOwedCents`). That is written as a retainer bill still due — kind
+`retainer`, status `sent`, no provider, no customer, `importedOwed: true` —
+never as a payment and never raised anywhere. Recording the payment by hand
+settles it like any bill out with a client. It is refused after the event:
+what's owed then is the balance.
+
+Where a sheet's figures and its own notes disagree, the import asks before the
+row goes in (features/imports/import-questions.ts), and the answers travel
+with the booking as `confirmations`. They are stored on the job as
+`importConfirmations`, with who answered and when: the studio's word that it
+checked, alongside its word that the contract was signed.

@@ -19,6 +19,8 @@ import {
   clientAutomationsPaused,
   existingBookingSchema,
   importBlocked,
+  importedCoverage,
+  importedNamedCrew,
   balanceOwedCents,
   pastImportStates,
   planImportedBooking,
@@ -69,6 +71,52 @@ export const bringImportedBookingLiveInput = z.object({
 
 export const lookupQuickBooksPaymentsInput = z.object({
   emails: z.array(z.string().trim().toLowerCase().email()).min(1).max(200),
+});
+
+/**
+ * Fill in a job already imported, from a later sheet (2026-10-26): the
+ * review sends only what the job lacks, or what the studio chose the sheet's
+ * value for. Money and the signature are never part of it.
+ */
+export const updateImportedBookingInput = z.object({
+  projectId: z.string().min(1),
+  changes: z.object({
+    venueName: z.string().trim().min(1).max(160).optional(),
+    city: z.string().trim().min(1).max(120).optional(),
+    startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+    honoreeName: z.string().trim().min(1).max(80).optional(),
+    kindVariant: z.string().trim().min(1).max(40).optional(),
+    crew: existingBookingSchema.shape.crew,
+    notes: z.string().trim().min(1).max(4000).optional(),
+  }),
+  confirmations: existingBookingSchema.shape.confirmations,
+});
+
+/**
+ * Rows the studio hasn't answered yet, kept so they wait on Today rather
+ * than vanish with the browser tab. The row is stored as the review read it
+ * and is only ever read back into the review: nothing imports from here
+ * without going through importExistingBooking's own checks.
+ */
+export const holdImportRowsInput = z.object({
+  batchId: z.string().trim().min(1).max(80),
+  fileName: z.string().trim().max(200),
+  rows: z
+    .array(
+      z.object({
+        row: z.number().int().positive().max(100_000),
+        label: z.string().trim().min(1).max(200),
+        candidate: z.record(z.string(), z.unknown()),
+        answers: z.record(z.string().max(40), z.string().max(40)),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
+
+export const resolveImportDraftInput = z.object({
+  draftId: z.string().min(1).max(120),
+  outcome: z.enum(["imported", "skipped"]),
 });
 
 // Past jobs import too (2026-10-26), so a job already there that day can be
@@ -202,6 +250,8 @@ export async function previewExistingBookings(input: {
                 projectId: duplicate.id,
                 name: String(duplicate.get("name") ?? duplicate.id),
                 state: String(duplicate.get("state") ?? ""),
+                // What the job has, so the review can offer to fill it in.
+                current: duplicate.get("importedAt") ? await importedJobDetails(db, input.tenantId, duplicate) : null,
               }
             : null,
           // Other jobs booked that day. A multi-crew studio shoots two
@@ -220,6 +270,30 @@ export async function previewExistingBookings(input: {
         };
       }),
     ),
+  };
+}
+
+/** What an imported job already says, for a later sheet to fill in around. */
+async function importedJobDetails(db: Firestore, tenantId: string, project: DocumentSnapshot) {
+  const snapshotId = String(project.get("packageSnapshotId") ?? "");
+  const snapshot = snapshotId ? await db.doc(`packageSnapshots/${snapshotId}`).get() : null;
+  const coverage =
+    snapshot?.exists && snapshot.get("tenantId") === tenantId && Array.isArray(snapshot.get("includedCoverage"))
+      ? (snapshot.get("includedCoverage") as { role?: unknown; count?: unknown }[]).map((item) => ({
+          role: String(item.role ?? ""),
+          count: Number(item.count ?? 0),
+        }))
+      : [];
+  const read = (field: string) => (typeof project.get(field) === "string" && String(project.get(field)).trim() ? String(project.get(field)).trim() : null);
+  return {
+    venueName: read("venueName"),
+    city: read("city"),
+    startTime: read("eventStartTime"),
+    honoreeName: read("honoreeName"),
+    kindVariant: read("mitzvahType") ?? read("occasionVariant"),
+    notes: read("importNotes"),
+    coverage,
+    totalCents: snapshot?.exists ? Number(snapshot.get("totalCents") ?? 0) : null,
   };
 }
 
@@ -350,6 +424,7 @@ export async function importExistingBooking(input: {
     packageSnapshotId: randomUUID(),
     contractId: randomUUID(),
     invoiceId: randomUUID(),
+    owedInvoiceId: randomUUID(),
     contactIds,
     actorId: input.actorId,
     now: input.timestamp,
@@ -378,6 +453,9 @@ export async function importExistingBooking(input: {
       db.doc(`invoiceReferences/${String(records.paidInvoice.id)}`),
       records.paidInvoice,
     );
+  // The retainer still owed: a bill due, recorded when it's paid.
+  if (records.owedInvoice)
+    batch.create(db.doc(`invoiceReferences/${String(records.owedInvoice.id)}`), records.owedInvoice);
   // A delivered or finished job's own records, done before StudioCue.
   if (records.postProductionRecord)
     batch.set(db.doc(`postProductionRecords/${projectId}`), records.postProductionRecord);
@@ -403,9 +481,11 @@ export async function importExistingBooking(input: {
       signedOn: input.booking.signedOn,
       totalCents: input.booking.totalCents,
       paidCents: records.paidInvoice?.amountCents ?? 0,
+      owedCents: records.owedInvoice?.amountCents ?? 0,
       source: input.source,
       batchId: input.batchId,
       crew: input.booking.crew ?? null,
+      confirmations: input.booking.confirmations ?? [],
     },
     ipAddress: null,
     userAgent: input.userAgent,
@@ -473,6 +553,7 @@ export async function importExistingBooking(input: {
     contactsMatched,
     crew,
     paidCents: Number(records.paidInvoice?.amountCents ?? 0),
+    owedCents: Number(records.owedInvoice?.amountCents ?? 0),
     workflow:
       "workflowRunId" in workflow
         ? { started: true, checkpointCount: workflow.checkpointCount }
@@ -508,6 +589,8 @@ async function bookImportedCrew(
     people: { role: string; label: string; name: string }[];
     actorId: string;
     now: string;
+    /** Roster entries already on the job, booked another way: not booked twice. */
+    alreadyOnJob?: ReadonlySet<string>;
   },
 ): Promise<{ assigned: number; addedToRoster: { id: string; name: string }[]; matched: number }> {
   if (!input.people.length) return { assigned: 0, addedToRoster: [], matched: 0 };
@@ -519,6 +602,7 @@ async function bookImportedCrew(
   const batch = db.batch();
   const added: { id: string; name: string }[] = [];
   let matched = 0;
+  let assigned = 0;
   const created = new Map<string, string>();
   for (const person of input.people) {
     const key = personKey(person.name);
@@ -563,6 +647,8 @@ async function bookImportedCrew(
         { merge: true },
       );
     }
+    if (input.alreadyOnJob?.has(profileId)) continue;
+    assigned += 1;
     const userId = profile ? (profile.get("userId") as string | null) ?? null : null;
     const assignmentId = `assign_imported_${createHash("sha256").update(`${input.projectId}|${person.role}|${key}`).digest("hex").slice(0, 24)}`;
     batch.set(db.doc(`crewAssignments/${assignmentId}`), {
@@ -617,7 +703,7 @@ async function bookImportedCrew(
       );
   }
   await batch.commit();
-  return { assigned: input.people.length, addedToRoster: added, matched };
+  return { assigned, addedToRoster: added, matched };
 }
 
 export async function attachImportedSignedCopy(input: {
@@ -755,4 +841,219 @@ export async function lookupQuickBooksPayments(input: {
 }) {
   requireImportRole(input.membership);
   return quickBooksPaymentHistory(input.tenantId, input.emails);
+}
+
+/**
+ * "Already here" → Update it (2026-10-26): a job imported earlier, filled in
+ * from a later sheet. GR imported eleven weddings on Oct 23 and then got a
+ * sheet with each one's crew; the re-import skipped every job as a duplicate,
+ * so the crew never arrived.
+ *
+ * Only an imported job, and only what the review sent: the fields the job
+ * lacked, or the ones the studio chose the sheet's value for (it says so in
+ * `confirmations`). Money and the signature are not in the input at all.
+ * Crew counts live in the job's package snapshot, which is never edited: a
+ * new snapshot carries the new counts and the job points at it, as with any
+ * other change of terms.
+ */
+export async function updateImportedBooking(input: {
+  tenantId: string;
+  membership: Record<string, unknown>;
+  actorId: string;
+  timestamp: string;
+  userAgent: string | null;
+  projectId: string;
+  changes: z.infer<typeof updateImportedBookingInput>["changes"];
+  confirmations: z.infer<typeof updateImportedBookingInput>["confirmations"];
+}) {
+  requireImportRole(input.membership);
+  const db = getFirestore();
+  const reference = db.doc(`projects/${input.projectId}`);
+  const project = await reference.get();
+  if (!project.exists || project.get("tenantId") !== input.tenantId) throw new Error("PROJECT_NOT_FOUND");
+  if (!project.get("importedAt")) throw new Error("NOT_AN_IMPORTED_BOOKING");
+  const trade = await studioTrade(db, input.tenantId);
+  const { changes } = input;
+  const fields: Record<string, unknown> = {};
+  const updated: string[] = [];
+  if (changes.venueName) {
+    fields.venueName = changes.venueName;
+    updated.push("venue");
+  }
+  if (changes.city) {
+    fields.city = changes.city;
+    updated.push("city");
+  }
+  if (changes.startTime) {
+    fields.eventStartTime = changes.startTime;
+    updated.push("start time");
+  }
+  if (changes.honoreeName) {
+    fields.honoreeName = changes.honoreeName;
+    updated.push("who it celebrates");
+  }
+  if (changes.kindVariant) fields[project.get("eventKind") === "mitzvah" || project.get("eventTypeId") === "mitzvah" ? "mitzvahType" : "occasionVariant"] = changes.kindVariant;
+  if (changes.notes) {
+    const prior = String(project.get("importNotes") ?? "").trim();
+    if (!prior.includes(changes.notes)) {
+      fields.importNotes = (prior ? `${prior}\n\nFrom a later spreadsheet:\n${changes.notes}` : changes.notes).slice(0, 8000);
+      updated.push("notes");
+    }
+  }
+
+  const batch = db.batch();
+  // Crew counts: a new snapshot when they change.
+  const snapshotId = String(project.get("packageSnapshotId") ?? "");
+  let coverageChanged = false;
+  if (changes.crew?.length && snapshotId) {
+    const snapshot = await db.doc(`packageSnapshots/${snapshotId}`).get();
+    if (snapshot.exists && snapshot.get("tenantId") === input.tenantId) {
+      const coverage = importedCoverage({ photographers: 0, crew: changes.crew }, trade.profile.coverageRoles[0] as ImportedCoverageRole);
+      const current = JSON.stringify(snapshot.get("includedCoverage") ?? []);
+      if (JSON.stringify(coverage) !== current) {
+        const nextId = randomUUID();
+        batch.create(db.doc(`packageSnapshots/${nextId}`), {
+          ...snapshot.data(),
+          id: nextId,
+          includedCoverage: coverage,
+          includedPhotographers: coverage.find((item) => item.role === "photographer")?.count ?? 0,
+          supersedesSnapshotId: snapshotId,
+          createdAt: input.timestamp,
+          createdBy: input.actorId,
+        });
+        fields.packageSnapshotId = nextId;
+        coverageChanged = true;
+        updated.push("crew");
+      }
+    }
+  }
+  if (input.confirmations?.length)
+    fields.importConfirmations = FieldValue.arrayUnion(
+      ...input.confirmations.map((confirmation) => ({ ...confirmation, confirmedBy: input.actorId, confirmedAt: input.timestamp })),
+    );
+  if (Object.keys(fields).length) {
+    batch.update(reference, { ...fields, updatedAt: input.timestamp, updatedBy: input.actorId });
+    const auditId = randomUUID();
+    batch.create(db.doc(`auditEvents/${auditId}`), {
+      id: auditId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      actorId: input.actorId,
+      actorType: "user",
+      action: "booking.import_updated",
+      entityType: "project",
+      entityId: input.projectId,
+      timestamp: input.timestamp,
+      before: {
+        venueName: project.get("venueName") ?? null,
+        city: project.get("city") ?? null,
+        eventStartTime: project.get("eventStartTime") ?? null,
+        honoreeName: project.get("honoreeName") ?? null,
+        packageSnapshotId: snapshotId || null,
+      },
+      after: { updated, coverageChanged, confirmations: input.confirmations ?? [] },
+      ipAddress: null,
+      userAgent: input.userAgent,
+      correlationId: `booking_import_update_${input.projectId}`,
+      automationRunId: null,
+      providerEventId: null,
+    });
+    await batch.commit();
+  }
+
+  // The people the sheet names, booked quietly, skipping anyone already on it.
+  const people = importedNamedCrew({ crew: changes.crew });
+  let crew = { assigned: 0, addedToRoster: [] as { id: string; name: string }[], matched: 0 };
+  if (people.length) {
+    const assignments = await db
+      .collection("crewAssignments")
+      .where("tenantId", "==", input.tenantId)
+      .where("projectId", "==", input.projectId)
+      .get();
+    const alreadyOnJob = new Set(
+      assignments.docs
+        .filter((assignment) => !assignment.get("archivedAt") && !["declined", "cancelled", "withdrawn"].includes(String(assignment.get("status"))))
+        .map((assignment) => String(assignment.get("crewProfileId") ?? "")),
+    );
+    crew = await bookImportedCrew(db, {
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      projectName: String(project.get("name") ?? ""),
+      startTime: changes.startTime ?? (project.get("eventStartTime") as string | null) ?? null,
+      currency: "USD",
+      people,
+      actorId: input.actorId,
+      now: input.timestamp,
+      alreadyOnJob,
+    });
+    if (crew.assigned) updated.push("named crew");
+  }
+  return { projectId: input.projectId, name: String(project.get("name") ?? ""), updated, crew };
+}
+
+const draftId = (tenantId: string, batchId: string, row: number) =>
+  `draft_${createHash("sha256").update(`${tenantId}|${batchId}|${row}`).digest("hex").slice(0, 32)}`;
+
+/** Keep the rows still waiting for an answer, for Today and the import page. */
+export async function holdImportRows(input: {
+  tenantId: string;
+  membership: Record<string, unknown>;
+  actorId: string;
+  timestamp: string;
+  batchId: string;
+  fileName: string;
+  rows: z.infer<typeof holdImportRowsInput>["rows"];
+}) {
+  requireImportRole(input.membership);
+  const db = getFirestore();
+  const batch = db.batch();
+  for (const row of input.rows) {
+    if (JSON.stringify(row.candidate).length > 24_000) throw new Error("IMPORT_DRAFT_TOO_LARGE");
+    const id = draftId(input.tenantId, input.batchId, row.row);
+    batch.set(
+      db.doc(`importDrafts/${id}`),
+      {
+        id,
+        tenantId: input.tenantId,
+        batchId: input.batchId,
+        fileName: input.fileName,
+        row: row.row,
+        label: row.label,
+        candidate: row.candidate,
+        answers: row.answers,
+        status: "held",
+        heldAt: input.timestamp,
+        heldBy: input.actorId,
+        resolvedAt: null,
+        resolvedBy: null,
+        updatedAt: input.timestamp,
+      },
+      { merge: true },
+    );
+  }
+  await batch.commit();
+  return { held: input.rows.length };
+}
+
+/** A held row imported, or left out: it stops waiting. */
+export async function resolveImportDraft(input: {
+  tenantId: string;
+  membership: Record<string, unknown>;
+  actorId: string;
+  timestamp: string;
+  draftId: string;
+  outcome: "imported" | "skipped";
+}) {
+  requireImportRole(input.membership);
+  const db = getFirestore();
+  const reference = db.doc(`importDrafts/${input.draftId}`);
+  const draft = await reference.get();
+  if (!draft.exists || draft.get("tenantId") !== input.tenantId) throw new Error("IMPORT_DRAFT_NOT_FOUND");
+  await reference.update({
+    status: input.outcome,
+    resolvedAt: input.timestamp,
+    resolvedBy: input.actorId,
+    updatedAt: input.timestamp,
+  });
+  return { draftId: input.draftId, status: input.outcome };
 }

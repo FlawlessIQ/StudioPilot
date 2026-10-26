@@ -281,8 +281,15 @@ export function ExistingBookingForm({
   source,
   compact = false,
   onImported,
+  carry,
 }: {
   initial?: Partial<ExistingBookingFormValues>;
+  /**
+   * What a spreadsheet row's answers settled that the form has no field for
+   * (2026-10-26): a retainer still owed, who it celebrates, what was
+   * confirmed. Carried onto the booking unchanged.
+   */
+  carry?: Pick<ExistingBooking, "retainerOwedCents" | "honoreeName" | "kindVariant" | "confirmations">;
   /** Supplied by Cue, which already holds the file. */
   signedCopy?: File | null;
   source: "form" | "cue" | "spreadsheet";
@@ -389,6 +396,7 @@ export function ExistingBookingForm({
       setProblem(built.problem);
       return;
     }
+    if (carry) built.booking = { ...built.booking, ...carry };
     setPhase("checking");
     try {
       const preview = await previewExistingBookings([built.booking]);

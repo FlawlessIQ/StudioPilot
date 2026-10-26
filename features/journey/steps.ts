@@ -1043,18 +1043,21 @@ export function projectJourney(input: JourneyInput): {
           },
   });
 
-  const retainerDone =
-    input.retainerInvoiceStatus === "paid" || stateRank >= 5;
-  const retainerInferred = inferred(
-    Boolean(input.retainerInvoiceStatus),
-    retainerDone,
-  );
   const retainerWaiting = [
     "sent",
     "viewed",
     "partially_paid",
     "overdue",
   ].includes(input.retainerInvoiceStatus ?? "");
+  // Booked is not paid when the retainer is still out with the client: a job
+  // booked on a retainer exception, or imported with the retainer owed
+  // (2026-10-26), ticked "Retainer paid" beside "$3,000 still owed".
+  const retainerDone =
+    input.retainerInvoiceStatus === "paid" || (stateRank >= 5 && !retainerWaiting);
+  const retainerInferred = inferred(
+    Boolean(input.retainerInvoiceStatus),
+    retainerDone,
+  );
   // Own invoicing: a deposit invoice the studio issues itself, drafted on
   // signing and not sent yet — the move is to send it (Today's "Send …'s
   // deposit invoice" card is the same obligation). Riley Park, 2026-10-09.

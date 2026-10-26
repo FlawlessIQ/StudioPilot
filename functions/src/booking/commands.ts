@@ -68,6 +68,12 @@ import {
   lookupQuickBooksPaymentsInput,
   previewExistingBookings,
   previewExistingBookingsInput,
+  updateImportedBooking,
+  updateImportedBookingInput,
+  holdImportRows,
+  holdImportRowsInput,
+  resolveImportDraft,
+  resolveImportDraftInput,
 } from "../imports/commands.js";
 import { studioVouchedAuthorities } from "../imports/existing-booking.js";
 import {
@@ -326,6 +332,24 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: bringImportedBookingLiveInput,
+  }),
+  z.object({
+    type: z.literal("updateImportedBooking"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: updateImportedBookingInput,
+  }),
+  z.object({
+    type: z.literal("holdImportRows"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: holdImportRowsInput,
+  }),
+  z.object({
+    type: z.literal("resolveImportDraft"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: resolveImportDraftInput,
   }),
   z.object({
     type: z.literal("scheduleConsultation"),
@@ -3656,6 +3680,36 @@ export const bookingCommand = onRequest(
           idempotencyKey: command.idempotencyKey,
           projectId: command.input.projectId,
           calendarAndFolders: command.input.calendarAndFolders,
+        });
+      } else if (command.type === "updateImportedBooking") {
+        result = await updateImportedBooking({
+          tenantId: command.tenantId,
+          membership,
+          actorId: identity.uid,
+          timestamp,
+          userAgent: request.header("user-agent") ?? null,
+          projectId: command.input.projectId,
+          changes: command.input.changes,
+          confirmations: command.input.confirmations,
+        });
+      } else if (command.type === "holdImportRows") {
+        result = await holdImportRows({
+          tenantId: command.tenantId,
+          membership,
+          actorId: identity.uid,
+          timestamp,
+          batchId: command.input.batchId,
+          fileName: command.input.fileName,
+          rows: command.input.rows,
+        });
+      } else if (command.type === "resolveImportDraft") {
+        result = await resolveImportDraft({
+          tenantId: command.tenantId,
+          membership,
+          actorId: identity.uid,
+          timestamp,
+          draftId: command.input.draftId,
+          outcome: command.input.outcome,
         });
       } else {
         throw new Error("UNKNOWN_COMMAND");

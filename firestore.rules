@@ -233,6 +233,13 @@ service cloud.firestore {
       allow read: if canManageProjects(resource.data.tenantId);
       allow write: if false;
     }
+    // Spreadsheet rows waiting for the studio's answer before they import
+    // (functions/src/imports/commands.ts holdImportRows). The same people who
+    // may import: what a row says was paid is not every member's to read.
+    match /importDrafts/{draftId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
     match /detailSignoffs/{signoffId} {
       allow read: if canManageProjects(resource.data.tenantId);
       allow write: if false;

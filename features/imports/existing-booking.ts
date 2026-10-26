@@ -180,6 +180,26 @@ export const existingBookingSchema = z.object({
       }),
     )
     .max(20),
+  /**
+   * A retainer the contract asks for and the couple hasn't paid yet
+   * (2026-10-26). Signed and owed is its own fact, not "paid": GR's sheet
+   * listed retainers as paid beside notes saying no payment was confirmed.
+   * It becomes a retainer bill still due, recorded when it arrives.
+   */
+  retainerOwedCents: z.number().int().nonnegative().max(100_000_000).optional(),
+  /** Who a mitzvah, quinceañera or Sweet 16 celebrates: their first name. */
+  honoreeName: z.string().trim().max(80).nullable().optional(),
+  /** Which one, for a kind with variants: a mitzvah's "bar", a sacrament's "baptism". */
+  kindVariant: z.string().trim().max(40).nullable().optional(),
+  /**
+   * What the studio confirmed when the import asked (features/imports/
+   * import-questions.ts): "Has the $3,000 been received?" "Not yet". Kept on
+   * the job with who answered and when, so the record says it was checked.
+   */
+  confirmations: z
+    .array(z.object({ question: z.string().trim().min(1).max(400), answer: z.string().trim().min(1).max(200) }))
+    .max(20)
+    .optional(),
   notes: z.string().trim().max(4000).nullable(),
 });
 export type ExistingBooking = z.infer<typeof existingBookingSchema>;
@@ -201,6 +221,8 @@ export type ExistingBookingIssueCode =
   | "PAYMENT_IN_FUTURE"
   | "PAID_MORE_THAN_TOTAL"
   | "TAX_EXCEEDS_TOTAL"
+  | "RETAINER_OWED_AFTER_EVENT"
+  | "RETAINER_OWED"
   | "NO_PAYMENTS_RECORDED"
   | "NO_SIGNED_COPY";
 
@@ -220,6 +242,10 @@ function realDate(value: string): boolean {
 export function paidToDateCents(booking: Pick<ExistingBooking, "payments">): number {
   return booking.payments.reduce((sum, payment) => sum + payment.amountCents, 0);
 }
+
+/** "$3,000" — this module is copied into functions/, so it formats its own. */
+const dollars = (cents: number) =>
+  `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
 
 export function balanceOwedCents(
   booking: Pick<ExistingBooking, "payments" | "totalCents">,
@@ -309,10 +335,19 @@ export function assessExistingBooking(
       "PAYMENT_IN_FUTURE",
       "A payment is dated in the future. Only record money already received.",
     );
-  if (paidToDateCents(booking) > booking.totalCents)
+  const owed = booking.retainerOwedCents ?? 0;
+  if (paidToDateCents(booking) + owed > booking.totalCents)
     error(
       "PAID_MORE_THAN_TOTAL",
-      "The payments add up to more than the contract total. Check the amounts.",
+      owed
+        ? "What's paid and the retainer still owed add up to more than the contract total. Check the amounts."
+        : "The payments add up to more than the contract total. Check the amounts.",
+    );
+  // After the event, money still owed is the balance, not a retainer.
+  if (owed && past)
+    error(
+      "RETAINER_OWED_AFTER_EVENT",
+      "The event has happened, so what's still owed is the balance. Leave the retainer out and record what's been paid.",
     );
   if (booking.taxCents > booking.totalCents)
     error(
@@ -331,7 +366,12 @@ export function assessExistingBooking(
       "CREW_UNNAMED",
       "Some crew aren't named, so they won't be on the job's record. Add names if you know them.",
     );
-  if (booking.payments.length === 0)
+  if (owed && !past)
+    warning(
+      "RETAINER_OWED",
+      `The ${dollars(owed)} retainer is still owed. The job shows it as due, and you record it when it's paid.`,
+    );
+  else if (booking.payments.length === 0)
     warning(
       "NO_PAYMENTS_RECORDED",
       "No payments recorded, so the whole contract total will show as owed.",
@@ -428,6 +468,8 @@ export type ImportedBookingRecords = {
   contract: Record<string, unknown>;
   /** Null when nothing has been paid yet. */
   paidInvoice: Record<string, unknown> | null;
+  /** The retainer still owed, as a bill due now; null when none is. */
+  owedInvoice: Record<string, unknown> | null;
   /** The people the job names, to match to the roster and book with nothing sent. */
   namedCrew: { role: ImportedCoverageRole; label: string; name: string }[];
   /** A delivered or finished job's editing checklist, every step done before StudioCue. */
@@ -524,13 +566,17 @@ export function planImportedBooking(
     /** A finished or delivered job's gallery record id and its view token. */
     deliveryRecordId?: string;
     viewToken?: string;
+    /** The retainer still owed: its bill's id. */
+    owedInvoiceId?: string;
   },
 ): ImportedBookingRecords {
   const { now, actorId } = context;
   const name = booking.projectName ?? defaultBookingName(booking.clients);
   const paid = paidToDateCents(booking);
-  const includedCoverage = importedCoverage(booking, context.primaryRole);
   const past = pastImportStates.includes(booking.state);
+  // Owed only before the event (assessExistingBooking refuses it after).
+  const owed = past ? 0 : booking.retainerOwedCents ?? 0;
+  const includedCoverage = importedCoverage(booking, context.primaryRole);
   const delivered = booking.state === "DELIVERED" || booking.state === "CLOSED";
   const deliveredOn = booking.deliveredOn ?? null;
   const evidence = {
@@ -563,9 +609,20 @@ export function planImportedBooking(
     packageSnapshotId: context.packageSnapshotId,
     // Readiness is about the run-up to the day; a past job has nothing left of it.
     readinessScore: past ? 100 : 0,
-    nextAction: importedNextAction(booking.state),
+    nextAction: owed ? `Collect the ${dollars(owed)} retainer` : importedNextAction(booking.state),
     eventStartTime: booking.startTime ?? null,
     importAssumed: booking.assumed ?? [],
+    // Who it celebrates, in the fields job-kinds.ts reads (honoreeOf): a
+    // mitzvah's variant is `mitzvahType`, every other kind's `occasionVariant`.
+    ...(booking.honoreeName ? { honoreeName: booking.honoreeName } : {}),
+    ...(booking.kindVariant
+      ? { [booking.eventTypeId === "mitzvah" ? "mitzvahType" : "occasionVariant"]: booking.kindVariant }
+      : {}),
+    importConfirmations: (booking.confirmations ?? []).map((confirmation) => ({
+      ...confirmation,
+      confirmedBy: actorId,
+      confirmedAt: now,
+    })),
     ...(delivered
       ? {
           deliveredAt: `${deliveredOn ?? booking.eventDate}T00:00:00.000Z`,
@@ -607,8 +664,9 @@ export function planImportedBooking(
     discountCents: 0,
     subtotalCents: booking.totalCents - booking.taxCents,
     taxCents: booking.taxCents,
-    // What was actually collected before StudioCue, so the balance is right.
-    retainerCents: paid,
+    // What was collected before StudioCue, so the balance is right, and the
+    // retainer still owed, so recording it later finds the agreed amount.
+    retainerCents: paid + owed,
     totalCents: booking.totalCents,
     includedCoverageMinutes: booking.coverageMinutes,
     includedCoverage,
@@ -689,6 +747,38 @@ export function planImportedBooking(
             payments: booking.payments,
             amountCents: paid,
           },
+          providerState: "not_applicable",
+          createdAt: now,
+          updatedAt: now,
+          createdBy: actorId,
+          updatedBy: actorId,
+          archivedAt: null,
+        }
+      : null;
+
+  // Signed, and the retainer not in yet: a bill still due, as one out with the
+  // couple is. "Record a payment" on the booking page settles it, and the
+  // invoice scheduler drafts the studio a reminder once it's late. No provider
+  // and no customer: nothing is raised in QuickBooks or emailed to anyone.
+  const owedInvoice =
+    owed > 0 && context.owedInvoiceId
+      ? {
+          id: context.owedInvoiceId,
+          tenantId: context.tenantId,
+          projectId: context.projectId,
+          kind: "retainer",
+          provider: null,
+          completionAuthority: null,
+          providerInvoiceId: null,
+          providerCustomerId: null,
+          status: "sent",
+          currency: booking.currency,
+          amountCents: owed,
+          balanceCents: owed,
+          dueDate: now.slice(0, 10),
+          paidAt: null,
+          importedOwed: true,
+          importEvidence: evidence,
           providerState: "not_applicable",
           createdAt: now,
           updatedAt: now,
@@ -785,6 +875,7 @@ export function planImportedBooking(
     packageSnapshot,
     contract,
     paidInvoice,
+    owedInvoice,
     namedCrew: importedNamedCrew(booking),
     postProductionRecord,
     deliveryRecord,

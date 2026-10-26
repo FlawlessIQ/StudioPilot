@@ -439,8 +439,25 @@ export type ExistingBookingPreview = {
   key: string;
   issues: ExistingBookingIssue[];
   knownClients: Array<{ contactId: string; displayName: string } | null>;
-  alreadyImported: { projectId: string; name: string; state: string } | null;
+  alreadyImported: {
+    projectId: string;
+    name: string;
+    state: string;
+    /** What an imported job already says, for "Update it" (null: not imported). */
+    current?: ImportedJobDetails | null;
+  } | null;
   sameDayBookings: Array<{ projectId: string; name: string }>;
+};
+
+export type ImportedJobDetails = {
+  venueName: string | null;
+  city: string | null;
+  startTime: string | null;
+  honoreeName: string | null;
+  kindVariant: string | null;
+  notes: string | null;
+  coverage: { role: string; count: number }[];
+  totalCents: number | null;
 };
 
 export type ImportedBookingResult = {
@@ -452,6 +469,8 @@ export type ImportedBookingResult = {
   /** Named crew booked on the job, and who was added to the roster (2026-10-26). */
   crew?: { assigned: number; matched: number; addedToRoster: { id: string; name: string }[] };
   paidCents: number;
+  /** A retainer imported as still owed (2026-10-26). */
+  owedCents?: number;
   workflow: { started: boolean; checkpointCount?: number; reason?: string };
   warnings: string[];
 };
@@ -586,6 +605,52 @@ export async function bringImportedBookingLive(input: {
     type: "bringImportedBookingLive",
     idempotencyKey: crypto.randomUUID(),
     input,
+  });
+}
+
+/** Fill in a job already imported, from a later sheet: blanks, and what the studio chose. */
+export async function updateImportedBooking(input: {
+  projectId: string;
+  changes: {
+    venueName?: string;
+    city?: string;
+    startTime?: string;
+    honoreeName?: string;
+    kindVariant?: string;
+    crew?: ExistingBooking["crew"];
+    notes?: string;
+  };
+  confirmations?: ExistingBooking["confirmations"];
+  idempotencyKey: string;
+}): Promise<{ mode: "preview" } | { mode: "live"; result: { projectId: string; name: string; updated: string[]; crew: { assigned: number; addedToRoster: { id: string; name: string }[] } } }> {
+  const sent = await sendBookingCommand({
+    type: "updateImportedBooking",
+    idempotencyKey: input.idempotencyKey,
+    input: { projectId: input.projectId, changes: input.changes, confirmations: input.confirmations },
+  });
+  if (sent.mode === "preview") return { mode: "preview" };
+  return { mode: "live", result: sent.payload as never };
+}
+
+/** Keep rows still waiting for an answer, so they wait on Today. */
+export async function holdImportRows(input: {
+  batchId: string;
+  fileName: string;
+  rows: { row: number; label: string; candidate: Record<string, unknown>; answers: Record<string, string> }[];
+}) {
+  return sendBookingCommand({
+    type: "holdImportRows",
+    idempotencyKey: `hold_${input.batchId}_${crypto.randomUUID()}`.slice(0, 160),
+    input,
+  });
+}
+
+/** A held row imported, or left out. */
+export async function resolveImportDraft(draftId: string, outcome: "imported" | "skipped") {
+  return sendBookingCommand({
+    type: "resolveImportDraft",
+    idempotencyKey: `resolve_${draftId}_${outcome}`.slice(0, 160),
+    input: { draftId, outcome },
   });
 }
 

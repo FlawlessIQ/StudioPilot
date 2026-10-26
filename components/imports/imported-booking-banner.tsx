@@ -46,6 +46,10 @@ export function ImportedBookingBanner({
   const primaryContactId = Array.isArray(project.clientContactIds)
     ? String(project.clientContactIds[0] ?? "")
     : "";
+  // What the import asked and the studio answered (import-questions.ts).
+  const confirmations = (Array.isArray(project.importConfirmations) ? project.importConfirmations : [])
+    .map((entry) => entry as { question?: unknown; answer?: unknown; confirmedAt?: unknown })
+    .filter((entry) => typeof entry.question === "string" && typeof entry.answer === "string");
 
   async function bringIn() {
     setBusy(true);
@@ -114,6 +118,19 @@ export function ImportedBookingBanner({
           no emails, invoices, reminders or charges — and nothing will be until
           you bring them in.
         </p>
+        {confirmations.length ? (
+          <details className="imported-booking-confirmed">
+            <summary>{`Checked when it was imported (${confirmations.length})`}</summary>
+            <ul>
+              {confirmations.map((entry) => (
+                <li key={String(entry.question)}>
+                  {String(entry.question)} <strong>{String(entry.answer)}</strong>
+                  {typeof entry.confirmedAt === "string" ? <small>{` · ${entry.confirmedAt.slice(0, 10)}`}</small> : null}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
         {canDecide ? (
           <div className="imported-booking-choices">
             {past ? null : (

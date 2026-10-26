@@ -1,7 +1,7 @@
 import { tradeOf, tradeProfile } from "@/features/trades/trades";
 import { importStateLabels, type ExistingBooking, type ImportableBookingState } from "./existing-booking";
 import { cellKind, crewRoleFromHeader, hasWords, importCrewRoles, readCrewCell, readTime, type CellKind, type CrewRole } from "./sheet-columns";
-import { JOB_KIND_LABELS, JOB_KINDS, jobKindFromLabel } from "@/features/job-kinds/job-kinds";
+import { JOB_KIND_LABELS, JOB_KINDS, jobKindFromLabel, journeyProfile, variantFromLabel } from "@/features/job-kinds/job-kinds";
 
 /**
  * Turning a studio's exported spreadsheet into bookings to review.
@@ -68,6 +68,7 @@ export const spreadsheetFields = [
   "eventDate",
   "startTime",
   "eventType",
+  "honoreeName",
   "status",
   "venueName",
   "city",
@@ -96,6 +97,7 @@ export const spreadsheetFieldLabels: Record<SpreadsheetField, string> = {
   eventDate: "Event date",
   startTime: "Start time",
   eventType: "Event type",
+  honoreeName: "Child's name",
   status: "Job status",
   venueName: "Venue",
   city: "City",
@@ -130,6 +132,8 @@ const synonyms: Record<SpreadsheetField, string[]> = {
   eventDate: ["event date", "wedding date", "project date", "date of event", "session date", "start date", "shoot date", "date"],
   startTime: ["start time", "event time", "time", "start", "ready by", "ready by time", "call time", "arrival time", "start of day"],
   eventType: ["event type", "project type", "type", "category", "job type"],
+  // Who a mitzvah, quinceañera or Sweet 16 celebrates (normalise drops "'s").
+  honoreeName: ["child", "child name", "childs name", "honoree", "honoree name", "mitzvah child", "birthday child", "birthday girl", "birthday boy", "celebrant"],
   status: ["status", "stage", "job status", "project status", "booking status", "workflow status"],
   venueName: ["venue", "venue name", "location", "event location", "ceremony venue", "reception venue"],
   city: ["city", "event city", "town"],
@@ -304,6 +308,21 @@ export function stateFromStatus(raw: string): ImportableBookingState | null {
   return null;
 }
 
+/**
+ * A row with no signing date: not a booking yet, so an inquiry if the studio
+ * says so (2026-10-26). GR's sheet had one unsigned contract among nine
+ * signed ones, and refusing it left a wedding the studio is still chasing
+ * outside StudioCue.
+ */
+export type SpreadsheetInquiry = Pick<
+  ExistingBooking,
+  "clients" | "eventTypeId" | "eventType" | "eventDate" | "timezone" | "venueName" | "city" | "startTime" | "honoreeName" | "kindVariant" | "notes"
+> & {
+  packageName: string | null;
+  /** The price quoted, when the sheet has one. */
+  quotedCents: number | null;
+};
+
 export type SpreadsheetRowResult =
   | {
       row: number;
@@ -312,6 +331,7 @@ export type SpreadsheetRowResult =
       /** Where each part came from: "Crew" → "Lead Photographer, Second Shooter". */
       sources: Partial<Record<string, string>>;
     }
+  | { row: number; inquiry: SpreadsheetInquiry; notes: string[]; sources: Partial<Record<string, string>> }
   | { row: number; problems: string[] };
 
 /**
@@ -383,12 +403,16 @@ export function bookingFromSpreadsheetRow(input: {
 
   const signedRaw = get("signedOn");
   const signedOn = parseSpreadsheetDate(signedRaw);
-  if (!signedRaw) problems.push("No date signed or booked.");
-  else if (!signedOn) problems.push(`Couldn't read the signing date "${signedRaw}".`);
+  // No signing date: an inquiry, unless something else is wrong too.
+  const unsigned = !signedRaw;
+  // Where it's said, if the row turns out to have other problems too.
+  const unsignedAt = problems.length;
+  if (signedRaw && !signedOn) problems.push(`Couldn't read the signing date "${signedRaw}".`);
 
   const total = parseSpreadsheetMoney(get("total"));
-  if (total === null) problems.push("No contract total.");
-  else if (!Number.isFinite(total) || total < 0)
+  if (total === null) {
+    if (!unsigned) problems.push("No contract total.");
+  } else if (!Number.isFinite(total) || total < 0)
     problems.push(`Couldn't read the contract total "${get("total")}".`);
 
   const tax = parseSpreadsheetMoney(get("tax"));
@@ -477,6 +501,11 @@ export function bookingFromSpreadsheetRow(input: {
   const deliveredOn = deliveredRaw ? parseSpreadsheetDate(deliveredRaw) : null;
   if (deliveredRaw && !deliveredOn) problems.push(`Couldn't read the delivery date "${deliveredRaw}".`);
 
+  // Paid with no signing date is a booking missing its date, not an inquiry.
+  // So is a past one: an inquiry is for a day still to come.
+  if (unsigned && ((paid && paid > 0) || (eventDate && input.today && eventDate < input.today)))
+    problems.splice(unsignedAt, 0, "No date signed or booked.");
+  else if (unsigned && problems.length) problems.splice(unsignedAt, 0, "No date signed or booked.");
   if (problems.length) return { row: input.row, problems };
 
   // The sheet's own word for it ("Family session", "Cheer") read as a kind
@@ -525,29 +554,56 @@ export function bookingFromSpreadsheetRow(input: {
     .map(([name, value]) => `${name}: ${value}`);
   const allNotes = [get("notes"), kept.join("\n")].filter(Boolean).join("\n\n");
 
+  // One address for both people can't be two people's portal: it stays with
+  // the first, and the second goes without (a row of GR's, 2026-10-26).
+  let partnerEmail = get("partnerEmail").toLowerCase() || null;
+  if (partnerEmail && partnerEmail === email && second?.first) {
+    partnerEmail = null;
+    notes.push(`Both people had the same email, so it's kept on ${primary!.first} only.`);
+  }
+  // Who it celebrates: a first name, for a kind that celebrates someone.
+  const celebrates = journeyProfile(type.id).honoree;
+  const honoreeName = celebrates ? get("honoreeName").split(/\s+/)[0] || null : null;
+  if (honoreeName) sources.honoree = header(input.columns.honoreeName);
+  const kindVariant = celebrates ? variantFromLabel(type.id, get("eventType")) : null;
+  const clients = [
+    {
+      firstName: primary!.first,
+      lastName: primary!.last,
+      email: email || null,
+      phone: phone || null,
+    },
+    ...(second?.first ? [{ firstName: second.first, lastName: second.last || primary!.last, email: partnerEmail, phone: null }] : []),
+  ];
+
+  if (unsigned)
+    return {
+      row: input.row,
+      notes,
+      sources,
+      inquiry: {
+        clients,
+        eventTypeId: type.id,
+        eventType: type.label,
+        eventDate: eventDate!,
+        timezone: input.timezone,
+        venueName: get("venueName") || null,
+        city: get("city") || null,
+        startTime,
+        honoreeName,
+        kindVariant,
+        packageName: get("packageName") || null,
+        quotedCents: total && total > 0 ? total : null,
+        notes: allNotes ? allNotes.slice(0, 4000) : null,
+      },
+    };
+
   return {
     row: input.row,
     notes,
     sources,
     booking: {
-      clients: [
-        {
-          firstName: primary!.first,
-          lastName: primary!.last,
-          email: email || null,
-          phone: phone || null,
-        },
-        ...(second?.first
-          ? [
-              {
-                firstName: second.first,
-                lastName: second.last || primary!.last,
-                email: get("partnerEmail").toLowerCase() || null,
-                phone: null,
-              },
-            ]
-          : []),
-      ],
+      clients,
       projectName: null,
       eventTypeId: type.id,
       eventType: type.label,
@@ -562,6 +618,8 @@ export function bookingFromSpreadsheetRow(input: {
       crew,
       startTime,
       assumed,
+      honoreeName,
+      kindVariant,
       galleryUrl: state === "DELIVERED" || state === "CLOSED" ? galleryUrl : null,
       deliveredOn: state === "DELIVERED" || state === "CLOSED" ? deliveredOn : null,
       currency: input.currency ?? "USD",
@@ -587,8 +645,8 @@ export function spreadsheetTemplateFor(trade?: unknown): string {
   };
   const [heads, values] = crew[tradeOf(trade)] ?? crew.photographer!;
   return [
-    `First name,Last name,Email,Phone,Partner's name,Partner's email,Event date,Start time,Event type,Status,Venue,City,Package,Contract total,Tax,Amount paid,Date paid,Date signed,Hours,${heads},Notes`,
-    `Maya,Johnson,maya@example.com,555-0100,Theo Johnson,,2027-06-12,3:00 PM,Wedding,Booked,The Grove,Madison,Signature Collection,6499,429,2000,2026-03-02,2026-03-02,8,${values},`,
+    `First name,Last name,Email,Phone,Partner's name,Partner's email,Event date,Start time,Event type,Child's name,Status,Venue,City,Package,Contract total,Tax,Amount paid,Date paid,Date signed,Hours,${heads},Notes`,
+    `Maya,Johnson,maya@example.com,555-0100,Theo Johnson,,2027-06-12,3:00 PM,Wedding,,Booked,The Grove,Madison,Signature Collection,6499,429,2000,2026-03-02,2026-03-02,8,${values},`,
   ].join("\n");
 }
 

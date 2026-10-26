@@ -696,3 +696,50 @@ test(
     }
   },
 );
+
+test(
+  "Held import rows are read by the studio's owners and admins only, and written only by the server",
+  { skip: !emulatorHost },
+  async () => {
+    const [host, portValue] = (emulatorHost ?? "127.0.0.1:8080").split(":");
+    const rules = await readFile(new URL("../firestore.rules", import.meta.url), "utf8");
+    const environment = await initializeTestEnvironment({
+      projectId: `studiohub-import-drafts-rules-${Date.now()}`,
+      firestore: { host, port: Number(portValue), rules },
+    });
+    try {
+      await environment.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        for (const [userId, role] of [
+          ["owner-a", "studio_owner"],
+          ["admin-a", "studio_admin"],
+          ["coordinator-a", "studio_coordinator"],
+          ["crew-a", "subcontractor"],
+        ] as const) {
+          await setDoc(doc(adminDb, `memberships/tenant-a_${userId}`), { tenantId: "tenant-a", userId, status: "active", role, projectIds: [] });
+        }
+        await setDoc(doc(adminDb, "memberships/tenant-b_owner-b"), { tenantId: "tenant-b", userId: "owner-b", status: "active", role: "studio_owner", projectIds: [] });
+        await setDoc(doc(adminDb, "importDrafts/draft-a"), {
+          id: "draft-a",
+          tenantId: "tenant-a",
+          status: "held",
+          label: "Jade & Theo Moss",
+          candidate: { kind: "booking" },
+          answers: {},
+        });
+      });
+      const as = (userId: string) => environment.authenticatedContext(userId).firestore();
+      for (const userId of ["owner-a", "admin-a"]) {
+        await assertSucceeds(getDoc(doc(as(userId), "importDrafts/draft-a")));
+        await assertSucceeds(getDocs(query(collection(as(userId), "importDrafts"), where("tenantId", "==", "tenant-a"))));
+      }
+      // What a row says was paid is not every member's to read.
+      for (const userId of ["coordinator-a", "crew-a", "owner-b"])
+        await assertFails(getDoc(doc(as(userId), "importDrafts/draft-a")));
+      await assertFails(updateDoc(doc(as("owner-a"), "importDrafts/draft-a"), { status: "imported" }));
+      await assertFails(setDoc(doc(as("owner-a"), "importDrafts/draft-b"), { tenantId: "tenant-a", status: "held" }));
+    } finally {
+      await environment.cleanup();
+    }
+  },
+);
