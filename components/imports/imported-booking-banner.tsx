@@ -40,6 +40,9 @@ export function ImportedBookingBanner({
 
   const canDecide =
     workspace.role === "studio_owner" || workspace.role === "studio_admin";
+  // A job imported after its event (2026-10-26) has no day left to put in a
+  // calendar; the server ignores the choice, so it isn't offered.
+  const past = !["BOOKED", "PLANNING", "READY"].includes(String(project.state ?? "BOOKED"));
   const primaryContactId = Array.isArray(project.clientContactIds)
     ? String(project.clientContactIds[0] ?? "")
     : "";
@@ -50,7 +53,7 @@ export function ImportedBookingBanner({
     try {
       const result = await bringImportedBookingLive({
         projectId,
-        calendarAndFolders,
+        calendarAndFolders: calendarAndFolders && !past,
       });
       if (result.mode === "preview") {
         setNotice("Development preview: nothing changed.");
@@ -77,7 +80,7 @@ export function ImportedBookingBanner({
         setNotice(
           [
             "StudioCue can now work with this couple.",
-            calendarAndFolders ? "The calendar event and folders are being created." : "",
+            calendarAndFolders && !past ? "The calendar event and folders are being created." : "",
             invited ? "Their portal invitation is on its way." : "",
           ]
             .filter(Boolean)
@@ -113,14 +116,16 @@ export function ImportedBookingBanner({
         </p>
         {canDecide ? (
           <div className="imported-booking-choices">
-            <label>
-              <input
-                checked={calendarAndFolders}
-                onChange={(event) => setCalendarAndFolders(event.target.checked)}
-                type="checkbox"
-              />
-              Add it to the calendar and create its folders
-            </label>
+            {past ? null : (
+              <label>
+                <input
+                  checked={calendarAndFolders}
+                  onChange={(event) => setCalendarAndFolders(event.target.checked)}
+                  type="checkbox"
+                />
+                Add it to the calendar and create its folders
+              </label>
+            )}
             <label>
               <input
                 checked={invite}

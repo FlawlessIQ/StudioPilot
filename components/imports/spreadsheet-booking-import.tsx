@@ -745,12 +745,18 @@ function readFacts(row: Row): ReadFact[] {
   return [
     { label: "Client", value: booking.clients.map((client) => `${client.firstName} ${client.lastName}${client.email ? ` · ${client.email}` : client.phone ? ` · ${client.phone}` : ""}`).join(" & "), source: row.sources.client },
     { label: "Where it is", value: importStateLabels[booking.state], source: row.sources.status, assumed: assumed.has("state") },
-    { label: "Event", value: `${booking.eventType} · ${booking.eventDate}${booking.startTime ? ` · starts ${booking.startTime}` : ""}`, assumed: assumed.has("eventType") },
+    // The kind of job on its own line, so "assumed" is clearly about it and
+    // not the date or start time beside it (prod walk, 2026-10-26).
+    { label: "Kind of job", value: booking.eventType, assumed: assumed.has("eventType") },
+    { label: "Date", value: `${booking.eventDate}${booking.startTime ? ` · starts ${booking.startTime}` : ""}` },
     { label: "Crew", value: crewLine(booking), source: row.sources.crew, assumed: assumed.has("crew") },
     { label: "Hours", value: String(booking.coverageMinutes / 60), source: row.sources.hours, assumed: assumed.has("coverageMinutes") },
     { label: "Package", value: booking.packageName, assumed: assumed.has("packageName") },
     { label: "Venue", value: [booking.venueName, booking.city].filter(Boolean).join(", ") || "Not in the sheet" },
-    { label: "Money", value: `${money(booking.totalCents)} total · ${money(paid)} paid${booking.payments[0] ? ` on ${booking.payments[0].paidOn}` : ""}`, assumed: assumed.has("paidOn") },
+    { label: "Money", value: `${money(booking.totalCents)} total · ${money(paid)} paid` },
+    ...(booking.payments[0]
+      ? [{ label: "Paid on", value: assumed.has("paidOn") ? `${booking.payments[0].paidOn} (the signing date)` : booking.payments[0].paidOn, assumed: assumed.has("paidOn") }]
+      : []),
     ...(booking.galleryUrl ? [{ label: "Delivery link", value: booking.galleryUrl }] : []),
     ...(booking.notes ? [{ label: "Notes", value: booking.notes.replace(/\n+/g, " · ") }] : []),
   ];
