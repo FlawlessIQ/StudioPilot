@@ -131,6 +131,11 @@ export function assemble(
     ...inputs,
     "-filter_complex", `[0:v]fps=30,${scale},format=yuv420p[vout];${mix}`,
     "-map", "[vout]", "-map", "[aout]",
+    // Every frame written, 30 a second: left to choose, the muxer kept a held
+    // frame as one long frame (a title card as one 3.5 s frame, an uneven step
+    // where a wait was cut), and a Safari-based player lost the voice at
+    // exactly that step and didn't get it back (setup v5, 2026-10-26).
+    "-fps_mode", "cfr", "-r", "30",
     "-c:v", "libx264", "-preset", "slow", "-crf", "20", "-profile:v", "high",
     "-c:a", "aac", "-b:a", "160k", "-ar", "44100",
     "-t", duration.toFixed(3), "-movflags", "+faststart",

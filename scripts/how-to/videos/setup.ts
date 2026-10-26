@@ -40,12 +40,13 @@ export default defineHowTo({
   voice: "voice.journey.json",
   music: "calm",
   steps: [
-    { do: [{ card: { eyebrow: "How to", title: "Set up your studio", subtitle: "About ten minutes, start to finish." } }, { wait: 3600 }] },
-    // A breath on the page before the first word.
+    // The card settles in silence, then the narrator introduces the video over it.
+    { do: [{ card: { eyebrow: "How to", title: "Set up your studio", subtitle: "About ten minutes, start to finish." } }, { wait: 1600 }] },
+    { say: "Here's how to set up your studio in StudioCue.", do: [{ wait: 200 }], pauseAfterMs: 900 },
     {
       chapter: "Where to start",
       // The load is cut, so the card gives way to the page, not a spinner.
-      do: [{ cut: [{ goto: "/studio/setup" }, { waitFor: { css: ".setup-questions" } }, { wait: 900 }] }, { wait: 2200 }],
+      do: [{ cut: [{ goto: "/studio/setup" }, { waitFor: { css: ".setup-questions" } }, { wait: 900 }] }, { wait: 1400 }],
     },
     {
       say: "This is setup. It's seven short questions about how your studio runs, and you can answer most of them right here on this page. Each one says what it's needed for, so you know what matters now and what can wait. Start with the one marked Next.",
