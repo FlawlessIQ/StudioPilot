@@ -699,3 +699,29 @@ test("small UAT fixes stay in: the final balance to come, the publish banner, th
   const booking = readFileSync("components/booking/project-booking-workspace.tsx", "utf8");
   assert.match(booking, /for \(const delay of \[4000, 10000, 20000\]\)/);
 });
+
+// ── Gabe, 2026-10-26: "I responded to her and it's still on Today" ────
+// Wendy Garrod's thread ended in the automatic inquiry acknowledgement, drawn
+// as a green studio bubble. Today was right that nobody had answered; the
+// screens never said the bubble was automatic.
+
+test("Today says only an automatic message followed theirs, when that is the newest", () => {
+  const acknowledged = thread({
+    lastMessageAt: "2026-10-12T14:00:05.000Z",
+    lastMessageDirection: "outbound",
+    lastMessageChannel: "email",
+    lastMessagePreview: "Thank you for reaching out",
+  });
+  const [card] = clientCards(inboxOf({ projects: [bookedJob], conversations: [acknowledged], contacts: [priyaContact] }));
+  assert.ok(card, "still waiting on the studio");
+  assert.equal(card.detail, "Only an automatic message has gone out since. They're waiting on your reply.");
+  assert.equal(card.evidence, null);
+});
+
+test("Messages marks a templated send as automatic, never the studio's own message", () => {
+  const source = read("components/communications/message-inbox.tsx");
+  assert.match(source, /value\.templateKey !== "manual_message"/);
+  assert.match(source, /value\.direction !== "inbound"/);
+  assert.match(source, /message\.automatic \?/);
+  assert.match(source, /Sent automatically/);
+});

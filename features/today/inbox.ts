@@ -3217,11 +3217,17 @@ export function todayInbox(input: TodayInput): TodayInbox {
       lane: "act",
       kind: "message",
       title: `${who} sent you a message`,
+      // Newest message not theirs: something went out after it, but nothing a
+      // person wrote — an acknowledgement or a reminder. Said plainly, because
+      // the thread shows it as a green bubble from the studio (Gabe, Wendy
+      // Garrod, 2026-10-26: "I responded to her and it's still on Today").
       detail: snippet
         ? snippet.length > 140
           ? `${snippet.slice(0, 139).trimEnd()}…`
           : snippet
-        : "Waiting on your reply",
+        : thread.channel === null
+          ? "Only an automatic message has gone out since. They're waiting on your reply."
+          : "Waiting on your reply",
       evidence:
         thread.channel === "portal" ? "Sent from their portal" : thread.channel === "email" ? "By email" : null,
       projectId,

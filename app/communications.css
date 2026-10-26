@@ -605,6 +605,9 @@
 .msg-bubble-meta em {
   font-style: normal;
 }
+.msg-bubble-meta .msg-bubble-auto {
+  font-weight: 600;
+}
 .msg-bubble-who {
   align-self: flex-start;
   margin: 10px 0 1px 3px;

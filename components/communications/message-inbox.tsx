@@ -71,6 +71,15 @@ type ThreadMessage = {
   createdAt: string;
   deliveryStatus: string | null;
   preparedReply: { body: string; basedOn?: string[] } | null;
+  /**
+   * Sent by StudioCue, not typed by the studio: an inquiry acknowledgement,
+   * a reminder, a notice. It looked exactly like the studio's own reply, so
+   * Gabe read the acknowledgement in Wendy Garrod's thread as his answer and
+   * couldn't see why Today still said she was waiting (2026-10-26). The
+   * studio's words go out as `manual_message`; every other template is
+   * automatic. A message with no template (a portal reply) is never marked.
+   */
+  automatic: boolean;
   /** What the couple attached; the inbox dropped these entirely. */
   files: FileRef[];
 };
@@ -484,6 +493,11 @@ export function MessageInbox({
               preparedReply: (value.preparedReply ?? null) as
                 | { body: string; basedOn?: string[] }
                 | null,
+              automatic:
+                value.direction !== "inbound" &&
+                typeof value.templateKey === "string" &&
+                value.templateKey !== "" &&
+                value.templateKey !== "manual_message",
               files: FILE_BEARING.messages(value),
             };
           })
@@ -642,6 +656,7 @@ export function MessageInbox({
               createdAt: new Date().toISOString(),
               deliveryStatus: "queued",
               preparedReply: null,
+              automatic: false,
               files: [],
             },
           ]);
@@ -1050,6 +1065,11 @@ export function MessageInbox({
                             {clockLabel(message.createdAt)}
                           </time>
                           {status ? <em>· {status}</em> : null}
+                          {message.automatic ? (
+                            <em className="msg-bubble-auto">
+                              · Sent automatically
+                            </em>
+                          ) : null}
                         </span>
                       </article>
                     </Fragment>
