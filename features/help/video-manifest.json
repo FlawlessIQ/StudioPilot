@@ -565,29 +565,33 @@
     "recordedCommit": "acfa740"
   },
   "setup": {
-    "version": 4,
-    "durationSec": 72.9,
+    "version": 5,
+    "durationSec": 184.8,
     "orientation": "landscape",
-    "file": "setup.v4.mp4",
-    "poster": "setup.v4.jpg",
-    "captions": "setup.v4.vtt",
+    "file": "setup.v5.mp4",
+    "poster": "setup.v5.jpg",
+    "captions": "setup.v5.vtt",
     "chapters": [
       {
-        "at": 3,
-        "title": "Finding setup"
+        "at": 5.9,
+        "title": "Where to start"
       },
       {
-        "at": 17.9,
-        "title": "The questions"
+        "at": 68.5,
+        "title": "Your prices"
       },
       {
-        "at": 58.4,
-        "title": "Skip anything"
+        "at": 113.9,
+        "title": "Your agreement"
+      },
+      {
+        "at": 159,
+        "title": "You're ready"
       }
     ],
-    "transcript": "Let's set up your studio. On the Today tab, look for the card that says Finish setting up your studio, and tap Continue setup. Setup is seven short questions. Each one says why it matters, and most can be answered right here on the page. The ones with a tick are already done. The first asks what you shoot: weddings, mitzvahs, quinceañeras, communions, family sessions, corporate events and more. It sets the words StudioCue uses with each client, and the types on your inquiry form. The next asks how inquiries reach you, so every new client lands in StudioCue. Then, when clients can book a call with you. Tap Use Mon to Fri, nine to five, or choose your own hours. Further down, you'll tell StudioCue what you charge, how your clients sign, what you ask couples before the day, and who sends your insurance certificates. You can skip anything you're not ready for. StudioCue brings it back on Today when a job actually needs it, and every answer can be changed later in Studio settings.",
-    "recordedAt": "2026-10-15",
-    "recordedCommit": "3787107f"
+    "transcript": "Here's how to set up your studio in StudioCue. This is setup. It's seven short questions about how your studio runs, and you can answer most of them right here on this page. Each one says what it's needed for, so you know what matters now and what can wait. Start with the one marked Next. First, tell StudioCue what you shoot. Check every kind of event you take on, then tap Save. Your inquiry form will offer just these, and each kind of job gets its own steps and its own words. Next, how inquiries reach you. Your inquiry form is already live. Copy its link and put it on your website, your Instagram bio or your email signature. Every inquiry that comes in through it lands in StudioCue, filled in, with a reply drafted for you. Then choose when clients can book a call with you. One tap sets Monday to Friday, nine to five, or you can choose your own hours. Clients pick a time themselves, so there's no back and forth. Now your prices. These become the packages you offer in every proposal. Tap Paste or upload your prices. You don't need to retype anything. Paste your price list just as you'd send it to a couple: each package and its price, any extras, and your retainer. Then tap Draft my packages. StudioCue reads the list and drafts a package for each one: the price, the hours, who you send, the retainer and the extras. Check each card. Nothing is invented, and nothing is added until you say so. If it all looks right, add them. You can change any detail later, on the package itself. Then head back to setup. Next, your agreement. This is the contract every client signs. StudioCue writes each one from it, with the client's details and the price they accepted already filled in, and they sign it online. If you have your own contract, you can upload it here. Or finish StudioCue's starter. It needs just three sections that are yours to write, and each one is a simple question with an example to start from. Use the example as it is, change it to suit you, or write your own. Do the same for the other sections. Each answer goes straight into your agreement, and you can read the whole thing in the preview as you go. When every section is filled in, read it through once, then save it. Back on setup, your prices, call hours and agreement are all done, and your client questionnaires are ready too. That's everything you need to answer your first inquiry and send a proposal. Anything you skip isn't lost. StudioCue brings it back on Today when a job actually needs it, and every answer can be changed later.",
+    "recordedAt": "2026-10-26",
+    "recordedCommit": "6c128665"
   },
   "today": {
     "version": 1,
