@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { JourneySetupBanner, useOffersWeddingFilm } from "@/components/help/journey-film";
+import { SetupVideoCard, useOffersSetupVideo } from "@/components/help/setup-video";
 import { useSetupState } from "@/components/setup/use-setup-state";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { perPersonPricesLink } from "@/features/packages/per-person-price";
@@ -256,6 +257,7 @@ export function SetupConversation() {
   // studio is actually asked, as Today and Help's checklist count them.
   const ordered = orderedFor(workspace.tenantTrade);
   const answered = ordered.filter((question) => !gapByKey.has(question.key)).length;
+  const offersSetupVideo = useOffersSetupVideo();
   // The one question whose button is the dark one: the first still open.
   const nextKey = loading ? null : (ordered.find((question) => gapByKey.has(question.key))?.key ?? null);
   // `complete` is "ready to take bookings" (setupComplete), which leaves out
@@ -451,8 +453,10 @@ export function SetupConversation() {
   return (
     <AppShell active="Studio settings">
       <div className="setup-conversation">
-        {/* Weddings only, like every way into the journey film. */}
-        {shootsWeddings ? <JourneySetupBanner /> : null}
+        {/* Weddings only, like every way into the journey film. Where the
+            setup video fits the studio, it takes this place instead: the film
+            stays one link away in the footnote. */}
+        {shootsWeddings && !offersSetupVideo ? <JourneySetupBanner /> : null}
         <header>
           <p className="eyebrow">Getting started</p>
           <h1>
@@ -479,6 +483,7 @@ export function SetupConversation() {
               </span>
             </div>
           ) : null}
+          {!loading && !allAnswered ? <SetupVideoCard answered={answered} /> : null}
         </header>
 
         {/* The point of setup is getting to work, and nothing here has to be

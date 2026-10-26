@@ -202,8 +202,13 @@ export async function queueTrialSeries(
   const id = trialSeriesJobId(tenantId, due.step);
   if ((await db.doc(`emailJobs/${id}`).get()).exists) return false;
   let values: Record<string, unknown>;
+  // The three-minute setup video (/how-to/setup). The template offers it only
+  // where it fits the studio's trade (a photographer's setup, on screen).
+  // Alex Knight paid, left setup in a minute and got all three emails; none
+  // gave him a way back in but "Open setup" (2026-10-26).
+  const setupVideoUrl = `${appUrl()}/how-to/setup`;
   if (due.step === "starts") {
-    values = { actionUrl: `${appUrl()}/studio/setup` };
+    values = { actionUrl: `${appUrl()}/studio/setup`, setupVideoUrl };
   } else if (due.step === "so_far") {
     const activity = await readTrialActivity(db, tenantId, due.trialStartedAt);
     const quiet = trialActivityIsEmpty(activity);
@@ -211,6 +216,7 @@ export async function queueTrialSeries(
       trialActivity: activity,
       trialDays: due.day,
       actionUrl: quiet ? `${appUrl()}/studio/settings/inquiry-capture` : `${appUrl()}/studio`,
+      ...(quiet ? { setupVideoUrl } : {}),
     };
   } else {
     values = { trustApprovals: TRUST_DIAL_APPROVALS, actionUrl: `${appUrl()}/studio/settings/automatic-drafts` };

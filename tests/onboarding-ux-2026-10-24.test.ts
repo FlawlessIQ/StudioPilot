@@ -459,3 +459,36 @@ test("plan cards say what a studio gets done, not what features are called", asy
   const lines = allPlanCards.flatMap((plan) => [plan.description, plan.users, plan.ai, ...plan.features]).join(" | ");
   assert.doesNotMatch(lines, /\bCOI\b|workflows|schedule generation|readiness reporting|internal users|Standardized operations/i);
 });
+
+// ── The setup video, where a studio stalls (2026-10-26) ───────────────────
+
+test("setup offers its video at the top, folding to a line once a studio is under way", () => {
+  const card = code("components/help/setup-video.tsx");
+  assert.match(card, /if \(dismissed \|\| answered >= 4\)/);
+  assert.match(card, /videoSuitsTrade\(VIDEO, tenantTrade\)/);
+  const setup = code("components/setup/setup-conversation.tsx");
+  assert.match(setup, /<SetupVideoCard answered=\{answered\} \/>/);
+  assert.match(setup, /shootsWeddings && !offersSetupVideo \? <JourneySetupBanner \/>/);
+  assert.match(code("components/today/today-inbox.tsx"), /<SetupVideoLink \/>/);
+});
+
+test("the trial emails offer the setup video to a photographer, and to no one else", async () => {
+  const { renderEmailTemplate } = await import("../functions/src/communications/email-templates.ts");
+  const brand = { studioName: "StudioCue", productName: "StudioCue", accentColor: "#35664a", logoUrl: null, contactEmail: null };
+  const render = (key: string, trade: string, values: Record<string, unknown> = {}) =>
+    renderEmailTemplate({
+      key: key as never,
+      brand,
+      recipientName: "Alex",
+      projectName: null,
+      values: { trade, actionUrl: "https://studio-cue.com/studio/setup", setupVideoUrl: "https://studio-cue.com/how-to/setup", ...values },
+    });
+  for (const [key, values] of [["trial_cue_starts", {}], ["trial_cue_so_far", { trialDays: 3 }]] as const) {
+    assert.match(render(key, "photographer", values).html, /how-to\/setup/, `${key} for a photographer`);
+    for (const trade of ["dj", "makeup", "hair", "planner"])
+      assert.doesNotMatch(render(key, trade, values).html, /how-to\/setup/, `${key} for a ${trade}`);
+  }
+  const notices = code("functions/src/saas/billing-notices.ts");
+  assert.match(notices, /values = \{ actionUrl: `\$\{appUrl\(\)\}\/studio\/setup`, setupVideoUrl \};/);
+  assert.match(notices, /\.\.\.\(quiet \? \{ setupVideoUrl \} : \{\}\)/);
+});

@@ -1663,3 +1663,63 @@ body:has(.sheet-backdrop) .feedback-fab {
   background: var(--accent, #2e7042);
   color: #fff;
 }
+
+/* Setup's video (components/help/setup-video.tsx): a card while a studio is
+   starting out, then one line. Sized by its container: the copy wraps beside
+   the poster and drops under it when the column is narrow. */
+.setup-video-card {
+  align-items: center;
+  background: var(--ds-surface, #fff);
+  border: 1px solid var(--ds-line, #e4e1da);
+  border-radius: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 18px;
+  margin-top: 16px;
+  padding: 12px 44px 12px 12px;
+  position: relative;
+}
+.setup-video-poster {
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  display: block;
+  flex: 0 0 200px;
+  overflow: hidden;
+  position: relative;
+}
+.setup-video-poster img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+.setup-video-copy {
+  align-items: flex-start;
+  display: flex;
+  flex: 1 1 16rem;
+  flex-direction: column;
+  gap: 6px;
+}
+.setup-video-copy small {
+  color: var(--ds-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.setup-video-card .journey-today-dismiss {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+}
+.setup-video-line {
+  align-items: center;
+  color: var(--accent);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 6px;
+  margin-top: 10px;
+  text-decoration: none;
+}
+.setup-video-line:hover {
+  text-decoration: underline;
+}

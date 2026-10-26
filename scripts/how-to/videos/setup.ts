@@ -41,7 +41,9 @@ export default defineHowTo({
   music: "calm",
   steps: [
     // The card settles in silence, then the narrator introduces the video over it.
-    { do: [{ card: { eyebrow: "How to", title: "Set up your studio", subtitle: "About ten minutes, start to finish." } }, { wait: 1600 }] },
+    // The poster is the title card: a frame of the page reads as blank at
+    // thumbnail size (setup's video card, 2026-10-26).
+    { do: [{ card: { eyebrow: "How to", title: "Set up your studio", subtitle: "About ten minutes, start to finish." } }, { wait: 1600 }], poster: true },
     { say: "Here's how to set up your studio in StudioCue.", do: [{ wait: 200 }], pauseAfterMs: 900 },
     {
       chapter: "Where to start",
@@ -54,7 +56,6 @@ export default defineHowTo({
         { spotlight: { css: ".setup-questions" }, holdMs: 3400 },
         { spotlight: { text: /^Next ·/ }, holdMs: 2000 },
       ],
-      poster: true,
     },
     {
       say: "First, tell StudioCue what you shoot. Check every kind of event you take on, then tap Save. Your inquiry form will offer just these, and each kind of job gets its own steps and its own words.",

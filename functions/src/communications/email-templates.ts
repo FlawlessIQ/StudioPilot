@@ -362,6 +362,17 @@ function verificationNext(actionUrl: string): string | null {
   }
 }
 
+/**
+ * The setup video's page, for the trial emails, where it fits the studio: it
+ * records a photographer's setup, so only a photographer's studio is sent it
+ * (features/help/videos.ts videoSuitsTrade hides it from the others in the app).
+ */
+function setupVideoFor(values: Record<string, unknown>): string {
+  const url = safeUrl(stringValue(values, "setupVideoUrl"));
+  const trade = typeof values.trade === "string" ? values.trade : "photographer";
+  return url && trade === "photographer" ? url : "";
+}
+
 const safeUrl = (value: string): string => {
   try {
     const url = new URL(value);
@@ -2814,6 +2825,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     // these may name Cue; signed by the team, never by a person.
     case "trial_cue_starts": {
       const studio = stringValue(values, "studioName") || "your studio";
+      const video = setupVideoFor(values);
       return {
         subject: "Cue starts today",
         preheader: "What it does on its own, what it leaves for you, and three things to set up first.",
@@ -2829,10 +2841,13 @@ function copyFor(input: RenderEmailInput): EmailCopy {
             `- Connect QuickBooks, so ${deposit}s and final balances go out from your own books (Integrations).`,
             "- Bring in the jobs you've already booked. Their clients aren't emailed (Jobs, Import bookings).",
           ].join("\n"),
-          "Setup walks through each one and shows what's done. Most take a few minutes.",
+          video
+            ? "Setup walks through each one and shows what's done. Most take a few minutes, and a three-minute video shows the whole of it being done: your prices pasted in, your agreement finished."
+            : "Setup walks through each one and shows what's done. Most take a few minutes.",
           "The StudioCue team",
         ],
         action: actionUrl ? { label: "Open setup", url: actionUrl } : undefined,
+        ...(video ? { secondaryAction: { label: "Watch how (3 min)", url: video } } : {}),
       };
     }
     case "trial_cue_so_far": {
@@ -2842,6 +2857,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const since = days && days > 1 ? `in your first ${days} days` : "since your trial started";
       // Nothing happened: say so, and say what gives Cue work. Never a list of zeros.
       if (!activity || (activity.inquiries === 0 && activity.emailsSent === 0 && activity.drafted === 0)) {
+        const video = setupVideoFor(values);
         return {
           subject: "Cue hasn't had anything to do yet",
           preheader: "Nothing has reached it so far. Here's how to give it work.",
@@ -2855,9 +2871,11 @@ function copyFor(input: RenderEmailInput): EmailCopy {
               "- Fill out your own inquiry form once, and see what a new client gets back.",
               "- Bring in the jobs you've already booked, so their reminders run here. Their clients aren't emailed.",
             ].join("\n"),
+            ...(video ? ["Haven't finished setting up? A three-minute video walks through it, start to finish."] : []),
             "The StudioCue team",
           ],
           action: actionUrl ? { label: "Set up inquiries", url: actionUrl } : undefined,
+          ...(video ? { secondaryAction: { label: "Watch how to set up (3 min)", url: video } } : {}),
         };
       }
       const lines = trialActivityLines(activity);

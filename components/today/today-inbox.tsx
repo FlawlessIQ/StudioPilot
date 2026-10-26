@@ -36,6 +36,7 @@ import { useTodayInbox, type TodayCall } from "@/components/today/use-today-inbo
 import { CueHandoff } from "@/components/today/cue-handoff";
 import { LeadCaptureStart } from "@/components/intake/lead-capture-setup";
 import { JourneyTodayCard } from "@/components/help/journey-today-card";
+import { SetupVideoLink } from "@/components/help/setup-video";
 import { setupStepName } from "@/features/today/setup-gaps";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
@@ -598,6 +599,8 @@ export function TodayInbox() {
                     setup.next ? ` Next: ${setupStepName(setup.next, workspace.tenantTrade)}.` : ""
                   }`}
                 </small>
+                {/* Three minutes of setup being done, for a studio that hasn't started it. */}
+                <SetupVideoLink />
               </div>
               <Link
                 className={

@@ -565,12 +565,12 @@
     "recordedCommit": "acfa740"
   },
   "setup": {
-    "version": 5,
+    "version": 6,
     "durationSec": 184.8,
     "orientation": "landscape",
-    "file": "setup.v5.mp4",
-    "poster": "setup.v5.jpg",
-    "captions": "setup.v5.vtt",
+    "file": "setup.v6.mp4",
+    "poster": "setup.v6.jpg",
+    "captions": "setup.v6.vtt",
     "chapters": [
       {
         "at": 5.9,
@@ -591,7 +591,7 @@
     ],
     "transcript": "Here's how to set up your studio in StudioCue. This is setup. It's seven short questions about how your studio runs, and you can answer most of them right here on this page. Each one says what it's needed for, so you know what matters now and what can wait. Start with the one marked Next. First, tell StudioCue what you shoot. Check every kind of event you take on, then tap Save. Your inquiry form will offer just these, and each kind of job gets its own steps and its own words. Next, how inquiries reach you. Your inquiry form is already live. Copy its link and put it on your website, your Instagram bio or your email signature. Every inquiry that comes in through it lands in StudioCue, filled in, with a reply drafted for you. Then choose when clients can book a call with you. One tap sets Monday to Friday, nine to five, or you can choose your own hours. Clients pick a time themselves, so there's no back and forth. Now your prices. These become the packages you offer in every proposal. Tap Paste or upload your prices. You don't need to retype anything. Paste your price list just as you'd send it to a couple: each package and its price, any extras, and your retainer. Then tap Draft my packages. StudioCue reads the list and drafts a package for each one: the price, the hours, who you send, the retainer and the extras. Check each card. Nothing is invented, and nothing is added until you say so. If it all looks right, add them. You can change any detail later, on the package itself. Then head back to setup. Next, your agreement. This is the contract every client signs. StudioCue writes each one from it, with the client's details and the price they accepted already filled in, and they sign it online. If you have your own contract, you can upload it here. Or finish StudioCue's starter. It needs just three sections that are yours to write, and each one is a simple question with an example to start from. Use the example as it is, change it to suit you, or write your own. Do the same for the other sections. Each answer goes straight into your agreement, and you can read the whole thing in the preview as you go. When every section is filled in, read it through once, then save it. Back on setup, your prices, call hours and agreement are all done, and your client questionnaires are ready too. That's everything you need to answer your first inquiry and send a proposal. Anything you skip isn't lost. StudioCue brings it back on Today when a job actually needs it, and every answer can be changed later.",
     "recordedAt": "2026-10-26",
-    "recordedCommit": "6c128665"
+    "recordedCommit": "484e36df"
   },
   "today": {
     "version": 1,

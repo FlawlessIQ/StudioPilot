@@ -32,7 +32,8 @@ if (!password) throw new Error("SEED_DEMO_PASSWORD is not set (it's in .env.loca
 
 const EMAIL = "new@studiohub.test";
 const STUDIO = "Willow Lane Photography";
-const FUNCTIONS = "http://127.0.0.1:15001/studiohub-dev/us-east4";
+// The how-to stack's functions; HOW_TO_FUNCTIONS for the regular emulators (a local walk).
+const FUNCTIONS = process.env.HOW_TO_FUNCTIONS ?? "http://127.0.0.1:15001/studiohub-dev/us-east4";
 
 initializeApp({ projectId: "studiohub-dev" });
 const auth = getAuth();
