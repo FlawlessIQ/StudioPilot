@@ -63,7 +63,13 @@ for (const id of ids) {
 
   const journey = Boolean(script.cast);
   // A feature film made from the journey (e.g. the COI video) starts from a named chapter's snapshot.
-  const startFrom = journey ? (script.from ? path.join(JOURNEY_SNAPSHOTS, script.from) : chapterBefore(id)) : undefined;
+  // A how-to that needs another world than the demo studio (setup needs a
+  // studio that has just signed up) names a snapshot in $HOW_TO_HOME/snapshots.
+  const startFrom = journey
+    ? script.from ? path.join(JOURNEY_SNAPSHOTS, script.from) : chapterBefore(id)
+    : script.from ? path.join(HOW_TO_HOME, "snapshots", script.from) : undefined;
+  if (startFrom && !journey && !existsSync(startFrom))
+    throw new Error(`No snapshot "${script.from}": make it first (scripts/how-to/fresh-studio.mts says how).`);
   const storyModule = journey ? await import("./journey/story") : null;
   const story = storyModule ? { story: storyModule.story, resolvePath: storyModule.resolvePath, respond: storyModule.respond } : null;
 

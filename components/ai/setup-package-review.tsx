@@ -129,8 +129,7 @@ export function SetupPackageReview({
           {added.length === 1 ? "Your package is added" : `${added.length} packages added`}
         </h2>
         <p>
-          They&apos;re ready to use in {tradeVocab(trade).proposal.toLowerCase()}s. Check or change any detail —
-          what&apos;s included, the deposit, travel — on the package itself.
+          {`They're ready to use in ${tradeVocab(trade).proposal.toLowerCase()}s. Check or change any detail — what's included, the ${tradeVocab(trade).deposit}, travel — on the package itself.`}
         </p>
         <ul className="setup-package-added">
           {added.map((preview) => (

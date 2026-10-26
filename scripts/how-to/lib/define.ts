@@ -112,7 +112,11 @@ export type HowToScript = {
    * in — a couple on the studio's website before they have an account.
    */
   cast?: Partial<Record<Persona, `${string}@studiohub.test` | "owner" | "client" | "crew" | "guest">>;
-  /** A journey film that isn't a chapter: the journey snapshot it starts from (e.g. "journey-6"). */
+  /**
+   * A journey film that isn't a chapter: the journey snapshot it starts from
+   * (e.g. "journey-6"). Any other how-to: a snapshot in $HOW_TO_HOME/snapshots
+   * (e.g. "fresh-studio", a studio that has just signed up).
+   */
   from?: string;
   /** A journey film: story beats run before the first frame (scripts/how-to/journey/story.ts). */
   before?: string[];

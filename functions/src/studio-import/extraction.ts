@@ -180,6 +180,29 @@ function extractScheduleItems(text: string): Array<{
     .slice(0, 100);
 }
 
+/**
+ * A pasted price list's packages, as Vertex splits one: each "Name - $price"
+ * line with a description under it. Lines with no description ("Extra hour of
+ * coverage - $400" under "Add-ons") are extras, not packages.
+ */
+function priceListPackages(text: string): Array<{ name: string; price: string; included: string[]; own: string }> {
+  const lines = text.split(/\r?\n/).map((line) => line.trim());
+  const heading = /^([A-Za-z][^$\n]{0,60}?)\s*[-–—:]\s*(\$\s?\d[\d,]*(?:\.\d{2})?)$/;
+  return lines.flatMap((line, index) => {
+    const match = heading.exec(line);
+    const next = lines[index + 1] ?? "";
+    if (!match || !next || heading.test(next)) return [];
+    return [
+      {
+        name: match[1]!.trim(),
+        price: match[2]!.replace(/\s/g, ""),
+        included: next.replace(/\.$/, "").split(/,\s*/).filter(Boolean),
+        own: `${line}\n${next}`,
+      },
+    ];
+  });
+}
+
 export function deterministicExtraction(input: {
   name: string;
   text: string;
@@ -190,6 +213,28 @@ export function deterministicExtraction(input: {
     sourceText: text.slice(0, 30_000),
     variables: extractVariables(text),
   };
+  // The emulator's stand-in for a list of several packages: one draft each,
+  // as production's model returns, so setup's price review shows its real
+  // cards locally (the how-to video, a local walk) and not one lumped package.
+  const listed = assetType === "package" ? priceListPackages(text) : [];
+  if (listed.length > 1) {
+    return listed.map((entry) => ({
+      assetType: "package" as const,
+      name: entry.name,
+      confidence: 0.86,
+      // Its own lines, as the model quotes them: the whole list would read
+      // another package's "two photographers" as this one's crew.
+      structuredContent: {
+        sourceText: entry.own,
+        variables: [],
+        price: entry.price,
+        lineItems: entry.included.map((name) => ({ name })),
+        options: [],
+        exclusions: [],
+      },
+      citations: [{ locator: "source:1", excerpt: `${entry.name} - ${entry.price}` }],
+    }));
+  }
   let structuredContent: Json = shared;
   if (assetType === "message_template") {
     const subject =
