@@ -117,8 +117,11 @@ for (const id of ids) {
       renameSync(result.file, voiced);
       makeMusicBed(result.durationSec + 1, bed, 7, script.music);
       withMusic(voiced, bed, 0, result.durationSec, result.file, script.music);
-      rmSync(bed, { force: true });
-      rmSync(voiced, { force: true });
+      // HOW_TO_KEEP=1 keeps the voice-only cut and the bed, to check either alone.
+      if (!process.env.HOW_TO_KEEP) {
+        rmSync(bed, { force: true });
+        rmSync(voiced, { force: true });
+      }
     }
   }
   // Raw frames run to hundreds of megabytes a take; the video is what's kept.

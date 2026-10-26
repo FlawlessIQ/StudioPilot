@@ -6,7 +6,7 @@
  *   meta.json     duration, chapters and transcript for features/help/video-manifest.json
  */
 import { execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { HowToScript } from "./define";
 import type { Recording } from "./recorder";
@@ -126,21 +126,40 @@ export function assemble(
   const mix = placed.length
     ? `${delays};${placed.map((_, i) => `[a${i}]`).join("")}amix=inputs=${placed.length}:normalize=0:dropout_transition=0,apad,atrim=0:${duration.toFixed(3)},loudnorm=I=-16:TP=-1.5:LRA=11[aout]`
     : `anullsrc=r=44100:cl=stereo,atrim=0:${duration.toFixed(3)}[aout]`;
+  // Picture and sound rendered apart, then joined. Rendered together with a
+  // constant frame rate, the voice lost 3.5 s under the title card (the setup
+  // v5 intro went missing but for its last word, 2026-10-26).
+  const pictureOnly = path.join(outDir, "picture.mp4");
+  const soundOnly = path.join(outDir, "sound.m4a");
   ffmpeg([
     "-f", "concat", "-safe", "0", "-i", path.join(outDir, "frames.txt"),
-    ...inputs,
-    "-filter_complex", `[0:v]fps=30,${scale},format=yuv420p[vout];${mix}`,
-    "-map", "[vout]", "-map", "[aout]",
+    "-filter_complex", `[0:v]fps=30,${scale},format=yuv420p[vout]`,
+    "-map", "[vout]", "-an",
     // Every frame written, 30 a second: left to choose, the muxer kept a held
     // frame as one long frame (a title card as one 3.5 s frame, an uneven step
     // where a wait was cut), and a Safari-based player lost the voice at
     // exactly that step and didn't get it back (setup v5, 2026-10-26).
     "-fps_mode", "cfr", "-r", "30",
     "-c:v", "libx264", "-preset", "slow", "-crf", "20", "-profile:v", "high",
+    "-t", duration.toFixed(3),
+    pictureOnly,
+  ]);
+  ffmpeg([
+    ...(placed.length ? inputs : ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]),
+    "-filter_complex", placed.length ? mix.replace(/\[(\d+):a\]/g, (_, n: string) => `[${Number(n) - 1}:a]`) : `[0:a]atrim=0:${duration.toFixed(3)}[aout]`,
+    "-map", "[aout]",
     "-c:a", "aac", "-b:a", "160k", "-ar", "44100",
+    "-t", duration.toFixed(3),
+    soundOnly,
+  ]);
+  ffmpeg([
+    "-i", pictureOnly, "-i", soundOnly,
+    "-map", "0:v", "-map", "1:a", "-c", "copy",
     "-t", duration.toFixed(3), "-movflags", "+faststart",
     video,
   ]);
+  rmSync(pictureOnly, { force: true });
+  rmSync(soundOnly, { force: true });
 
   const posterStep = script.steps.findIndex((step) => step.poster);
   const posterAt = posterStep >= 0 ? marks[posterStep]!.t - t0 + 1.4 : Math.min(3, duration / 2);
