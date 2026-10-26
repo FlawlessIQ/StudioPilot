@@ -97,6 +97,7 @@ Decided by Conor (docs/import-bookings-review-2026-10-26.md).
    role, count and names, with an assistant role per trade. Each named person
    is matched to the roster by name; a name not there is added to it with no
    email and no invite (`addedByImport`). Each gets an accepted assignment
-   (completed, for a past job) with `completionAuthority: "imported"`, no
+   (on a past job too, as a live job's crew stay accepted until completed)
+   with `completionAuthority: "imported"`, no
    calendar invite and no email. A roster entry with no email is never offered
    work and cannot be invited until the studio adds one.

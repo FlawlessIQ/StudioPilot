@@ -153,7 +153,8 @@ test("booking imported crew sends nothing, and inviting a name-only entry says t
   assert.ok(crew.length > 500, "bookImportedCrew moved");
   assert.doesNotMatch(crew, /emailJobs|providerJobs/);
   assert.match(crew, /email: null,/);
-  assert.match(crew, /status: input\.past \? "completed" : "accepted"/);
+  // Accepted, past job or not: "completed" read as nobody booked (prod walk).
+  assert.match(crew, /status: "accepted",/);
   assert.match(read("functions/src/crew/commands.ts"), /throw new Error\("CREW_EMAIL_REQUIRED"\)/);
   // The two copies of the import core stay one.
   assert.equal(read("functions/src/imports/existing-booking.ts"), read("features/imports/existing-booking.ts"));

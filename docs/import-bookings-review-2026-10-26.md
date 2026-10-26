@@ -141,8 +141,7 @@ value empty rather than defaulting it.
   that role; Cue knows photo assistants.
 - **Crew lines on every import:** role, how many, and who. Named people are
   matched to the roster by name or added to it with no email and no invite;
-  each is booked on the job (accepted, or completed for a past job) with
-  nothing sent. A roster entry with no email is never offered work and can't
+  each is booked on the job (accepted, past job or not) with nothing sent. A roster entry with no email is never offered work and can't
   be invited until it has one (`CREW_EMAIL_REQUIRED`).
 - **Past and in-progress jobs:** event done, in editing, delivered and
   finished, each with the records its screens and closeout read (ADR 0005

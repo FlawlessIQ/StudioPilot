@@ -441,7 +441,6 @@ export async function importExistingBooking(input: {
     tenantId: input.tenantId,
     projectId,
     projectName: String(records.project.name),
-    past: pastImportStates.includes(records.targetState),
     startTime: input.booking.startTime ?? null,
     currency: input.booking.currency,
     people: records.namedCrew,
@@ -493,8 +492,8 @@ const personKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " 
  * email for them). A name not there is added to the roster quietly — no
  * invite, no email, Conor's decision (2026-10-26) — and can be invited later
  * once the studio adds an email; until then no offer can go to them
- * (crew/cascade.ts). Each person gets an accepted assignment on the job, or a
- * completed one on a job already past, with no calendar invite and no email:
+ * (crew/cascade.ts). Each person gets an accepted assignment on the job, past
+ * or upcoming, with no calendar invite and no email:
  * the job reads as staffed because it was. Ids are derived from the job, the
  * role and the name, so a retried import books nobody twice.
  */
@@ -504,7 +503,6 @@ async function bookImportedCrew(
     tenantId: string;
     projectId: string;
     projectName: string;
-    past: boolean;
     startTime: string | null;
     currency: string;
     people: { role: string; label: string; name: string }[];
@@ -585,8 +583,10 @@ async function bookImportedCrew(
       responsibilities: [],
       scheduleItemIds: [],
       notes: input.startTime ? `The day starts at ${input.startTime}.` : null,
-      // Worked before StudioCue, or agreed to it there.
-      status: input.past ? "completed" : "accepted",
+      // Agreed to before StudioCue. Accepted on a past job too, as a live
+      // job's crew stay until the studio completes them: "completed" read as
+      // nobody booked on the job page (prod walk, 2026-10-26).
+      status: "accepted",
       invitationSentAt: null,
       viewedAt: null,
       respondedAt: input.now,
