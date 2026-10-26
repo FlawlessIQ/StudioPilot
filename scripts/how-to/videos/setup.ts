@@ -54,6 +54,8 @@ export default defineHowTo({
         { click: { role: "checkbox", name: "Family & portraits" } },
         { wait: 500 },
         { click: { role: "button", name: "Save", exact: true, nth: 0 } },
+        { waitFor: { text: /Your inquiry form offers/ } },
+        { wait: 800 },
       ],
     },
     {
@@ -62,6 +64,7 @@ export default defineHowTo({
         { scrollTo: { text: "How do inquiries reach you?" } },
         { spotlight: { text: "How do inquiries reach you?" }, holdMs: 1800 },
         { click: { role: "button", name: /Copy your form link/ } },
+        { wait: 1400 },
       ],
       pauseAfterMs: 1000,
     },
@@ -71,6 +74,9 @@ export default defineHowTo({
         { scrollTo: { text: "When can clients book a call?" } },
         { spotlight: { text: "When can clients book a call?" }, holdMs: 1600 },
         { click: { role: "button", name: /Use Mon/ } },
+        // The card folds to "Done" a moment after the save: let the page settle.
+        { waitFor: { text: /Calls can be booked/ } },
+        { wait: 1200 },
       ],
       pauseAfterMs: 900,
     },
@@ -79,6 +85,7 @@ export default defineHowTo({
       say: "Now your prices. Tap Paste or upload your prices.",
       do: [
         { scrollTo: { text: "What do you charge?" } },
+        { wait: 700 },
         { spotlight: { role: "link", name: /Paste or upload your prices/ }, holdMs: 1400 },
         { click: { role: "link", name: /Paste or upload your prices/ } },
         { waitFor: { role: "heading", name: "Add your prices" } },
