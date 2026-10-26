@@ -126,6 +126,12 @@ export type HowToScript = {
    * "voice.journey.json" (Matilda, for the journey film), so a film can have its own narrator.
    */
   voice?: string;
+  /**
+   * A quiet music bed under the narration (lib/music.ts), ducked whenever the
+   * narrator speaks. How-tos have none unless they ask (Conor, 2026-10-26,
+   * for the setup video: "maybe a small bit of background music").
+   */
+  music?: import("./music").BedStyle;
   steps: Step[];
 };
 

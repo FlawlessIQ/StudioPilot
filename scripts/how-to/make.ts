@@ -11,13 +11,14 @@
  * from here; publish.ts does that once a video is approved.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { HowToScript } from "./lib/define";
 import { assemble } from "./lib/assemble";
 import { record } from "./lib/recorder";
 import { compose } from "./lib/compose";
+import { makeMusicBed, withMusic } from "./lib/music";
 import { recordJourney } from "./lib/journey-recorder";
 import { HOW_TO_HOME, speakPaced, type Line, type VoiceConfig } from "./lib/voice";
 
@@ -109,6 +110,16 @@ for (const id of ids) {
   } else {
     const recording = await record(script, holdFor, outDir);
     result = assemble(script, recording, lines, outDir);
+    if (script.music) {
+      // The bed under the finished cut: same length, ducked under the voice.
+      const bed = path.join(outDir, "bed.wav");
+      const voiced = path.join(outDir, "voice-only.mp4");
+      renameSync(result.file, voiced);
+      makeMusicBed(result.durationSec + 1, bed, 7, script.music);
+      withMusic(voiced, bed, 0, result.durationSec, result.file, script.music);
+      rmSync(bed, { force: true });
+      rmSync(voiced, { force: true });
+    }
   }
   // Raw frames run to hundreds of megabytes a take; the video is what's kept.
   rmSync(path.join(outDir, "frames"), { recursive: true, force: true });
