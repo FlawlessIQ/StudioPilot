@@ -179,14 +179,18 @@ function offerLabel(
  * which is what an unrecognised role has always been treated as.
  */
 export function coverageRoleForLabel(label: string): CoverageRole {
-  // A DJ studio's crew (trades.ts): "DJ", "Second DJ", "MC".
-  if (/\bdj\b|disc jockey|\bmc\b/i.test(label)) return "dj";
   // A planner's assistants: "Assistant coordinator", "Day-of coordinator".
   if (/coordinat|planner/i.test(label)) return "coordinator";
+  // Each trade's assistant (2026-10-26): "DJ assistant", "Hair assistant",
+  // and a bare "Assistant" in a photographer's own role list.
+  const assistant = /assist/i.test(label);
+  // A DJ studio's crew (trades.ts): "DJ", "Second DJ", "MC".
+  if (/\bdj\b|disc jockey|\bmc\b/i.test(label)) return assistant ? "dj_assistant" : "dj";
   // A makeup or hair studio's crew (trades.ts).
-  if (/make.?up|\bmua\b|\bartist\b/i.test(label)) return "makeup_artist";
-  if (/\bhair\b|stylist/i.test(label)) return "hair_stylist";
-  return /video/i.test(label) ? "videographer" : "photographer";
+  if (/make.?up|\bmua\b|\bartist\b/i.test(label)) return assistant ? "makeup_assistant" : "makeup_artist";
+  if (/\bhair\b|stylist/i.test(label)) return assistant ? "hair_assistant" : "hair_stylist";
+  if (/video/i.test(label)) return "videographer";
+  return assistant ? "photo_assistant" : "photographer";
 }
 
 /**
@@ -208,12 +212,14 @@ export function coverageRoleForLabel(label: string): CoverageRole {
  * person asking.
  */
 export function coverageTradeNamed(label: string): CoverageRole | null {
-  if (/\bdj\b|disc jockey|\bmc\b/i.test(label)) return "dj";
   // A planner's assistant coordinators. "Planner" alone is a vendor on the
   // wedding, never crew a studio staffs.
   if (/coordinat/i.test(label)) return "coordinator";
-  if (/make.?up|\bmua\b/i.test(label)) return "makeup_artist";
-  if (/\bhair\b|stylist/i.test(label)) return "hair_stylist";
+  const assistant = /assist/i.test(label);
+  if (/\bdj\b|disc jockey|\bmc\b/i.test(label)) return assistant ? "dj_assistant" : "dj";
+  if (/make.?up|\bmua\b/i.test(label)) return assistant ? "makeup_assistant" : "makeup_artist";
+  if (/\bhair\b|stylist/i.test(label)) return assistant ? "hair_assistant" : "hair_stylist";
+  if (/photo(?:graphy)?\s+assist|lighting assist/i.test(label)) return "photo_assistant";
   if (/video|cinema|film|drone|aerial/i.test(label)) {
     // Drone and aerial work name a camera, not this studio's video trade.
     return /drone|aerial/i.test(label) ? null : "videographer";

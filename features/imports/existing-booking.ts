@@ -26,9 +26,67 @@ import { z } from "zod";
  * tests/existing-booking-import.test.ts keeps the copies identical.
  */
 
-/** The only states an import may land in. Earlier work has no evidence to import; later work needs its own records. */
-export const importableBookingStates = ["BOOKED", "PLANNING"] as const;
+/**
+ * The states an import may land in. Earlier work has no evidence to import.
+ *
+ * Past and in-progress jobs too, since 2026-10-26 (Conor: a studio moving
+ * mid-season has weddings in editing and galleries out, and the move is never
+ * complete while those stay behind). Each later state writes the records its
+ * screens and closeout read, marked as done before StudioCue: see
+ * `planImportedBooking` and docs/adr/0005-imported-booking-evidence.md.
+ */
+export const importableBookingStates = ["BOOKED", "PLANNING", "EVENT_COMPLETE", "POST_PRODUCTION", "DELIVERED", "CLOSED"] as const;
 export type ImportableBookingState = (typeof importableBookingStates)[number];
+
+/** Before the event: the date must be today or later. */
+export const upcomingImportStates: readonly ImportableBookingState[] = ["BOOKED", "PLANNING"];
+/** After it: the date must have passed. */
+export const pastImportStates: readonly ImportableBookingState[] = ["EVENT_COMPLETE", "POST_PRODUCTION", "DELIVERED", "CLOSED"];
+/** Editing and delivery: only a studio that delivers something after the event. */
+export const deliveryImportStates: readonly ImportableBookingState[] = ["POST_PRODUCTION", "DELIVERED"];
+
+/** Where a job is, in a studio's words. */
+export const importStateLabels: Record<ImportableBookingState, string> = {
+  BOOKED: "Booked",
+  PLANNING: "Planning",
+  EVENT_COMPLETE: "Event done",
+  POST_PRODUCTION: "In editing",
+  DELIVERED: "Delivered",
+  CLOSED: "Finished",
+};
+
+/**
+ * The crew a job can name, each trade's assistant beside its lead
+ * (features/packages/coverage.ts, written out here: this module is duplicated
+ * into functions/, which has no "@/features" path).
+ */
+export const importedCrewRoles = [
+  "photographer",
+  "videographer",
+  "photo_assistant",
+  "dj",
+  "dj_assistant",
+  "makeup_artist",
+  "makeup_assistant",
+  "hair_stylist",
+  "hair_assistant",
+  "coordinator",
+] as const;
+export type ImportedCoverageRole = (typeof importedCrewRoles)[number];
+
+/** "Hair assistant": a role as a crew line says it. */
+export const importedCrewRoleLabels: Record<ImportedCoverageRole, string> = {
+  photographer: "Photographer",
+  videographer: "Videographer",
+  photo_assistant: "Photo assistant",
+  dj: "DJ",
+  dj_assistant: "DJ assistant",
+  makeup_artist: "Makeup artist",
+  makeup_assistant: "Makeup assistant",
+  hair_stylist: "Hair stylist",
+  hair_assistant: "Hair assistant",
+  coordinator: "Coordinator",
+};
 
 /** Authorities that mean "a studio member vouched for this", not a provider. */
 export const studioVouchedAuthorities: readonly string[] = [
@@ -44,6 +102,8 @@ export const existingBookingSchema = z.object({
       z.object({
         firstName: z.string().trim().min(1).max(80),
         lastName: z.string().trim().min(1).max(80),
+        // Optional for the first client too, since 2026-10-26: beauty and DJ
+        // clients are often a phone number. Their portal waits for an email.
         email: z.string().trim().toLowerCase().email().max(254).nullable(),
         phone: z.string().trim().max(30).nullable(),
       }),
@@ -72,6 +132,32 @@ export const existingBookingSchema = z.object({
   coverageMinutes: z.number().int().positive().max(24 * 60),
   photographers: z.number().int().nonnegative().max(10),
   videographers: z.number().int().nonnegative().max(10).optional(),
+  /**
+   * Who the studio sends, line by line: a role, how many, and who when the
+   * studio says (2026-10-26). When present it is the job's crew, and the two
+   * counts above are only what an older caller sent. A hair studio's three
+   * assistants on one wedding and two different ones on the next are two
+   * lines on two jobs; named people are matched to the roster, or added to it
+   * quietly, and booked on the job with nothing sent.
+   */
+  crew: z
+    .array(
+      z.object({
+        role: z.enum(importedCrewRoles),
+        count: z.number().int().positive().max(50),
+        names: z.array(z.string().trim().min(1).max(120)).max(50),
+      }),
+    )
+    .max(12)
+    .optional(),
+  /** When the day starts, "HH:MM", as the studio's sheet or contract says. */
+  startTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
+  /** Fields the reader filled in because the source didn't say ("coverageMinutes"). */
+  assumed: z.array(z.string().max(40)).max(20).optional(),
+  /** A delivered or finished job's gallery, so the client's portal can open it. */
+  galleryUrl: z.string().trim().url().max(2000).nullable().optional(),
+  /** When a delivered or finished job's gallery went out. */
+  deliveredOn: isoDate.nullable().optional(),
   currency: z.string().trim().toUpperCase().length(3),
   /** The contract total, tax included, in cents. */
   totalCents: z.number().int().nonnegative().max(100_000_000),
@@ -94,13 +180,20 @@ export const existingBookingSchema = z.object({
       }),
     )
     .max(20),
-  notes: z.string().trim().max(2000).nullable(),
+  notes: z.string().trim().max(4000).nullable(),
 });
 export type ExistingBooking = z.infer<typeof existingBookingSchema>;
 
 export type ExistingBookingIssueCode =
   | "INVALID_DATE"
   | "PRIMARY_EMAIL_REQUIRED"
+  | "CONTACT_REQUIRED"
+  | "NO_CLIENT_EMAIL"
+  | "EVENT_NOT_YET"
+  | "STATE_NOT_FOR_TRADE"
+  | "DELIVERED_BEFORE_EVENT"
+  | "BALANCE_OWED_ON_FINISHED_JOB"
+  | "CREW_UNNAMED"
   | "DUPLICATE_CLIENT_EMAIL"
   | "EVENT_ALREADY_HAPPENED"
   | "SIGNED_IN_FUTURE"
@@ -145,6 +238,8 @@ export function balanceOwedCents(
 export function assessExistingBooking(
   booking: ExistingBooking,
   today: string,
+  /** Whether the studio delivers anything after the event (trades.ts `delivery`). */
+  context: { delivers?: boolean } = {},
 ): ExistingBookingIssue[] {
   const issues: ExistingBookingIssue[] = [];
   const error = (code: ExistingBookingIssueCode, message: string) =>
@@ -156,6 +251,7 @@ export function assessExistingBooking(
     booking.eventDate,
     booking.signedOn,
     ...booking.payments.map((payment) => payment.paidOn),
+    ...(booking.deliveredOn ? [booking.deliveredOn] : []),
   ];
   if (dates.some((value) => !realDate(value))) {
     error("INVALID_DATE", "One of the dates isn't a real calendar date.");
@@ -163,10 +259,15 @@ export function assessExistingBooking(
   }
 
   const primary = booking.clients[0]!;
-  if (!primary.email)
+  if (!primary.email && !primary.phone)
     error(
-      "PRIMARY_EMAIL_REQUIRED",
-      `Add an email for ${primary.firstName}. It's how they'll reach their portal when you bring them in.`,
+      "CONTACT_REQUIRED",
+      `Add an email or a phone number for ${primary.firstName}, so you can reach them.`,
+    );
+  else if (!primary.email)
+    warning(
+      "NO_CLIENT_EMAIL",
+      `No email for ${primary.firstName}, so they can't be invited to their portal until you add one.`,
     );
   const second = booking.clients[1];
   if (primary.email && second?.email && primary.email === second.email)
@@ -175,11 +276,24 @@ export function assessExistingBooking(
       "Both clients have the same email. Give the second one their own, or leave it blank.",
     );
 
-  if (booking.eventDate < today)
+  const past = pastImportStates.includes(booking.state);
+  if (!past && booking.eventDate < today)
     error(
       "EVENT_ALREADY_HAPPENED",
-      `The event was on ${booking.eventDate}. Only upcoming weddings can be imported for now.`,
+      `The event was on ${booking.eventDate}. Choose where the job is now: event done, in editing, delivered or finished.`,
     );
+  if (past && booking.eventDate > today)
+    error(
+      "EVENT_NOT_YET",
+      `The event is on ${booking.eventDate}, which hasn't happened yet. Import it as booked or planning.`,
+    );
+  if (context.delivers === false && deliveryImportStates.includes(booking.state))
+    error(
+      "STATE_NOT_FOR_TRADE",
+      "Your studio doesn't deliver a gallery after the event. Import it as event done or finished.",
+    );
+  if (booking.deliveredOn && booking.deliveredOn < booking.eventDate)
+    error("DELIVERED_BEFORE_EVENT", "The delivery date is before the event. Check the date.");
   if (booking.signedOn > today)
     error(
       "SIGNED_IN_FUTURE",
@@ -206,6 +320,17 @@ export function assessExistingBooking(
       "The tax is more than the contract total. The total should include tax.",
     );
 
+  if (booking.state === "CLOSED" && paidToDateCents(booking) < booking.totalCents)
+    warning(
+      "BALANCE_OWED_ON_FINISHED_JOB",
+      "This finished job still shows money owed. Record every payment, or it will show a balance due.",
+    );
+  const unnamed = (booking.crew ?? []).filter((line) => line.names.length < line.count);
+  if (booking.crew?.length && unnamed.length && pastImportStates.includes(booking.state))
+    warning(
+      "CREW_UNNAMED",
+      "Some crew aren't named, so they won't be on the job's record. Add names if you know them.",
+    );
   if (booking.payments.length === 0)
     warning(
       "NO_PAYMENTS_RECORDED",
@@ -243,8 +368,12 @@ export function defaultBookingName(
 export function bookingImportKey(
   booking: Pick<ExistingBooking, "clients" | "eventDate">,
 ): string {
-  const email = booking.clients[0]?.email?.trim().toLowerCase() ?? "";
-  return `${email}|${booking.eventDate}`;
+  const client = booking.clients[0];
+  const email = client?.email?.trim().toLowerCase() ?? "";
+  // A client with no email (2026-10-26) is known by phone, then by name.
+  const phone = (client?.phone ?? "").replace(/\D/g, "");
+  const name = `${client?.firstName ?? ""} ${client?.lastName ?? ""}`.trim().toLowerCase();
+  return `${email || (phone ? `tel:${phone}` : `name:${name}`)}|${booking.eventDate}`;
 }
 
 /**
@@ -279,6 +408,10 @@ export const clientAutomationEmailTypes: readonly string[] = [
   "group_review_request",
   // Two weeks before a gallery closes; nothing for a quiet couple.
   "delivery_expiry_reminder",
+  // After the event, now that past jobs import (2026-10-26). Their
+  // schedulers check the pause already; this is the sender's last line.
+  "review_request",
+  "album_selection_reminder",
 ];
 
 /** Whether automations that reach this couple are being held back. */
@@ -295,23 +428,30 @@ export type ImportedBookingRecords = {
   contract: Record<string, unknown>;
   /** Null when nothing has been paid yet. */
   paidInvoice: Record<string, unknown> | null;
+  /** The people the job names, to match to the roster and book with nothing sent. */
+  namedCrew: { role: ImportedCoverageRole; label: string; name: string }[];
+  /** A delivered or finished job's editing checklist, every step done before StudioCue. */
+  postProductionRecord: Record<string, unknown> | null;
+  /** Its gallery, when the studio gave the link. */
+  deliveryRecord: Record<string, unknown> | null;
+  /** A finished job's closeout, so it can be archived like any other. */
+  closeout: Record<string, unknown> | null;
 };
 
 /**
  * Coverage as the contract states it, in the {role, count} shape
  * `features/packages/coverage.ts` defines.
  *
- * Written out here rather than imported: this module is duplicated into
- * `functions/`, which has no "@/features" path, and the two copies are
- * asserted identical.
- *
- * A contract that records nobody imports as one photographer — the same
+ * From the crew lines when there are any (2026-10-26): one entry per role,
+ * the lines for a role added together, and never fewer people than are named.
+ * Otherwise from the two counts an older caller sends. A contract that
+ * records nobody imports as one of the studio's own role — the same
  * assumption the import has always made — and the snapshot's legacy
  * `includedPhotographers` is derived from the result rather than from the raw
  * number, so the pair can never disagree.
  */
 export function importedCoverage(
-  booking: Pick<ExistingBooking, "photographers" | "videographers">,
+  booking: Pick<ExistingBooking, "photographers" | "videographers" | "crew">,
   /**
    * The studio's own crew role (trades.ts `coverageRoles[0]`). A hair
    * studio's form asks for "Hair stylists" into the same count, and they were
@@ -319,6 +459,15 @@ export function importedCoverage(
    */
   primaryRole: ImportedCoverageRole = "photographer",
 ): { role: ImportedCoverageRole; count: number }[] {
+  if (booking.crew?.length) {
+    const totals = new Map<ImportedCoverageRole, number>();
+    for (const line of booking.crew)
+      totals.set(line.role, (totals.get(line.role) ?? 0) + Math.max(line.count, line.names.length));
+    const fromLines = importedCrewRoles
+      .filter((role) => (totals.get(role) ?? 0) > 0)
+      .map((role) => ({ role, count: Math.min(50, totals.get(role)!) }));
+    if (fromLines.length) return fromLines;
+  }
   const coverage: { role: ImportedCoverageRole; count: number }[] = [];
   if (booking.photographers > 0)
     coverage.push({ role: primaryRole, count: booking.photographers });
@@ -327,7 +476,20 @@ export function importedCoverage(
   return coverage.length ? coverage : [{ role: primaryRole, count: 1 }];
 }
 
-export type ImportedCoverageRole = "photographer" | "videographer" | "dj" | "makeup_artist" | "hair_stylist" | "coordinator";
+/** Each named person, once, with the role they're booked as. */
+export function importedNamedCrew(
+  booking: Pick<ExistingBooking, "crew">,
+): { role: ImportedCoverageRole; label: string; name: string }[] {
+  const seen = new Set<string>();
+  return (booking.crew ?? []).flatMap((line) =>
+    line.names.flatMap((name) => {
+      const key = `${line.role}|${name.trim().toLowerCase()}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [{ role: line.role, label: importedCrewRoleLabels[line.role], name: name.trim() }];
+    }),
+  );
+}
 
 /**
  * The documents an import writes, and — as importantly — how they are shaped
@@ -359,12 +521,18 @@ export function planImportedBooking(
     batchId: string | null;
     /** The studio's own crew role; omitted, a photographer. */
     primaryRole?: ImportedCoverageRole;
+    /** A finished or delivered job's gallery record id and its view token. */
+    deliveryRecordId?: string;
+    viewToken?: string;
   },
 ): ImportedBookingRecords {
   const { now, actorId } = context;
   const name = booking.projectName ?? defaultBookingName(booking.clients);
   const paid = paidToDateCents(booking);
   const includedCoverage = importedCoverage(booking, context.primaryRole);
+  const past = pastImportStates.includes(booking.state);
+  const delivered = booking.state === "DELIVERED" || booking.state === "CLOSED";
+  const deliveredOn = booking.deliveredOn ?? null;
   const evidence = {
     kind: "imported_booking",
     source: context.source,
@@ -388,11 +556,27 @@ export function planImportedBooking(
     venueName: booking.venueName,
     city: booking.city,
     venue: null,
-    state: "BOOKED",
+    // A job after its event lands where it is; one before it lands BOOKED and
+    // enters PLANNING once its checkpoints exist (below).
+    state: past ? booking.state : "BOOKED",
     stateVersion: 1,
     packageSnapshotId: context.packageSnapshotId,
-    readinessScore: 0,
-    nextAction: "Bring this couple into StudioCue when you're ready",
+    // Readiness is about the run-up to the day; a past job has nothing left of it.
+    readinessScore: past ? 100 : 0,
+    nextAction: importedNextAction(booking.state),
+    eventStartTime: booking.startTime ?? null,
+    importAssumed: booking.assumed ?? [],
+    ...(delivered
+      ? {
+          deliveredAt: `${deliveredOn ?? booking.eventDate}T00:00:00.000Z`,
+          // Delivered before StudioCue: no review asks were scheduled here,
+          // and closeout doesn't wait for them (release.ts reviewAsksSkipped).
+          reviewRequestsSkippedAt: now,
+          reviewRequestsSkippedBy: actorId,
+          reviewRequestsSkippedReason: "imported_past_job",
+        }
+      : {}),
+    ...(booking.state === "CLOSED" ? { closedAt: now } : {}),
     bookingCompletedAt: `${booking.signedOn}T00:00:00.000Z`,
     clientPortalActive: false,
     importedAt: now,
@@ -495,6 +679,9 @@ export function planImportedBooking(
           currency: booking.currency,
           amountCents: paid,
           balanceCents: 0,
+          // Closeout's final-balance check reads this: a job paid in full
+          // before StudioCue is settled, with no final invoice to wait for.
+          paidInFull: paid >= booking.totalCents,
           dueDate: lastPaidOn,
           paidAt: `${lastPaidOn}T00:00:00.000Z`,
           completionEvidence: {
@@ -511,11 +698,112 @@ export function planImportedBooking(
         }
       : null;
 
+  const doneBefore = {
+    complete: true,
+    completedAt: now,
+    completedBy: actorId,
+    evidenceId: "imported_booking",
+    notes: "Done before StudioCue.",
+  };
+  const notYet = { complete: false, completedAt: null, completedBy: null, evidenceId: null, notes: null };
+  const steps = ["backup_complete", "cull_complete", "editing_started", "editing_complete", "gallery_ready", "album_proof_ready", "delivery_sent", "client_downloaded", "project_archived"];
+  const throughDelivery = new Set(["backup_complete", "cull_complete", "editing_started", "editing_complete", "gallery_ready", "delivery_sent"]);
+  // In editing, the post-production trigger opens the checklist as for any
+  // job moved to Editing. Delivered or finished, it is written here, done.
+  const postProductionRecord = delivered
+    ? {
+        id: context.projectId,
+        tenantId: context.tenantId,
+        projectId: context.projectId,
+        steps: Object.fromEntries(
+          steps.map((key) => [key, booking.state === "CLOSED" || throughDelivery.has(key) ? doneBefore : notYet]),
+        ),
+        currentStep: booking.state === "CLOSED" ? "project_archived" : "client_downloaded",
+        targetDeliveryDate: null,
+        importedAt: now,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: actorId,
+        updatedBy: actorId,
+        archivedAt: null,
+      }
+    : null;
+  const deliveryRecord =
+    delivered && booking.galleryUrl && context.deliveryRecordId && context.viewToken
+      ? {
+          id: context.deliveryRecordId,
+          tenantId: context.tenantId,
+          projectId: context.projectId,
+          releaseId: null,
+          provider: "manual",
+          mediaType: "photo",
+          kind: "gallery",
+          label: "Photo gallery",
+          final: true,
+          galleryUrl: booking.galleryUrl,
+          viewToken: context.viewToken,
+          accessCode: null,
+          expirationDate: null,
+          deliveryDate: deliveredOn ?? booking.eventDate,
+          notes: "Delivered before StudioCue.",
+          status: "sent",
+          sentAt: `${deliveredOn ?? booking.eventDate}T00:00:00.000Z`,
+          viewedAt: null,
+          downloadedAt: null,
+          providerDeliveryId: null,
+          deliveryDraftId: null,
+          completionAuthority: "imported",
+          createdAt: now,
+          updatedAt: now,
+          createdBy: actorId,
+          updatedBy: actorId,
+          archivedAt: null,
+        }
+      : null;
+  const closeout =
+    booking.state === "CLOSED"
+      ? {
+          id: `closeout_${context.projectId}`,
+          tenantId: context.tenantId,
+          projectId: context.projectId,
+          status: "completed",
+          completedAt: now,
+          completionAuthority: "imported",
+          // Finished before StudioCue: nothing here to reconcile.
+          requirements: [],
+          createdAt: now,
+          updatedAt: now,
+          createdBy: actorId,
+          updatedBy: actorId,
+          archivedAt: null,
+        }
+      : null;
+
   return {
     targetState: booking.state,
     project,
     packageSnapshot,
     contract,
     paidInvoice,
+    namedCrew: importedNamedCrew(booking),
+    postProductionRecord,
+    deliveryRecord,
+    closeout,
   };
+}
+
+/** What a job asks for next, by where it was imported. */
+function importedNextAction(state: ImportableBookingState): string {
+  switch (state) {
+    case "EVENT_COMPLETE":
+      return "Close the job, or move it to editing";
+    case "POST_PRODUCTION":
+      return "Finish editing, then record the delivery";
+    case "DELIVERED":
+      return "Close the job when the follow-ups are done";
+    case "CLOSED":
+      return "Finished before StudioCue";
+    default:
+      return "Bring this couple into StudioCue when you're ready";
+  }
 }

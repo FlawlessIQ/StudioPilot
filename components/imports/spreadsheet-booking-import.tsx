@@ -9,18 +9,35 @@ import {
   Download,
   FileSpreadsheet,
   LoaderCircle,
+  PencilLine,
 } from "lucide-react";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
-import type { ExistingBooking } from "@/features/imports/existing-booking";
+import { SheetDialog } from "@/components/ui/sheet-dialog";
+import { ExistingBookingForm, formValuesFromBooking } from "@/components/imports/existing-booking-form";
+import { tradeProfile } from "@/features/trades/trades";
+import {
+  deliveryImportStates,
+  importedCrewRoleLabels,
+  importStateLabels,
+  pastImportStates,
+  type ExistingBooking,
+  type ImportableBookingState,
+} from "@/features/imports/existing-booking";
 import {
   bookingFromSpreadsheetRow,
   detectColumns,
+  detectCrewColumns,
   parseCsv,
+  parseSpreadsheetDate,
   spreadsheetFieldLabel,
   spreadsheetFields,
-  spreadsheetTemplateCsv,
+  spreadsheetTemplateFor,
+  unusedColumns,
+  type CrewColumn,
   type SpreadsheetField,
 } from "@/features/imports/spreadsheet";
+import { cellKind, importCrewRoles, type CrewRole } from "@/features/imports/sheet-columns";
+import { readXlsx } from "@/features/imports/xlsx";
 import {
   applyQuickBooksPayments,
   type QuickBooksClientHistory,
@@ -59,9 +76,25 @@ type Row = {
   label: string;
   booking: ExistingBooking | null;
   notes: string[];
+  /** Which column each part came from, for the row's details. */
+  sources: Partial<Record<string, string>>;
   status: RowStatus | null;
   selected: boolean;
 };
+
+/** "2 photographers (Gabe), 2 videographers": a booking's crew as a line. */
+function crewLine(booking: ExistingBooking): string {
+  return (booking.crew ?? [])
+    .map((line) => {
+      const label = importedCrewRoleLabels[line.role].toLowerCase();
+      const word = line.count === 1 ? label : `${label}s`;
+      return `${line.count} ${word}${line.names.length ? ` (${line.names.join(", ")})` : ""}`;
+    })
+    .join(", ");
+}
+
+/** Today in the browser's calendar: what counts as passed in the sheet. */
+const localToday = () => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
 const money = (cents: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
@@ -100,17 +133,42 @@ export function SpreadsheetBookingImport() {
   const [problem, setProblem] = useState("");
   const [batchId, setBatchId] = useState("");
   const [useQuickBooks, setUseQuickBooks] = useState(false);
+  // Crew columns, read from their cells (2026-10-26), and what to do with the
+  // columns nothing reads and with jobs whose date has passed.
+  const [crewColumns, setCrewColumns] = useState<CrewColumn[]>([]);
+  const [keepUnused, setKeepUnused] = useState(true);
+  const [pastState, setPastState] = useState<ImportableBookingState>("CLOSED");
+  const [fixing, setFixing] = useState<Row | null>(null);
+  const [crewBooked, setCrewBooked] = useState<{ assigned: number; added: string[] }>({ assigned: 0, added: [] });
+  const roles = importCrewRoles(trade);
+  const delivers = tradeProfile(trade).delivery;
 
   const templateHref = useMemo(
-    () => `data:text/csv;charset=utf-8,${encodeURIComponent(spreadsheetTemplateCsv)}`,
-    [],
+    () => `data:text/csv;charset=utf-8,${encodeURIComponent(spreadsheetTemplateFor(trade))}`,
+    [trade],
   );
+  const unused = unusedColumns(headers, columns, crewColumns);
+  const today = localToday();
+  // Rows whose date has passed, when the sheet has no status to say where they are.
+  const passedRows =
+    columns.status === undefined && columns.eventDate !== undefined
+      ? cells.filter((rowCells) => {
+          const date = parseSpreadsheetDate(String(rowCells[columns.eventDate!] ?? ""));
+          return date !== null && date < today;
+        }).length
+      : 0;
 
   async function load(file: File | undefined) {
     if (!file) return;
     setProblem("");
-    const text = await file.text();
-    const parsed = parseCsv(text);
+    let parsed: string[][];
+    try {
+      // Excel and Google Sheets downloads, not only CSV (2026-10-26).
+      parsed = /\.xlsx$/i.test(file.name) ? await readXlsx(file) : parseCsv(await file.text());
+    } catch {
+      setProblem("That file couldn't be read. Save it as .xlsx or .csv and try again.");
+      return;
+    }
     if (parsed.length < 2) {
       setProblem("That file has no rows under its header. Export again, or start from the template.");
       return;
@@ -121,6 +179,7 @@ export function SpreadsheetBookingImport() {
     setCells(body.slice(0, MAX_ROWS));
     setTooMany(Math.max(0, body.length - MAX_ROWS));
     setColumns(detectColumns(head!, trade));
+    setCrewColumns(detectCrewColumns(head!, trade, body.slice(0, MAX_ROWS)));
     setBatchId(crypto.randomUUID());
     setRows([]);
     setPhase("mapping");
@@ -129,7 +188,18 @@ export function SpreadsheetBookingImport() {
   function readRows(): Row[] {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
     return cells.map((rowCells, index) => {
-      const result = bookingFromSpreadsheetRow({ row: index + 2, cells: rowCells, columns, timezone, trade });
+      const result = bookingFromSpreadsheetRow({
+        row: index + 2,
+        cells: rowCells,
+        columns,
+        timezone,
+        trade,
+        crewColumns,
+        headers,
+        keepInNotes: keepUnused ? unused : [],
+        pastState,
+        today,
+      });
       if ("problems" in result) {
         const name =
           [rowCells[columns.firstName ?? -1], rowCells[columns.lastName ?? -1]].filter(Boolean).join(" ") ||
@@ -140,6 +210,7 @@ export function SpreadsheetBookingImport() {
           label: name,
           booking: null,
           notes: [],
+          sources: {},
           status: { kind: "problems", messages: result.problems },
           selected: false,
         };
@@ -150,6 +221,7 @@ export function SpreadsheetBookingImport() {
         label: `${booking.clients.map((client) => client.firstName).join(" & ")} ${booking.clients[0]!.lastName} · ${booking.eventDate}`,
         booking,
         notes: result.notes,
+        sources: result.sources,
         status: null,
         selected: false,
       };
@@ -251,6 +323,13 @@ export function SpreadsheetBookingImport() {
           imported.mode === "live"
             ? { kind: "imported", projectId: imported.result.projectId, name: imported.result.name }
             : { kind: "failed", message: "Development preview: nothing was imported." };
+        if (imported.mode === "live" && imported.result.crew?.assigned) {
+          const crew = imported.result.crew;
+          setCrewBooked((prior) => ({
+            assigned: prior.assigned + crew.assigned,
+            added: [...prior.added, ...crew.addedToRoster.map((person) => person.name).filter((name) => !prior.added.includes(name))],
+          }));
+        }
         setRows((prior) =>
           prior.map((row) => (row.row === target.row ? { ...row, status, selected: false } : row)),
         );
@@ -264,6 +343,7 @@ export function SpreadsheetBookingImport() {
       }
     }
     refreshTenantRecords("projects");
+    refreshTenantRecords("crewProfiles");
     setPhase("finished");
   }
 
@@ -284,17 +364,18 @@ export function SpreadsheetBookingImport() {
       <header>
         <h2>A spreadsheet of bookings</h2>
         <p>
-          Export your booked clients from HoneyBook, Dubsado, Studio Ninja or wherever
-          you keep them, as CSV. Nothing is imported until you&rsquo;ve reviewed every row.
+          Export your clients from HoneyBook, Dubsado, Studio Ninja or wherever you keep them, as
+          Excel or CSV — upcoming jobs and past ones. Nothing is imported until you&rsquo;ve reviewed
+          every row.
         </p>
       </header>
 
       <div className="sheet-import-pick">
         <label className="button button-light">
           <FileSpreadsheet size={15} aria-hidden="true" />
-          {fileName ? "Choose a different file" : "Choose a CSV file"}
+          {fileName ? "Choose a different file" : "Choose a spreadsheet"}
           <input
-            accept=".csv,text/csv"
+            accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             className="sheet-import-file"
             disabled={phase === "checking" || phase === "importing"}
             onChange={(event) => {
@@ -326,7 +407,7 @@ export function SpreadsheetBookingImport() {
             are wrong, and leave out what the sheet doesn&rsquo;t have.
           </p>
           <div className="sheet-import-columns">
-            {spreadsheetFields.filter((field) => spreadsheetFieldLabel(field, trade) !== null).map((field) => (
+            {spreadsheetFields.map((field) => (
               <label key={field}>
                 {spreadsheetFieldLabel(field, trade)}
                 <select
@@ -350,6 +431,104 @@ export function SpreadsheetBookingImport() {
               </label>
             ))}
           </div>
+          {/* The crew, read by role from each column's header and by its cells:
+              names say who worked, a number how many, Yes one (2026-10-26). */}
+          <div className="sheet-import-crew">
+            <strong>Crew</strong>
+            {crewColumns.length ? (
+              <ul>
+                {crewColumns.map((column) => (
+                  <li key={column.index}>
+                    <span>
+                      {headers[column.index] || `Column ${column.index + 1}`}
+                      <small>
+                        {column.kind === "names"
+                          ? "names: who worked each job"
+                          : column.kind === "flag"
+                            ? "yes/no: one when yes"
+                            : column.kind === "count"
+                              ? "a number: how many"
+                              : column.kind === "empty"
+                                ? "empty"
+                                : "names or numbers"}
+                        {column.extra ? ", added to the count" : ""}
+                      </small>
+                    </span>
+                    <select
+                      aria-label={`What ${headers[column.index] || "this column"} is`}
+                      onChange={(event) =>
+                        setCrewColumns((prior) =>
+                          event.target.value === ""
+                            ? prior.filter((candidate) => candidate.index !== column.index)
+                            : prior.map((candidate) =>
+                                candidate.index === column.index ? { ...candidate, role: event.target.value as CrewRole } : candidate,
+                              ),
+                        )
+                      }
+                      value={column.role}
+                    >
+                      {roles.map((role) => (
+                        <option key={role} value={role}>
+                          {importedCrewRoleLabels[role]}
+                        </option>
+                      ))}
+                      <option value="">Not crew</option>
+                    </select>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>No crew columns found, so each job gets one {importedCrewRoleLabels[roles[0]!].toLowerCase()} unless the team size says more.</p>
+            )}
+            {unused.length ? (
+              <label>
+                Also crew:
+                <select
+                  onChange={(event) => {
+                    const index = Number(event.target.value);
+                    if (Number.isNaN(index) || event.target.value === "") return;
+                    // A column the headers didn't name as crew: the studio's own role,
+                    // read by what its cells hold. The role can be changed above.
+                    setCrewColumns((prior) => [
+                      ...prior,
+                      { index, role: roles[0]!, extra: false, kind: cellKind(cells.map((rowCells) => String(rowCells[index] ?? ""))) },
+                    ]);
+                  }}
+                  value=""
+                >
+                  <option value="">Pick a column…</option>
+                  {unused.map((index) => (
+                    <option key={index} value={index}>
+                      {headers[index] || `Column ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
+          {unused.length ? (
+            <label className="sheet-import-quickbooks">
+              <input checked={keepUnused} onChange={(event) => setKeepUnused(event.target.checked)} type="checkbox" />
+              <span>
+                Keep the other columns in each job&rsquo;s notes
+                <small>{unused.map((index) => headers[index]).join(", ")}</small>
+              </span>
+            </label>
+          ) : null}
+          {passedRows ? (
+            <label className="sheet-import-past">
+              {`${passedRows} job${passedRows === 1 ? "'s" : "s'"} date has passed, and the sheet doesn't say where ${passedRows === 1 ? "it is" : "they are"}. They're:`}
+              <select onChange={(event) => setPastState(event.target.value as ImportableBookingState)} value={pastState}>
+                {pastImportStates
+                  .filter((state) => delivers || !deliveryImportStates.includes(state))
+                  .map((state) => (
+                    <option key={state} value={state}>
+                      {importStateLabels[state]}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          ) : null}
           <label className="sheet-import-quickbooks">
             <input
               checked={useQuickBooks}
@@ -407,7 +586,7 @@ export function SpreadsheetBookingImport() {
                       <strong>{row.label}</strong>
                       {row.booking ? (
                         <small>
-                          {money(row.booking.totalCents)} · paid{" "}
+                          {importStateLabels[row.booking.state]} · {crewLine(row.booking)} · {money(row.booking.totalCents)} · paid{" "}
                           {money(row.booking.payments.reduce((sum, payment) => sum + payment.amountCents, 0))} · row {row.row}
                         </small>
                       ) : (
@@ -437,6 +616,29 @@ export function SpreadsheetBookingImport() {
                         <li key={message}>{message}</li>
                       ))}
                     </ul>
+                  ) : null}
+                  {/* Everything this row will import, where it came from, and
+                      what was filled in because the sheet didn't say. */}
+                  {row.booking && status?.kind !== "imported" && status?.kind !== "duplicate" ? (
+                    <details className="sheet-import-detail sheet-import-read">
+                      <summary>What StudioCue read</summary>
+                      <dl>
+                        {readFacts(row).map((fact) => (
+                          <div key={fact.label}>
+                            <dt>{fact.label}</dt>
+                            <dd>
+                              {fact.value}
+                              {fact.assumed ? <em> assumed</em> : fact.source ? <small> from {fact.source}</small> : null}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                      {phase !== "importing" ? (
+                        <button className="button button-light button-sm" onClick={() => setFixing(row)} type="button">
+                          <PencilLine size={14} aria-hidden="true" /> Fix and import this one
+                        </button>
+                      ) : null}
+                    </details>
                   ) : null}
                   {status?.kind === "ready" && (status.warnings.length || row.notes.length) ? (
                     <details className="sheet-import-detail">
@@ -487,8 +689,15 @@ export function SpreadsheetBookingImport() {
           {phase === "finished" && counts.imported ? (
             <p className="booking-import-note">
               <CircleCheck size={14} aria-hidden="true" />
-              {counts.imported} booking{counts.imported === 1 ? " is" : "s are"}{" "} in StudioCue, all quiet —
-              nothing has gone to any couple. Bring each in from its job when you&rsquo;re ready.
+              {[
+                `${counts.imported} job${counts.imported === 1 ? " is" : "s are"} in StudioCue, all quiet: nothing has gone to any client or crew member. Bring each in from its job when you're ready.`,
+                crewBooked.assigned ? `${crewBooked.assigned} crew booked on their jobs.` : "",
+                crewBooked.added.length
+                  ? `${crewBooked.added.join(", ")} ${crewBooked.added.length === 1 ? "was" : "were"} added to your crew list without an invite; add an email to invite them.`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
             </p>
           ) : null}
         </div>
@@ -499,6 +708,50 @@ export function SpreadsheetBookingImport() {
           {problem}
         </p>
       ) : null}
+
+      <SheetDialog label="Fix and import this job" onClose={() => setFixing(null)} open={fixing !== null} width="default">
+        {fixing?.booking ? (
+          <ExistingBookingForm
+            compact
+            initial={formValuesFromBooking(fixing.booking)}
+            onImported={(result) => {
+              setRows((prior) =>
+                prior.map((row) =>
+                  row.row === fixing.row
+                    ? { ...row, status: { kind: "imported", projectId: result.projectId, name: result.name }, selected: false }
+                    : row,
+                ),
+              );
+              setCrewBooked((prior) => ({
+                assigned: prior.assigned + (result.crew?.assigned ?? 0),
+                added: [...prior.added, ...(result.crew?.addedToRoster ?? []).map((person) => person.name)],
+              }));
+            }}
+            source="spreadsheet"
+          />
+        ) : null}
+      </SheetDialog>
     </section>
   );
+}
+
+type ReadFact = { label: string; value: string; source?: string; assumed?: boolean };
+
+/** A row's booking as the facts a studio checks, with where each came from. */
+function readFacts(row: Row): ReadFact[] {
+  const booking = row.booking!;
+  const assumed = new Set(booking.assumed ?? []);
+  const paid = booking.payments.reduce((sum, payment) => sum + payment.amountCents, 0);
+  return [
+    { label: "Client", value: booking.clients.map((client) => `${client.firstName} ${client.lastName}${client.email ? ` · ${client.email}` : client.phone ? ` · ${client.phone}` : ""}`).join(" & "), source: row.sources.client },
+    { label: "Where it is", value: importStateLabels[booking.state], source: row.sources.status, assumed: assumed.has("state") },
+    { label: "Event", value: `${booking.eventType} · ${booking.eventDate}${booking.startTime ? ` · starts ${booking.startTime}` : ""}`, assumed: assumed.has("eventType") },
+    { label: "Crew", value: crewLine(booking), source: row.sources.crew, assumed: assumed.has("crew") },
+    { label: "Hours", value: String(booking.coverageMinutes / 60), source: row.sources.hours, assumed: assumed.has("coverageMinutes") },
+    { label: "Package", value: booking.packageName, assumed: assumed.has("packageName") },
+    { label: "Venue", value: [booking.venueName, booking.city].filter(Boolean).join(", ") || "Not in the sheet" },
+    { label: "Money", value: `${money(booking.totalCents)} total · ${money(paid)} paid${booking.payments[0] ? ` on ${booking.payments[0].paidOn}` : ""}`, assumed: assumed.has("paidOn") },
+    ...(booking.galleryUrl ? [{ label: "Delivery link", value: booking.galleryUrl }] : []),
+    ...(booking.notes ? [{ label: "Notes", value: booking.notes.replace(/\n+/g, " · ") }] : []),
+  ];
 }

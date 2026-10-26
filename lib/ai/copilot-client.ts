@@ -381,6 +381,8 @@ export type SignedAgreementReadResult = {
     coverageHours: number | null;
     photographers: number | null;
     videographers: number | null;
+    /** Each role as the contract words it (2026-10-26); older readings have none. */
+    crew?: Array<{ role: string; count: number | null; names: string[] }>;
     venueName: string | null;
     city: string | null;
     retainerAmount: number | null;

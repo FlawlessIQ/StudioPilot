@@ -88,7 +88,8 @@ test("every fact that would be held wrong stops the import", () => {
       {
         clients: [{ firstName: "Maya", lastName: "Johnson", email: null, phone: null }],
       },
-      "PRIMARY_EMAIL_REQUIRED",
+      // Neither email nor phone; a phone alone imports (2026-10-26).
+      "CONTACT_REQUIRED",
     ],
     [
       {

@@ -128,7 +128,9 @@ test("DJs are a crew role: D1, D2, never ranked as photographers", () => {
   assert.deepEqual([labels.get("a")?.label, labels.get("b")?.label, labels.get("c")?.label], ["D1", "D2", "P1"]);
   assert.equal(labelName("D2"), "DJ 2");
   // A photographer's pickers never offer "DJ"; a DJ's offer only DJs.
-  assert.deepEqual([...tradeProfile("photographer").coverageRoles], ["photographer", "videographer"]);
+  // Each trade's own assistant beside its leads (2026-10-26).
+  assert.deepEqual([...tradeProfile("photographer").coverageRoles], ["photographer", "videographer", "photo_assistant"]);
+  assert.deepEqual([...tradeProfile("dj").coverageRoles], ["dj", "dj_assistant"]);
   assert.match(read("components/crew/trade-field.tsx"), /tradeRoles\.includes\(role\) \|\| selected\.has\(role\)/);
   // Cue staffs only the studio's own roles.
   assert.match(read("functions/src/ai/copilot.ts"), /namedTrade === null \|\| !staffedRoles\.includes\(namedTrade\)/);
@@ -255,7 +257,7 @@ test("Cue is told what a DJ studio is, and nothing changes for a photographer", 
   assert.match(dj, /DJ business, not a photography studio/);
   assert.match(dj, /vibe call/);
   assert.match(dj, /Music & moments planner/);
-  assert.match(dj, /staffs DJs only/);
+  assert.match(dj, /staffs DJs and DJ assistants only/);
   for (const path of ["functions/src/ai/copilot.ts", "functions/src/ai/message-draft.ts", "functions/src/ai/studio-voice.ts", "functions/src/ai/communications.ts"]) {
     assert.match(read(path), /tradeInstruction\(/, path);
   }

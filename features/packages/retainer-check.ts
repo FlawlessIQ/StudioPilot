@@ -16,7 +16,18 @@ import { isCataloguePackage } from "./one-off";
  * the server — and flagged on any package that already has it.
  */
 
-const ROLE_WORDS: Record<CoverageRole, string> = { photographer: "photographers", videographer: "videographers", dj: "DJs", makeup_artist: "makeup artists", hair_stylist: "hair stylists", coordinator: "coordinators" };
+const ROLE_WORDS: Record<CoverageRole, string> = {
+  photographer: "photographers",
+  videographer: "videographers",
+  photo_assistant: "photo assistants",
+  dj: "DJs",
+  dj_assistant: "DJ assistants",
+  makeup_artist: "makeup artists",
+  makeup_assistant: "makeup assistants",
+  hair_stylist: "hair stylists",
+  hair_assistant: "hair assistants",
+  coordinator: "coordinators",
+};
 
 /** How many of the package's own crew the rule's roles cover (no floor). */
 export function crewTheRuleCounts(coverage: readonly CoverageItem[], billedRoles: readonly CoverageRole[] | undefined): number {

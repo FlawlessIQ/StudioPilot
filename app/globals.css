@@ -24120,3 +24120,27 @@ label {
 .package-more-details > summary span { color: var(--ds-muted, var(--muted)); flex: 1 1 100%; font-size: 12px; }
 .package-more-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .package-more-details > .form-grid { border-top: 1px solid var(--line); padding: 15px; }
+
+/* Importing jobs (2026-10-26): crew lines on the form, crew columns and past
+   jobs on the sheet's mapping, and each row's "What StudioCue read". Sized by
+   their own width: fields wrap, nothing squeezes. */
+.booking-import-crew{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.booking-import-crew>label{display:grid;gap:5px;flex:1 1 9rem;min-width:0}
+.booking-import-crew>label:nth-child(3){flex:2 1 14rem}
+.booking-import-crew input,.booking-import-crew select{width:100%;min-width:0}
+.sheet-import-crew{display:grid;gap:8px;font-size:13.5px}
+.sheet-import-crew ul{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.sheet-import-crew li{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.sheet-import-crew li span{display:grid;gap:1px;flex:1 1 12rem;min-width:0;font-weight:600}
+.sheet-import-crew li small{color:var(--ds-muted, var(--muted));font-weight:500;font-size:12px}
+.sheet-import-crew select,.sheet-import-past select{border:1px solid var(--line);border-radius:9px;padding:7px 9px;background:var(--background);color:var(--ink);font:inherit;font-size:13px;min-width:0;max-width:100%}
+.sheet-import-crew p{margin:0;color:var(--ds-muted, var(--muted));font-size:12.5px}
+.sheet-import-crew>label{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:12.5px;font-weight:600}
+.sheet-import-past{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13.5px;font-weight:600}
+.sheet-import-read dl{display:grid;gap:4px;margin:8px 0}
+.sheet-import-read dl>div{display:flex;flex-wrap:wrap;gap:2px 10px}
+.sheet-import-read dt{flex:0 0 7.5rem;font-weight:600;color:var(--ink)}
+.sheet-import-read dd{flex:1 1 14rem;margin:0;min-width:0;overflow-wrap:anywhere;color:var(--ink)}
+.sheet-import-read dd em{font-style:normal;font-weight:700;color:var(--ds-amber-text, #7a5200)}
+.sheet-import-read dd small{color:var(--ds-muted, var(--muted));font-size:12px}
+.sheet-import-read .button{margin-top:4px}

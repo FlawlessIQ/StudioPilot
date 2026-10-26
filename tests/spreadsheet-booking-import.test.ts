@@ -7,6 +7,7 @@ import {
 import {
   bookingFromSpreadsheetRow,
   detectColumns,
+  detectCrewColumns,
   parseCsv,
   parseSpreadsheetDate,
   parseSpreadsheetMoney,
@@ -107,7 +108,9 @@ test("a HoneyBook-style row becomes the booking it describes", () => {
   ]);
   // The guesses it had to make are said, not hidden.
   assert.ok(result.notes.some((note) => note.includes("dated when the contract was signed")));
-  assert.ok(result.notes.some((note) => note.includes("8 hours")));
+  assert.ok(result.notes.some((note) => note.includes("set to 8")));
+  // And they're listed, so the review can mark them.
+  assert.ok(result.booking.assumed?.includes("coverageMinutes"));
   // And the server's check has nothing against it.
   assert.deepEqual(
     assessExistingBooking(booking, "2026-09-17").filter((issue) => issue.severity === "error"),
@@ -128,7 +131,7 @@ test("a row missing what matters says exactly what, in words", () => {
   assert.ok("problems" in result);
   assert.deepEqual(result.problems, [
     "No client first and last name.",
-    "No client email.",
+    "No client email or phone.",
     'Couldn\'t read the event date "sometime".',
     "No date signed or booked.",
     'Couldn\'t read the contract total "TBD".',
@@ -140,12 +143,21 @@ test("the template a studio can start from imports cleanly", () => {
   const result = bookingFromSpreadsheetRow({
     row: 2,
     cells: rows[0]!,
-    columns: detectColumns(headers!),
+    columns: detectColumns(headers!, "photographer"),
+    crewColumns: detectCrewColumns(headers!, "photographer", rows),
+    headers: headers!,
     timezone: "UTC",
+    trade: "photographer",
   });
   assert.ok("booking" in result, JSON.stringify(result));
   assert.equal(result.booking.clients.length, 2);
+  // Gabe, a second shooter, and a videographer.
   assert.equal(result.booking.photographers, 2);
+  assert.deepEqual(result.booking.crew, [
+    { role: "photographer", count: 2, names: ["Gabe"] },
+    { role: "videographer", count: 1, names: [] },
+  ]);
+  assert.equal(result.booking.startTime, "15:00");
   assert.equal(result.booking.taxCents, 42_900);
   assert.equal(result.notes.length, 0, "the template leaves nothing to guess");
 });

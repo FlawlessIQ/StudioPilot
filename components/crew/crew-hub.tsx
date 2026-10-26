@@ -1,5 +1,6 @@
 "use client";
 
+import { COVERAGE_ROLES, coverageRoleLabel, type CoverageRole } from "@/features/packages/coverage";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -396,7 +397,13 @@ function CrewCard({
         <ul className="crew-card-tags" aria-label="What they do">
           {trades.map((trade) => (
             <li className="is-trade" key={`t-${trade}`}>
-              {trade.charAt(0).toUpperCase() + trade.slice(1)}
+              {/* "Photo assistant", not the stored "photo_assistant" (2026-10-26). */}
+              {(() => {
+                const words = (COVERAGE_ROLES as readonly string[]).includes(trade)
+                  ? coverageRoleLabel(trade as CoverageRole, 1)
+                  : trade;
+                return words.charAt(0).toUpperCase() + words.slice(1);
+              })()}
             </li>
           ))}
           {specialties.map((specialty) => (

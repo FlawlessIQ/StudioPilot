@@ -15,6 +15,8 @@ import {
   type SignedAgreementReadResult,
 } from "@/lib/ai/copilot-client";
 import { recordSignedAgreement } from "@/lib/booking/command-client";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { crewRoleFromHeader, importCrewRoles } from "@/features/imports/sheet-columns";
 import {
   ExistingBookingForm,
   type ExistingBookingFormValues,
@@ -38,6 +40,7 @@ export function SignedAgreementCard({
   file: File;
   tenantId: string;
 }) {
+  const trade = useWorkspace().tenantTrade;
   const [phase, setPhase] = useState<"reading" | "scanning" | "ready" | "failed" | "recorded">(
     "reading",
   );
@@ -161,7 +164,7 @@ export function SignedAgreementCard({
           </p>
           <ExistingBookingForm
             compact
-            initial={prefillFromReading(result)}
+            initial={prefillFromReading(result, trade)}
             signedCopy={file}
             source="cue"
           />
@@ -284,9 +287,37 @@ export function SignedAgreementCard({
   );
 }
 
+/**
+ * The contract's crew as the form's lines: each role as written ("Second
+ * shooter", "Hair assistant") mapped to the studio's own (sheet-columns.ts),
+ * with how many and who when the contract says. Nothing stated, one line of
+ * the studio's own role with the count left for the studio to fill.
+ */
+function crewFromReading(
+  details: SignedAgreementReadResult["details"],
+  trade: unknown,
+): ExistingBookingFormValues["crew"] {
+  const roles = importCrewRoles(trade);
+  const lines = (details.crew ?? []).flatMap((line) => {
+    const found = crewRoleFromHeader(line.role, trade);
+    const role = found?.role ?? roles[0]!;
+    const names = line.names.filter(Boolean);
+    const count = line.count ?? (names.length || null);
+    return count === null && !names.length ? [] : [{ role, count: count === null ? "" : String(count), names: names.join(", ") }];
+  });
+  if (lines.length) return lines;
+  // An older reading's two counts, for a photographer.
+  const legacy = [
+    details.photographers ? { role: roles[0]!, count: String(details.photographers), names: "" } : null,
+    details.videographers && roles.includes("videographer") ? { role: "videographer" as const, count: String(details.videographers), names: "" } : null,
+  ].filter((line): line is NonNullable<typeof line> => line !== null);
+  return legacy.length ? legacy : [{ role: roles[0]!, count: "", names: "" }];
+}
+
 /** The reading as the import form's starting values. Only what the page stated. */
 function prefillFromReading(
   result: SignedAgreementReadResult,
+  trade: unknown,
 ): Partial<ExistingBookingFormValues> {
   const split = (name: string | undefined) => {
     const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
@@ -311,10 +342,10 @@ function prefillFromReading(
     packageName: details.packageName ?? "",
     total: amount(details.contractTotal),
     tax: details.taxAmount === null ? "0" : amount(details.taxAmount),
-    coverageHours: details.coverageHours === null ? "8" : String(details.coverageHours),
-    photographers: details.photographers === null ? "1" : String(details.photographers),
-    videographers:
-      details.videographers === null ? "0" : String(details.videographers),
+    // Left empty when the contract doesn't say (2026-10-26): "8 hours" and
+    // "1 photographer" read exactly like values Cue had found.
+    coverageHours: details.coverageHours === null ? "" : String(details.coverageHours),
+    crew: crewFromReading(details, trade),
     signedOn: reading.signedDate ?? "",
     signerName: reading.signerNames[0] ?? "",
     // The contract says what the retainer is, not when it arrived: the date

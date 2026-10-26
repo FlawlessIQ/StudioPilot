@@ -202,10 +202,12 @@ test("the package forms and the one-off say each trade's hours, people and inclu
 test("importing a booking asks a hair studio for hours on site and hair stylists", () => {
   const form = read("components/imports/existing-booking-form.tsx");
   assert.match(form, /\{tradeVocab\(trade\)\.hoursLabel\}/);
-  assert.match(form, /\{importCountHeading\(trade, 0\)\}/);
-  assert.match(form, /\{importCountHeading\(trade, 1\) \? \(/);
+  // The crew lines offer the studio's own roles, its assistants included
+  // (2026-10-26), never a photographer's two counts.
+  assert.match(form, /const roles = importCrewRoles\(trade\);/);
+  assert.match(form, /\{importedCrewRoleLabels\[role\]\}/);
   assert.doesNotMatch(form, /^\s+(Coverage hours|Photographers|Videographers)$/m);
-  assert.match(form, /photo \? "Wedding photography" : `\$\{values\.eventType\} \$\{tradeVocab\(trade\)\.service\}`/);
+  assert.match(form, /values\.packageName\.trim\(\) \|\| `\$\{values\.eventType\} \$\{tradeVocab\(trade\)\.service\}`/);
 });
 
 test("the inquiry form asks about the studio's own trade", () => {

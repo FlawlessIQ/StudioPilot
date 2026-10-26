@@ -449,6 +449,8 @@ export type ImportedBookingResult = {
   state: string;
   contactsCreated: number;
   contactsMatched: number;
+  /** Named crew booked on the job, and who was added to the roster (2026-10-26). */
+  crew?: { assigned: number; matched: number; addedToRoster: { id: string; name: string }[] };
   paidCents: number;
   workflow: { started: boolean; checkpointCount?: number; reason?: string };
   warnings: string[];

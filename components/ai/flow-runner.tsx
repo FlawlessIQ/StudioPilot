@@ -508,6 +508,7 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
       id: str(p.id),
       name: str(p.name),
       active: p.active === true,
+      email: p.email === undefined ? undefined : str(p.email),
       specialties: arr(p.specialties).map(String),
       trades: arr(p.trades).map(String),
       serviceAreas: arr(p.serviceAreas).map(String),

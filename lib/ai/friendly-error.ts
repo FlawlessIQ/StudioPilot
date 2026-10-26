@@ -69,6 +69,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PROJECT_CONTACT_REQUIRED: "That person isn't a client on this job.",
   NO_PACKAGE_CHANGES: "Nothing about the package changed, so there was nothing to save.",
   CREW_ALREADY_HAS_ACCOUNT: "They already have a crew account, so there's nothing to invite them to.",
+  CREW_EMAIL_REQUIRED: "Add their email first. They were added from an imported job by name only, so there's nowhere to send the invite.",
   PROVIDER_NOT_CONNECTED: "That app isn't connected yet. Connect it under Integrations first.",
   OAUTH_PROVIDER_NOT_CONFIGURED: "That app can't be connected yet.",
   APPLE_CALENDAR_AUTH_FAILED:

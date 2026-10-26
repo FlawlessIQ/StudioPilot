@@ -68,3 +68,35 @@ held:
 - Past weddings, and work already in post-production or delivered, are not
   importable yet: each of those states expects records an import does not
   create.
+
+## Amendment, 2026-10-26: past jobs, and who worked them
+
+Decided by Conor (docs/import-bookings-review-2026-10-26.md).
+
+7. **Past and in-progress jobs are importable**: event done, in editing,
+   delivered and finished, besides booked and planning. The event date must
+   match: upcoming for booked and planning, passed for the rest. Editing and
+   delivered need a studio that delivers something after the event. Each
+   later state is written directly (no booking path, no transitions) with the
+   records its screens and closeout read, every one marked as done before
+   StudioCue:
+   - in editing: the post-production trigger opens the checklist, as for any
+     job moved to Editing;
+   - delivered: the checklist done through "delivery sent", a delivery record
+     with `completionAuthority: "imported"` when the studio gives the link, and
+     `reviewRequestsSkippedAt` (`imported_past_job`) so closeout does not wait
+     for asks that were never scheduled here;
+   - finished: all of that, plus a completed closeout so the job archives like
+     any other.
+   The paid record now says `paidInFull` when the payments cover the total, so
+   closeout's final balance is met for every import, upcoming ones included.
+   A past job arrives quiet like any other; bringing it live opens the portal
+   but schedules no calendar event and invites no one. Review requests and
+   album reminders join the quiet list.
+8. **Who worked a job is part of what is imported.** A job's crew is lines of
+   role, count and names, with an assistant role per trade. Each named person
+   is matched to the roster by name; a name not there is added to it with no
+   email and no invite (`addedByImport`). Each gets an accepted assignment
+   (completed, for a past job) with `completionAuthority: "imported"`, no
+   calendar invite and no email. A roster entry with no email is never offered
+   work and cannot be invited until the studio adds one.

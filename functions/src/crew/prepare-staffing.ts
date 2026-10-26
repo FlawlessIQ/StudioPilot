@@ -259,6 +259,8 @@ export async function prepareCrewStaffing(input: {
     id: profile.id,
     name: text(profile.get("name")) || "Crew member",
     active: profile.get("active") === true,
+    // A roster entry with no email (added from an import) is never offered.
+    email: profile.get("email") === undefined ? undefined : text(profile.get("email")),
     specialties: list(profile.get("specialties")).map(String),
     trades: list(profile.get("trades")).map(String),
     serviceAreas: list(profile.get("serviceAreas")).map(String),

@@ -15,6 +15,12 @@ export type CrewCandidateInput = {
   id: string;
   name: string;
   active: boolean;
+  /**
+   * Where an offer goes. A roster entry added by name alone, from a job a
+   * studio imported (2026-10-26), has none yet and can't be offered work until
+   * the studio adds it. Left out by a caller that predates this: no check.
+   */
+  email?: string | null;
   specialties: readonly string[];
   /** photographer / videographer, when the studio has said. */
   trades?: readonly string[];
@@ -149,6 +155,7 @@ export function rankCrewCandidates(input: {
       );
       const exclusions = [
         ...(candidate.active ? [] : ["Profile is inactive"]),
+        ...(candidate.email === undefined || candidate.email?.includes("@") ? [] : ["No email yet: add one to offer them work"]),
         ...(specialtyMatch ? [] : ["Role or specialty does not match"]),
         ...(explicitAvailability?.status === "unavailable"
           ? ["Marked unavailable"]

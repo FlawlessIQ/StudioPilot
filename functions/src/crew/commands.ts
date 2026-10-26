@@ -847,6 +847,8 @@ export const crewCommand = onRequest(
         // Already theirs. Re-inviting would mint a token that can only fail
         // the "already used" check on the way back in.
         if (current.get("userId")) throw new Error("CREW_ALREADY_HAS_ACCOUNT");
+        // Added by name from an imported job (2026-10-26): no address to invite.
+        if (!String(current.get("email") ?? "").includes("@")) throw new Error("CREW_EMAIL_REQUIRED");
         const invitation = crewRosterInvitation({
           db,
           profileId: reference.id,

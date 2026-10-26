@@ -42,7 +42,18 @@ import { z } from "zod";
  * byte-identical below their headers.
  */
 
-export const coverageRoleSchema = z.enum(["photographer", "videographer", "dj", "makeup_artist", "hair_stylist", "coordinator"]);
+export const coverageRoleSchema = z.enum([
+  "photographer",
+  "videographer",
+  "photo_assistant",
+  "dj",
+  "dj_assistant",
+  "makeup_artist",
+  "makeup_assistant",
+  "hair_stylist",
+  "hair_assistant",
+  "coordinator",
+]);
 
 export type CoverageRole = z.infer<typeof coverageRoleSchema>;
 
@@ -50,11 +61,18 @@ export type CoverageRole = z.infer<typeof coverageRoleSchema>;
 export const COVERAGE_ROLES: readonly CoverageRole[] = [
   "photographer",
   "videographer",
+  // Each trade's assistants, beside the role they assist (Conor, 2026-10-26:
+  // one per trade, not one shared). A hair studio's three assistants on one
+  // wedding are its own crew, counted and offered like the stylists.
+  "photo_assistant",
   // A DJ studio's crew (features/trades/trades.ts `coverageRoles`).
   "dj",
+  "dj_assistant",
   // A makeup or hair studio's.
   "makeup_artist",
+  "makeup_assistant",
   "hair_stylist",
+  "hair_assistant",
   // A planner's assistant coordinators (C1, C2).
   "coordinator",
 ];
@@ -62,9 +80,13 @@ export const COVERAGE_ROLES: readonly CoverageRole[] = [
 const COVERAGE_ROLE_LABELS: Record<CoverageRole, { one: string; many: string }> = {
   photographer: { one: "photographer", many: "photographers" },
   videographer: { one: "videographer", many: "videographers" },
+  photo_assistant: { one: "photo assistant", many: "photo assistants" },
   dj: { one: "DJ", many: "DJs" },
+  dj_assistant: { one: "DJ assistant", many: "DJ assistants" },
   makeup_artist: { one: "makeup artist", many: "makeup artists" },
+  makeup_assistant: { one: "makeup assistant", many: "makeup assistants" },
   hair_stylist: { one: "hair stylist", many: "hair stylists" },
+  hair_assistant: { one: "hair assistant", many: "hair assistants" },
   coordinator: { one: "coordinator", many: "coordinators" },
 };
 

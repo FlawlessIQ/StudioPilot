@@ -1,6 +1,6 @@
-import { coverageRoleLabel, type CoverageRole } from "@/features/packages/coverage";
-import { tradeProfile } from "@/features/trades/trades";
-import type { ExistingBooking } from "./existing-booking";
+import { tradeOf, tradeProfile } from "@/features/trades/trades";
+import { importStateLabels, type ExistingBooking, type ImportableBookingState } from "./existing-booking";
+import { cellKind, crewRoleFromHeader, hasWords, importCrewRoles, readCrewCell, readTime, type CellKind, type CrewRole } from "./sheet-columns";
 import { JOB_KIND_LABELS, JOB_KINDS, jobKindFromLabel } from "@/features/job-kinds/job-kinds";
 
 /**
@@ -66,7 +66,9 @@ export const spreadsheetFields = [
   "partnerName",
   "partnerEmail",
   "eventDate",
+  "startTime",
   "eventType",
+  "status",
   "venueName",
   "city",
   "packageName",
@@ -76,8 +78,9 @@ export const spreadsheetFields = [
   "paidOn",
   "signedOn",
   "coverageHours",
-  "photographers",
-  "videographers",
+  "teamSize",
+  "galleryUrl",
+  "deliveredOn",
   "notes",
 ] as const;
 export type SpreadsheetField = (typeof spreadsheetFields)[number];
@@ -91,7 +94,9 @@ export const spreadsheetFieldLabels: Record<SpreadsheetField, string> = {
   partnerName: "Partner's name",
   partnerEmail: "Partner's email",
   eventDate: "Event date",
+  startTime: "Start time",
   eventType: "Event type",
+  status: "Job status",
   venueName: "Venue",
   city: "City",
   packageName: "Package",
@@ -100,38 +105,32 @@ export const spreadsheetFieldLabels: Record<SpreadsheetField, string> = {
   paid: "Amount paid",
   paidOn: "Date paid",
   signedOn: "Date signed or booked",
-  coverageHours: "Coverage hours",
-  photographers: "Photographers",
-  videographers: "Videographers",
+  coverageHours: "Hours",
+  teamSize: "Team size",
+  galleryUrl: "Gallery link",
+  deliveredOn: "Date delivered",
   notes: "Notes",
 };
 
-/**
- * A field's name in the studio's own trade: a DJ's first crew column is
- * "DJs", and a trade with one crew role has no second column (trades.ts
- * `coverageRoles`). Every sheet read photographers only, and the second role
- * not at all — all 11 of GR's imported weddings came in with no videographer
- * (Gabe, 2026-10-23).
- */
-export function spreadsheetFieldLabel(field: SpreadsheetField, trade?: unknown): string | null {
-  if (field !== "photographers" && field !== "videographers") return spreadsheetFieldLabels[field];
-  const role = tradeProfile(trade).coverageRoles[field === "photographers" ? 0 : 1] as CoverageRole | undefined;
-  if (!role) return field === "photographers" ? spreadsheetFieldLabels.photographers : null;
-  const label = coverageRoleLabel(role, 2);
-  return label.charAt(0).toUpperCase() + label.slice(1);
+/** A field's name for this studio: a vendor's "Hours" aren't "coverage". */
+export function spreadsheetFieldLabel(field: SpreadsheetField, trade?: unknown): string {
+  if (field === "coverageHours") return tradeOf(trade) === "photographer" ? "Coverage hours" : "Hours";
+  return spreadsheetFieldLabels[field];
 }
 
 /** What each field is called across the exports studios actually bring. */
 const synonyms: Record<SpreadsheetField, string[]> = {
-  clientName: ["client", "client name", "name", "contact", "contact name", "full name", "primary contact", "couple", "couple name", "customer", "customer name"],
+  clientName: ["client", "client name", "name", "contact", "contact name", "full name", "primary contact", "couple", "couple name", "customer", "customer name", "bride", "bride name", "booked by", "client full name"],
   firstName: ["first name", "firstname", "client first name", "given name", "first"],
   lastName: ["last name", "lastname", "client last name", "surname", "family name", "last"],
-  email: ["email", "email address", "client email", "primary email", "e-mail", "contact email"],
-  phone: ["phone", "phone number", "mobile", "cell", "client phone", "telephone"],
-  partnerName: ["partner", "partner name", "second client", "fiance", "fiancé", "fiancee", "spouse", "partner full name"],
-  partnerEmail: ["partner email", "second client email", "fiance email", "fiancé email"],
-  eventDate: ["event date", "wedding date", "project date", "date of event", "session date", "start date", "shoot date"],
+  email: ["email", "email address", "client email", "primary email", "e mail", "contact email", "bride email"],
+  phone: ["phone", "phone number", "mobile", "cell", "client phone", "telephone", "bride phone"],
+  partnerName: ["partner", "partner name", "second client", "fiance", "fiancé", "fiancee", "spouse", "partner full name", "groom", "groom name"],
+  partnerEmail: ["partner email", "second client email", "fiance email", "fiancé email", "groom email"],
+  eventDate: ["event date", "wedding date", "project date", "date of event", "session date", "start date", "shoot date", "date"],
+  startTime: ["start time", "event time", "time", "start", "ready by", "ready by time", "call time", "arrival time", "start of day"],
   eventType: ["event type", "project type", "type", "category", "job type"],
+  status: ["status", "stage", "job status", "project status", "booking status", "workflow status"],
   venueName: ["venue", "venue name", "location", "event location", "ceremony venue", "reception venue"],
   city: ["city", "event city", "town"],
   packageName: ["package", "package name", "collection", "service", "services", "product", "offering"],
@@ -139,48 +138,40 @@ const synonyms: Record<SpreadsheetField, string[]> = {
   tax: ["tax", "sales tax", "tax amount"],
   paid: ["paid", "amount paid", "total paid", "paid to date", "payments received", "deposit", "deposit paid", "retainer", "retainer paid", "received"],
   paidOn: ["paid date", "payment date", "date paid", "deposit date", "retainer date", "last payment date"],
-  signedOn: ["signed", "signed date", "date signed", "contract signed", "contract signed date", "booked", "booked date", "booking date", "date booked"],
-  coverageHours: ["hours", "coverage", "coverage hours", "hours of coverage"],
-  // Plus the studio's own role names (crewSynonyms): a DJ's sheet says
-  // "DJs" — added for that trade only, so a wedding sheet's "DJ" vendor
-  // column is never read as a count.
-  photographers: ["photographers", "number of photographers", "shooters", "crew size", "crew", "staff", "team size"],
-  videographers: ["videographers", "number of videographers", "videographer", "video", "videos", "cinematographers", "filmmakers", "video crew", "video team"],
+  signedOn: ["signed", "signed date", "date signed", "contract signed", "contract signed date", "booked", "booked date", "booked on", "booking date", "date booked"],
+  coverageHours: ["hours", "coverage", "coverage hours", "hours of coverage", "hours on site", "duration"],
+  // A total headcount, read only when the sheet has no column per role.
+  teamSize: ["crew", "staff", "team", "team size", "crew size", "number of staff"],
+  galleryUrl: ["gallery", "gallery link", "gallery url", "online gallery"],
+  deliveredOn: ["delivered", "delivered on", "date delivered", "delivery date", "gallery delivered"],
   notes: ["notes", "note", "comments", "internal notes"],
 };
 
 const normalise = (value: string) =>
-  value.toLowerCase().replace(/[_\-.:/()#*]+/g, " ").replace(/\s+/g, " ").trim();
+  value.toLowerCase().replace(/['’]s\b/g, "").replace(/[_\-.:/()#*?]+/g, " ").replace(/\s+/g, " ").trim();
+
+/** A column that counts or names the studio's own crew. */
+export type CrewColumn = { index: number; role: CrewRole; extra: boolean; kind: CellKind };
 
 /**
  * Which column holds which field, by header.
  *
- * Exact names first. Then, for headers no exact name claimed, the field whose
- * name is the longest part of the header — so "Deposit Amount" is what was
- * paid, not the contract total, even though it contains "amount". No column
- * is used twice: "Email" must not also be taken as "Partner email".
+ * Whole words only (2026-10-26): "Assistant Names" used to contain "name" and
+ * become the client. Exact names first; then, for headers no exact name
+ * claimed, the field whose name is the longest whole-word part of the header,
+ * so "Deposit Amount" is what was paid. A header naming a crew role is never
+ * a field (detectCrewColumns has it). No column is used twice.
  */
-/** The studio's own words for its crew roles, as extra column names. */
-function crewSynonyms(trade: unknown): Partial<Record<SpreadsheetField, string[]>> {
-  const roles = tradeProfile(trade).coverageRoles as readonly CoverageRole[];
-  const words = (role: CoverageRole | undefined) =>
-    role ? [coverageRoleLabel(role, 2), coverageRoleLabel(role, 1)].flatMap((word) => [normalise(word), `number of ${normalise(word)}`]) : [];
-  return { photographers: words(roles[0]), videographers: words(roles[1]) };
-}
-
 export function detectColumns(
   headers: readonly string[],
   trade?: unknown,
 ): Partial<Record<SpreadsheetField, number>> {
-  const extra = crewSynonyms(trade);
-  const synonymsFor = (field: SpreadsheetField) => [...synonyms[field], ...(extra[field] ?? [])];
   const normalised = headers.map(normalise);
+  const crew = new Set(headers.map((header, index) => (crewRoleFromHeader(header, trade) ? index : -1)).filter((index) => index >= 0));
   const mapping: Partial<Record<SpreadsheetField, number>> = {};
-  const taken = new Set<number>();
+  const taken = new Set<number>(crew);
   for (const field of spreadsheetFields) {
-    const index = normalised.findIndex(
-      (header, at) => !taken.has(at) && synonymsFor(field).includes(header),
-    );
+    const index = normalised.findIndex((header, at) => !taken.has(at) && synonyms[field].map(normalise).includes(header));
     if (index >= 0) {
       mapping[field] = index;
       taken.add(index);
@@ -191,9 +182,8 @@ export function detectColumns(
     let best: { field: SpreadsheetField; length: number } | null = null;
     for (const field of spreadsheetFields) {
       if (mapping[field] !== undefined) continue;
-      for (const name of synonymsFor(field)) {
-        if (name.length >= 4 && header.includes(name) && name.length > (best?.length ?? 0))
-          best = { field, length: name.length };
+      for (const name of synonyms[field].map(normalise)) {
+        if (name.length >= 4 && hasWords(header, name) && name.length > (best?.length ?? 0)) best = { field, length: name.length };
       }
     }
     if (best) {
@@ -202,6 +192,24 @@ export function detectColumns(
     }
   });
   return mapping;
+}
+
+/** The columns that count or name the studio's crew, read by what's in them. */
+export function detectCrewColumns(headers: readonly string[], trade: unknown, rows: readonly (readonly string[])[]): CrewColumn[] {
+  return headers.flatMap((header, index) => {
+    const found = crewRoleFromHeader(header, trade);
+    return found ? [{ index, role: found.role, extra: found.extra, kind: cellKind(rows.map((row) => String(row[index] ?? ""))) }] : [];
+  });
+}
+
+/** Columns nothing reads: kept in each job's notes so nothing is lost. */
+export function unusedColumns(
+  headers: readonly string[],
+  fields: Partial<Record<SpreadsheetField, number>>,
+  crew: readonly CrewColumn[],
+): number[] {
+  const used = new Set<number>([...Object.values(fields), ...crew.map((column) => column.index)]);
+  return headers.map((_, index) => index).filter((index) => !used.has(index) && headers[index]!.trim());
 }
 
 const months: Record<string, number> = {
@@ -280,8 +288,30 @@ const eventTypes: Record<string, { id: string; label: string }> = Object.fromEnt
   JOB_KINDS.map((kind) => [kind, { id: kind, label: JOB_KIND_LABELS[kind] }]),
 );
 
+/** A day's hours when the sheet doesn't say, by what the studio does. */
+const DEFAULT_HOURS: Record<string, number> = { photographer: 8, dj: 5, makeup: 2, hair: 2, planner: 10 };
+
+/** A job status as studios write it, to where it is now. */
+export function stateFromStatus(raw: string): ImportableBookingState | null {
+  const value = normalise(raw);
+  if (!value) return null;
+  if (/\b(closed|finished|archived|complete and paid|paid in full|wrapped)\b/.test(value)) return "CLOSED";
+  if (/\b(delivered|gallery sent|sent to client)\b/.test(value)) return "DELIVERED";
+  if (/\b(editing|in edit|culling|post production|post|retouching|in progress)\b/.test(value)) return "POST_PRODUCTION";
+  if (/\b(event done|shot|completed|complete|happened|done)\b/.test(value)) return "EVENT_COMPLETE";
+  if (/\b(planning|prep|questionnaire)\b/.test(value)) return "PLANNING";
+  if (/\b(booked|confirmed|signed|retained|contracted|upcoming|active)\b/.test(value)) return "BOOKED";
+  return null;
+}
+
 export type SpreadsheetRowResult =
-  | { row: number; booking: ExistingBooking; notes: string[] }
+  | {
+      row: number;
+      booking: ExistingBooking;
+      notes: string[];
+      /** Where each part came from: "Crew" → "Lead Photographer, Second Shooter". */
+      sources: Partial<Record<string, string>>;
+    }
   | { row: number; problems: string[] };
 
 /**
@@ -290,21 +320,41 @@ export type SpreadsheetRowResult =
  * A sheet records what was paid as a single figure more often than a payment
  * history, so that figure becomes one payment dated when it was paid — or, if
  * the sheet doesn't say, when the contract was signed, and a note says so.
+ *
+ * The crew comes from every crew column (2026-10-26): a column of names says
+ * who (and so how many), a count says how many, Yes is one, and a second
+ * shooter adds a photographer. Anything the row didn't say and the import had
+ * to fill in is listed in `assumed`, and the review marks it.
  */
 export function bookingFromSpreadsheetRow(input: {
   row: number;
   cells: readonly string[];
   columns: Partial<Record<SpreadsheetField, number>>;
   timezone: string;
-  /** The studio's trade: whether there is a second crew role to read. */
+  /** The studio's trade: its crew roles, its usual hours. */
   trade?: unknown;
+  /** The studio's crew columns (detectCrewColumns). */
+  crewColumns?: readonly CrewColumn[];
+  /** Header names, to say where things came from and to keep unused columns. */
+  headers?: readonly string[];
+  /** Columns nothing reads, kept in the job's notes. */
+  keepInNotes?: readonly number[];
+  /** Where a job whose date has passed is, when the sheet has no status. */
+  pastState?: ImportableBookingState;
+  /** The studio's day: what counts as passed. */
+  today?: string;
+  currency?: string;
 }): SpreadsheetRowResult {
   const get = (field: SpreadsheetField) => {
     const index = input.columns[field];
     return index === undefined ? "" : String(input.cells[index] ?? "").trim();
   };
+  const header = (index: number | undefined) => (index === undefined ? "" : String(input.headers?.[index] ?? "").trim());
   const problems: string[] = [];
   const notes: string[] = [];
+  const assumed: string[] = [];
+  const sources: Partial<Record<string, string>> = {};
+  const trade = tradeOf(input.trade);
 
   let people: Array<{ first: string; last: string }> = [];
   if (get("firstName") || get("lastName")) {
@@ -314,6 +364,7 @@ export function bookingFromSpreadsheetRow(input: {
     people = splitCouple(get("clientName"));
     if (people.length === 1 && get("partnerName")) people.push(splitName(get("partnerName")));
   }
+  sources.client = [header(input.columns.firstName), header(input.columns.lastName), header(input.columns.clientName), header(input.columns.partnerName)].filter(Boolean).join(", ");
   const primary = people[0];
   if (!primary?.first || !primary.last)
     problems.push("No client first and last name.");
@@ -321,7 +372,9 @@ export function bookingFromSpreadsheetRow(input: {
   if (second && !second.last && primary?.last) second.last = primary.last;
 
   const email = get("email").toLowerCase();
-  if (!email) problems.push("No client email.");
+  const phone = get("phone");
+  // A phone is enough (2026-10-26); the portal invite waits for an email.
+  if (!email && !phone) problems.push("No client email or phone.");
 
   const eventDateRaw = get("eventDate");
   const eventDate = parseSpreadsheetDate(eventDateRaw);
@@ -350,27 +403,79 @@ export function bookingFromSpreadsheetRow(input: {
   if (paidOnRaw && !paidOn) problems.push(`Couldn't read the payment date "${paidOnRaw}".`);
 
   const hoursRaw = get("coverageHours");
-  const hours = hoursRaw ? Number(hoursRaw.replace(/[^\d.]/g, "")) : 8;
+  const usualHours = DEFAULT_HOURS[trade] ?? 8;
+  const hours = hoursRaw ? Number(hoursRaw.replace(/[^\d.]/g, "")) : usualHours;
   if (hoursRaw && !(hours > 0 && hours <= 24))
-    problems.push(`Couldn't read the coverage hours "${hoursRaw}".`);
-  else if (!hoursRaw) notes.push("Coverage isn't in the sheet, so it's set to 8 hours.");
-  const photographersRaw = get("photographers");
-  const photographers = photographersRaw ? Number(photographersRaw.replace(/\D/g, "")) : 1;
-  if (photographersRaw && !(Number.isInteger(photographers) && photographers >= 1 && photographers <= 10))
-    problems.push(`Couldn't read the number of photographers "${photographersRaw}".`);
-  // The second crew role (a photographer's videographers). A count, or a
-  // yes/no column ("Video: Yes") read as one.
-  const videographersRaw = spreadsheetFieldLabel("videographers", input.trade) ? get("videographers") : "";
-  const videoWord = videographersRaw.toLowerCase();
-  const videographers = !videographersRaw
-    ? 0
-    : /^(y|yes|true|x|✓|included)$/.test(videoWord)
-      ? 1
-      : /^(n|no|false|none|-|—)$/.test(videoWord)
-        ? 0
-        : Number(videographersRaw.replace(/\D/g, "") || "NaN");
-  if (videographersRaw && !(Number.isInteger(videographers) && videographers >= 0 && videographers <= 10))
-    problems.push(`Couldn't read the number of videographers "${videographersRaw}".`);
+    problems.push(`Couldn't read the hours "${hoursRaw}".`);
+  else if (!hoursRaw) {
+    assumed.push("coverageMinutes");
+    notes.push(`Hours aren't in the sheet, so it's set to ${usualHours}.`);
+  } else sources.hours = header(input.columns.coverageHours);
+
+  const startRaw = get("startTime");
+  const startTime = startRaw ? readTime(startRaw) : null;
+  if (startRaw && !startTime) notes.push(`Couldn't read the start time "${startRaw}", so it's left out.`);
+
+  // The crew, line by line, from every crew column. A count column and a
+  // names column for the same role describe the same people ("Assistants: 3"
+  // beside "Assistant names: Kim, Tara, Joy" is three), so a role is the
+  // larger of the two, never their sum. A second shooter adds to it.
+  const tallies = new Map<CrewRole, { stated: number; named: string[]; extra: number; extraNames: string[] }>();
+  const crewSources: string[] = [];
+  for (const column of input.crewColumns ?? []) {
+    const cell = String(input.cells[column.index] ?? "");
+    const read = readCrewCell(cell, column.kind);
+    if ("problem" in read) {
+      problems.push(`${read.problem} in "${header(column.index) || "a crew column"}".`);
+      continue;
+    }
+    if (!read.count) continue;
+    const tally = tallies.get(column.role) ?? { stated: 0, named: [], extra: 0, extraNames: [] };
+    if (column.extra) {
+      tally.extra += read.count;
+      tally.extraNames.push(...read.names);
+    } else if (read.names.length) tally.named.push(...read.names.filter((name) => !tally.named.includes(name)));
+    else tally.stated += read.count;
+    tallies.set(column.role, tally);
+    crewSources.push(header(column.index));
+  }
+  const lines = new Map<CrewRole, { count: number; names: string[] }>(
+    [...tallies.entries()].map(([role, tally]) => [
+      role,
+      {
+        count: Math.max(tally.stated, tally.named.length) + tally.extra,
+        names: [...tally.named, ...tally.extraNames.filter((name) => !tally.named.includes(name))],
+      },
+    ]),
+  );
+  const roles = importCrewRoles(input.trade);
+  const teamRaw = get("teamSize");
+  // A headcount beside a column per role says nothing new: kept as a note.
+  if (lines.size && teamRaw) notes.push(`${header(input.columns.teamSize) || "Team size"}: ${teamRaw} (the crew comes from the role columns).`);
+  if (!lines.size) {
+    const team = teamRaw ? Number(teamRaw.replace(/\D/g, "")) : 0;
+    if (teamRaw && !(Number.isInteger(team) && team >= 1 && team <= 50)) problems.push(`Couldn't read the team size "${teamRaw}".`);
+    else if (team) {
+      lines.set(roles[0]!, { count: team, names: [] });
+      crewSources.push(header(input.columns.teamSize));
+    } else {
+      lines.set(roles[0]!, { count: 1, names: [] });
+      assumed.push("crew");
+      notes.push("The crew isn't in the sheet, so it's set to one.");
+    }
+  }
+  if (crewSources.length) sources.crew = crewSources.filter(Boolean).join(", ");
+  const crew = [...lines.entries()].map(([role, line]) => ({
+    role,
+    count: Math.min(50, Math.max(line.count, line.names.length)),
+    names: line.names.slice(0, 50),
+  }));
+
+  const galleryRaw = get("galleryUrl");
+  const galleryUrl = /^https?:\/\//i.test(galleryRaw) ? galleryRaw : null;
+  const deliveredRaw = get("deliveredOn");
+  const deliveredOn = deliveredRaw ? parseSpreadsheetDate(deliveredRaw) : null;
+  if (deliveredRaw && !deliveredOn) problems.push(`Couldn't read the delivery date "${deliveredRaw}".`);
 
   if (problems.length) return { row: input.row, problems };
 
@@ -380,7 +485,22 @@ export function bookingFromSpreadsheetRow(input: {
     ? eventTypes[jobKindFromLabel(get("eventType")) ?? get("eventType").toLowerCase()] ??
       eventTypes.other!
     : eventTypes.wedding!;
-  if (!get("eventType")) notes.push("No event type in the sheet, so it's a wedding.");
+  if (!get("eventType")) {
+    assumed.push("eventType");
+    notes.push("No event type in the sheet, so it's a wedding.");
+  }
+
+  // Where the job is: its status if the sheet says, otherwise by its date.
+  const delivers = tradeProfile(input.trade).delivery;
+  const fromStatus = stateFromStatus(get("status"));
+  const passed = Boolean(input.today && eventDate! < input.today);
+  let state: ImportableBookingState = fromStatus ?? (passed ? input.pastState ?? "CLOSED" : "BOOKED");
+  if (!fromStatus && passed) {
+    assumed.push("state");
+    notes.push(`The date has passed and the sheet has no status, so it's ${importStateLabels[state].toLowerCase()}.`);
+  }
+  if (!delivers && (state === "POST_PRODUCTION" || state === "DELIVERED")) state = state === "DELIVERED" ? "CLOSED" : "EVENT_COMPLETE";
+  if (fromStatus) sources.status = header(input.columns.status);
 
   const payments =
     paid && paid > 0
@@ -392,19 +512,30 @@ export function bookingFromSpreadsheetRow(input: {
           },
         ]
       : [];
-  if (paid && paid > 0 && !paidOn)
+  if (paid && paid > 0 && !paidOn) {
+    assumed.push("paidOn");
     notes.push("No payment date in the sheet, so it's dated when the contract was signed.");
+  }
+  if (!get("packageName")) assumed.push("packageName");
+
+  // Columns nothing reads, kept as "Photo Booth: Yes" in the job's notes.
+  const kept = (input.keepInNotes ?? [])
+    .map((index) => [header(index), String(input.cells[index] ?? "").trim()] as const)
+    .filter(([name, value]) => name && value)
+    .map(([name, value]) => `${name}: ${value}`);
+  const allNotes = [get("notes"), kept.join("\n")].filter(Boolean).join("\n\n");
 
   return {
     row: input.row,
     notes,
+    sources,
     booking: {
       clients: [
         {
           firstName: primary!.first,
           lastName: primary!.last,
-          email,
-          phone: get("phone") || null,
+          email: email || null,
+          phone: phone || null,
         },
         ...(second?.first
           ? [
@@ -424,25 +555,42 @@ export function bookingFromSpreadsheetRow(input: {
       timezone: input.timezone,
       venueName: get("venueName") || null,
       city: get("city") || null,
-      state: "BOOKED",
-      packageName: get("packageName") || `${type.label} photography`,
+      state,
+      packageName: get("packageName") || type.label,
       coverageMinutes: Math.round(hours * 60),
-      photographers,
-      ...(videographers > 0 ? { videographers } : {}),
-      currency: "USD",
+      photographers: crew.find((line) => line.role === "photographer")?.count ?? 0,
+      crew,
+      startTime,
+      assumed,
+      galleryUrl: state === "DELIVERED" || state === "CLOSED" ? galleryUrl : null,
+      deliveredOn: state === "DELIVERED" || state === "CLOSED" ? deliveredOn : null,
+      currency: input.currency ?? "USD",
       totalCents: total!,
       taxCents: tax ?? 0,
       signedOn: signedOn!,
       signerName: `${primary!.first} ${primary!.last}`,
       hasSignedCopy: false,
       payments,
-      notes: get("notes") || null,
+      notes: allNotes ? allNotes.slice(0, 4000) : null,
     },
   };
 }
 
-/** A starting sheet for a studio with nothing to export. */
-export const spreadsheetTemplateCsv = [
-  "First name,Last name,Email,Phone,Partner's name,Partner's email,Event date,Event type,Venue,City,Package,Contract total,Tax,Amount paid,Date paid,Date signed,Coverage hours,Photographers,Videographers,Notes",
-  "Maya,Johnson,maya@example.com,555-0100,Theo Johnson,,2027-06-12,Wedding,The Grove,Madison,Signature Collection,6499,429,2000,2026-03-02,2026-03-02,8,2,1,",
-].join("\n");
+/** A starting sheet for a studio with nothing to export, with its own crew columns. */
+export function spreadsheetTemplateFor(trade?: unknown): string {
+  const crew: Record<string, [string, string]> = {
+    photographer: ["Photographers,Second Shooter,Videographers,Photo assistants", "Gabe,Yes,1,0"],
+    dj: ["DJs,DJ assistants", "Mike,1"],
+    makeup: ["Makeup artists,Makeup assistants,Hair stylists", "Jess,2,1"],
+    hair: ["Hair stylists,Hair assistants,Assistant names", "Jess,3,\"Kim, Tara, Joy\""],
+    planner: ["Coordinators", "2"],
+  };
+  const [heads, values] = crew[tradeOf(trade)] ?? crew.photographer!;
+  return [
+    `First name,Last name,Email,Phone,Partner's name,Partner's email,Event date,Start time,Event type,Status,Venue,City,Package,Contract total,Tax,Amount paid,Date paid,Date signed,Hours,${heads},Notes`,
+    `Maya,Johnson,maya@example.com,555-0100,Theo Johnson,,2027-06-12,3:00 PM,Wedding,Booked,The Grove,Madison,Signature Collection,6499,429,2000,2026-03-02,2026-03-02,8,${values},`,
+  ].join("\n");
+}
+
+/** The photographer's sheet: the template a studio of no particular trade starts from. */
+export const spreadsheetTemplateCsv = spreadsheetTemplateFor("photographer");

@@ -54,6 +54,12 @@ export type SignedAgreementDetails = {
   coverageHours: number | null;
   photographers: number | null;
   videographers: number | null;
+  /**
+   * Everyone the studio sends, as the contract writes the role — "Lead DJ",
+   * "Second shooter", "2 hair assistants: Kim, Tara" — with how many and who
+   * when it says (2026-10-26). The form maps the words to the studio's roles.
+   */
+  crew: Array<{ role: string; count: number | null; names: string[] }>;
   venueName: string | null;
   city: string | null;
   retainerAmount: number | null;
@@ -102,6 +108,16 @@ const detailsSchema = z
     coverageHours: z.number().positive().max(24).nullable().catch(null),
     photographers: z.number().int().positive().max(10).nullable().catch(null),
     videographers: z.number().int().positive().max(10).nullable().catch(null),
+    crew: z
+      .array(
+        z.object({
+          role: z.string().max(80),
+          count: z.number().int().positive().max(50).nullable().catch(null),
+          names: z.array(z.string().max(120)).max(50).catch([]),
+        }),
+      )
+      .max(12)
+      .catch([]),
     venueName: z.string().max(160).nullable().catch(null),
     city: z.string().max(120).nullable().catch(null),
     retainerAmount: money,
@@ -115,6 +131,7 @@ const detailsSchema = z
     coverageHours: null,
     photographers: null,
     videographers: null,
+    crew: [],
     venueName: null,
     city: null,
     retainerAmount: null,
@@ -159,9 +176,26 @@ export function attachmentReadiness(input: {
   return { ready: true };
 }
 
+/** What kind of business the reader is told it reads for (2026-10-26: not always photography). */
+function businessFor(trade: unknown): string {
+  switch (String(trade ?? "")) {
+    case "dj":
+      return "DJ business";
+    case "makeup":
+      return "makeup artist's business";
+    case "hair":
+      return "hair stylist's business";
+    case "planner":
+      return "wedding planner's business";
+    default:
+      return "photography studio";
+  }
+}
+
 async function readWithVertex(input: {
   fileUri: string;
   contentType: string;
+  trade?: unknown;
 }): Promise<{ reading: SignedAgreementReading; details: SignedAgreementDetails } | null> {
   if (process.env.PROVIDER_MOCK_MODE === "true") return null;
   const project = process.env.VERTEX_AI_PROJECT_ID;
@@ -180,7 +214,7 @@ async function readWithVertex(input: {
           parts: [
             {
               text:
-                "You read one document a photography studio believes is a signed client agreement. Report only what is visibly on the page — never infer, complete or correct it. isSignedAgreement: true only if it is an agreement between the studio and a client. signatureVisible: true only if a handwritten, drawn or typed-and-attested client signature is actually present, not merely a signature line. signerNames: the names of the clients who signed, as written. clientNames: every client the agreement is made with, as written. signedDate: the date the client signed, as YYYY-MM-DD, or null if not stated. eventDate: the date of the event the agreement covers, as YYYY-MM-DD, or null. details, each only if the document states it and otherwise null or empty: clientEmails and clientPhones as written; packageName as the agreement names the package or collection; contractTotal as the total price as a plain number including any tax; taxAmount as a plain number; coverageHours as the number of hours of coverage; photographers as the number of photographers included; videographers as the number of videographers included, and null rather than zero when the agreement does not mention video; venueName and city of the event; retainerAmount as the retainer or deposit amount as a plain number. Never compute a figure the document does not state. Do not judge whether the agreement is valid, enforceable or complete. Return JSON only.",
+                `You read one document a ${businessFor(input.trade)} believes is a signed client agreement. Report only what is visibly on the page — never infer, complete or correct it. isSignedAgreement: true only if it is an agreement between the studio and a client. signatureVisible: true only if a handwritten, drawn or typed-and-attested client signature is actually present, not merely a signature line. signerNames: the names of the clients who signed, as written. clientNames: every client the agreement is made with, as written. signedDate: the date the client signed, as YYYY-MM-DD, or null if not stated. eventDate: the date of the event the agreement covers, as YYYY-MM-DD, or null. details, each only if the document states it and otherwise null or empty: clientEmails and clientPhones as written; packageName as the agreement names the package or collection; contractTotal as the total price as a plain number including any tax; taxAmount as a plain number; coverageHours as the number of hours of coverage; photographers as the number of photographers included; videographers as the number of videographers included, and null rather than zero when the agreement does not mention video; crew as every role the business sends to the event, one entry per role, with role as the agreement words it (for example 'Lead photographer', 'Second shooter', 'DJ', 'DJ assistant', 'Hair stylist', 'Hair assistant'), count only if the agreement states how many, and names only if it names them; venueName and city of the event; retainerAmount as the retainer or deposit amount as a plain number. Never compute a figure the document does not state. Do not judge whether the agreement is valid, enforceable or complete. Return JSON only.`,
             },
           ],
         },
@@ -216,6 +250,17 @@ async function readWithVertex(input: {
                   coverageHours: { type: "NUMBER", nullable: true },
                   photographers: { type: "NUMBER", nullable: true },
                   videographers: { type: "NUMBER", nullable: true },
+                  crew: {
+                    type: "ARRAY",
+                    items: {
+                      type: "OBJECT",
+                      properties: {
+                        role: { type: "STRING" },
+                        count: { type: "NUMBER", nullable: true },
+                        names: { type: "ARRAY", items: { type: "STRING" } },
+                      },
+                    },
+                  },
                   venueName: { type: "STRING", nullable: true },
                   city: { type: "STRING", nullable: true },
                   retainerAmount: { type: "NUMBER", nullable: true },
@@ -370,6 +415,7 @@ export async function readSignedAgreement(input: {
       const read = await readWithVertex({
         fileUri: `gs://${bucket.name}/${input.attachmentPath}`,
         contentType: String(metadata.contentType),
+        trade: tenant.get("trade"),
       });
       reading = read?.reading ?? null;
       details = read?.details ?? emptyDetails;

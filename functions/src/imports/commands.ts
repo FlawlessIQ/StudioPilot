@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { signedCopyDocument } from "../contracts/signed-copy-document.js";
 import {
   FieldValue,
@@ -20,6 +20,7 @@ import {
   existingBookingSchema,
   importBlocked,
   balanceOwedCents,
+  pastImportStates,
   planImportedBooking,
   type ExistingBooking,
   type ImportedCoverageRole,
@@ -70,7 +71,15 @@ export const lookupQuickBooksPaymentsInput = z.object({
   emails: z.array(z.string().trim().toLowerCase().email()).min(1).max(200),
 });
 
-const bookedStates = ["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE"];
+// Past jobs import too (2026-10-26), so a job already there that day can be
+// one in editing or delivered.
+const bookedStates = ["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE", "POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED", "CLOSED"];
+
+/** What the import needs to know about the studio's trade. */
+async function studioTrade(db: Firestore, tenantId: string) {
+  const profile = tradeProfile((await db.doc(`tenants/${tenantId}`).get()).get("trade"));
+  return { profile, delivers: profile.delivery };
+}
 
 function requireImportRole(membership: Record<string, unknown>) {
   if (!["studio_owner", "studio_admin"].includes(String(membership.role)))
@@ -159,6 +168,7 @@ export async function previewExistingBookings(input: {
   requireImportRole(input.membership);
   const db = getFirestore();
   const today = await studioToday(db, input.tenantId);
+  const { delivers } = await studioTrade(db, input.tenantId);
   return {
     today,
     bookings: await Promise.all(
@@ -180,7 +190,7 @@ export async function previewExistingBookings(input: {
         ]);
         return {
           key: bookingImportKey(booking),
-          issues: assessExistingBooking(booking, today),
+          issues: assessExistingBooking(booking, today, { delivers }),
           knownClients: booking.clients.map((client) => {
             const match = client.email ? contacts.get(client.email) : undefined;
             return match
@@ -226,7 +236,8 @@ export async function importExistingBooking(input: {
   requireImportRole(input.membership);
   const db = getFirestore();
   const today = await studioToday(db, input.tenantId);
-  const issues = assessExistingBooking(input.booking, today);
+  const trade = await studioTrade(db, input.tenantId);
+  const issues = assessExistingBooking(input.booking, today, { delivers: trade.delivers });
   const blocking = issues.find((issue) => issue.severity === "error");
   if (importBlocked(issues) && blocking)
     throw new Error(`BOOKING_IMPORT_INVALID:${blocking.message}`);
@@ -235,12 +246,14 @@ export async function importExistingBooking(input: {
     .map((client) => client.email ?? "")
     .filter(Boolean);
   const known = await contactsByEmail(db, input.tenantId, emails);
-  const primaryEmail = input.booking.clients[0]!.email!;
+  // A client may have only a phone (2026-10-26): no contact to match by email.
+  const primaryEmail = input.booking.clients[0]!.email ?? "";
+  const primaryKnown = primaryEmail ? known.get(primaryEmail) : undefined;
   const duplicate = await existingBookingFor(
     db,
     input.tenantId,
     input.booking,
-    known.get(primaryEmail)?.id ?? null,
+    primaryKnown?.id ?? null,
   );
   if (duplicate)
     throw new Error(
@@ -253,13 +266,13 @@ export async function importExistingBooking(input: {
   // The couple's inquiry, if it became a job on arrival, is the same wedding:
   // put away with the import rather than left open beside the booking.
   const supersededInquiries =
-    known.get(primaryEmail) === undefined
+    primaryKnown === undefined
       ? []
       : (
           await db
             .collection("projects")
             .where("tenantId", "==", input.tenantId)
-            .where("clientContactIds", "array-contains", known.get(primaryEmail)!.id)
+            .where("clientContactIds", "array-contains", primaryKnown.id)
             .limit(10)
             .get()
         ).docs.filter(
@@ -342,7 +355,9 @@ export async function importExistingBooking(input: {
     now: input.timestamp,
     source: input.source,
     batchId: input.batchId,
-    primaryRole: tradeProfile((await db.doc(`tenants/${input.tenantId}`).get()).get("trade")).coverageRoles[0] as ImportedCoverageRole,
+    primaryRole: trade.profile.coverageRoles[0] as ImportedCoverageRole,
+    deliveryRecordId: randomUUID(),
+    viewToken: randomBytes(24).toString("base64url"),
   });
   // The kind of work, read from the type the studio picked (job-kinds.ts).
   const eventKind = jobKindOf(records.project);
@@ -363,6 +378,13 @@ export async function importExistingBooking(input: {
       db.doc(`invoiceReferences/${String(records.paidInvoice.id)}`),
       records.paidInvoice,
     );
+  // A delivered or finished job's own records, done before StudioCue.
+  if (records.postProductionRecord)
+    batch.set(db.doc(`postProductionRecords/${projectId}`), records.postProductionRecord);
+  if (records.deliveryRecord)
+    batch.create(db.doc(`deliveryRecords/${String(records.deliveryRecord.id)}`), records.deliveryRecord);
+  if (records.closeout)
+    batch.set(db.doc(`projectCloseouts/${String(records.closeout.id)}`), records.closeout);
   const auditId = randomUUID();
   batch.create(db.doc(`auditEvents/${auditId}`), {
     id: auditId,
@@ -383,6 +405,7 @@ export async function importExistingBooking(input: {
       paidCents: records.paidInvoice?.amountCents ?? 0,
       source: input.source,
       batchId: input.batchId,
+      crew: input.booking.crew ?? null,
     },
     ipAddress: null,
     userAgent: input.userAgent,
@@ -413,7 +436,20 @@ export async function importExistingBooking(input: {
     },
   });
 
-  let state = "BOOKED";
+  // Who worked it, booked with nothing sent (2026-10-26).
+  const crew = await bookImportedCrew(db, {
+    tenantId: input.tenantId,
+    projectId,
+    projectName: String(records.project.name),
+    past: pastImportStates.includes(records.targetState),
+    startTime: input.booking.startTime ?? null,
+    currency: input.booking.currency,
+    people: records.namedCrew,
+    actorId: input.actorId,
+    now: input.timestamp,
+  });
+
+  let state = pastImportStates.includes(records.targetState) ? records.targetState : "BOOKED";
   if (records.targetState === "PLANNING") {
     // Entered only now that checkpoints exist; see planImportedBooking.
     const reference = db.doc(`projects/${projectId}`);
@@ -436,6 +472,7 @@ export async function importExistingBooking(input: {
     state,
     contactsCreated,
     contactsMatched,
+    crew,
     paidCents: Number(records.paidInvoice?.amountCents ?? 0),
     workflow:
       "workflowRunId" in workflow
@@ -445,6 +482,142 @@ export async function importExistingBooking(input: {
       .filter((issue) => issue.severity === "warning")
       .map((issue) => issue.message),
   };
+}
+
+const personKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ");
+
+/**
+ * The people an imported job names, booked on it with nothing sent.
+ *
+ * Each name is matched to the studio's roster (by name: an import has no
+ * email for them). A name not there is added to the roster quietly — no
+ * invite, no email, Conor's decision (2026-10-26) — and can be invited later
+ * once the studio adds an email; until then no offer can go to them
+ * (crew/cascade.ts). Each person gets an accepted assignment on the job, or a
+ * completed one on a job already past, with no calendar invite and no email:
+ * the job reads as staffed because it was. Ids are derived from the job, the
+ * role and the name, so a retried import books nobody twice.
+ */
+async function bookImportedCrew(
+  db: Firestore,
+  input: {
+    tenantId: string;
+    projectId: string;
+    projectName: string;
+    past: boolean;
+    startTime: string | null;
+    currency: string;
+    people: { role: string; label: string; name: string }[];
+    actorId: string;
+    now: string;
+  },
+): Promise<{ assigned: number; addedToRoster: { id: string; name: string }[]; matched: number }> {
+  if (!input.people.length) return { assigned: 0, addedToRoster: [], matched: 0 };
+  const roster = await db.collection("crewProfiles").where("tenantId", "==", input.tenantId).get();
+  const byName = new Map<string, DocumentSnapshot>();
+  // Active entries win over archived ones with the same name.
+  for (const profile of [...roster.docs].sort((a, b) => Number(Boolean(a.get("archivedAt"))) - Number(Boolean(b.get("archivedAt")))))
+    if (!byName.has(personKey(String(profile.get("name") ?? "")))) byName.set(personKey(String(profile.get("name") ?? "")), profile);
+  const batch = db.batch();
+  const added: { id: string; name: string }[] = [];
+  let matched = 0;
+  const created = new Map<string, string>();
+  for (const person of input.people) {
+    const key = personKey(person.name);
+    let profileId = byName.get(key)?.id ?? created.get(key);
+    const profile = byName.get(key);
+    if (profile) matched += 1;
+    if (!profileId) {
+      profileId = `crew_imported_${createHash("sha256").update(`${input.tenantId}|${key}`).digest("hex").slice(0, 24)}`;
+      created.set(key, profileId);
+      added.push({ id: profileId, name: person.name });
+      batch.set(
+        db.doc(`crewProfiles/${profileId}`),
+        {
+          id: profileId,
+          tenantId: input.tenantId,
+          userId: null,
+          name: person.name,
+          // None yet: added from an imported job. Invite once the studio adds one.
+          email: null,
+          phone: null,
+          specialties: [],
+          trades: [person.role],
+          serviceAreas: [],
+          travelRadiusMiles: 0,
+          rateType: "event",
+          rateCents: 0,
+          currency: input.currency,
+          equipment: [],
+          w9Status: "missing",
+          insuranceStatus: "missing",
+          contractStatus: "missing",
+          emergencyContact: null,
+          notes: `Added from an imported job (${input.projectName}).`,
+          active: true,
+          addedByImport: true,
+          createdAt: input.now,
+          updatedAt: input.now,
+          createdBy: input.actorId,
+          updatedBy: input.actorId,
+          archivedAt: null,
+        },
+        { merge: true },
+      );
+    }
+    const userId = profile ? (profile.get("userId") as string | null) ?? null : null;
+    const assignmentId = `assign_imported_${createHash("sha256").update(`${input.projectId}|${person.role}|${key}`).digest("hex").slice(0, 24)}`;
+    batch.set(db.doc(`crewAssignments/${assignmentId}`), {
+      id: assignmentId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      projectName: input.projectName,
+      crewProfileId: profileId,
+      userId,
+      role: person.label,
+      compensationCents: null,
+      compensationType: null,
+      currency: input.currency,
+      compensationVisibleToCrew: false,
+      arrivalAt: null,
+      departureAt: null,
+      locations: [],
+      responsibilities: [],
+      scheduleItemIds: [],
+      notes: input.startTime ? `The day starts at ${input.startTime}.` : null,
+      // Worked before StudioCue, or agreed to it there.
+      status: input.past ? "completed" : "accepted",
+      invitationSentAt: null,
+      viewedAt: null,
+      respondedAt: input.now,
+      calendarStatus: "not_added",
+      calendarAcknowledgedAt: null,
+      currentScheduleId: null,
+      currentScheduleVersion: null,
+      acknowledgedScheduleVersion: null,
+      scheduleAcknowledgedAt: null,
+      requirements: [],
+      inviteTokenHash: null,
+      inviteExpiresAt: null,
+      assignedDirectly: true,
+      assignedBy: input.actorId,
+      completionAuthority: "imported",
+      createdAt: input.now,
+      updatedAt: input.now,
+      createdBy: input.actorId,
+      updatedBy: input.actorId,
+      archivedAt: null,
+    }, { merge: true });
+    // Someone with an account sees the job in their app; nothing is sent.
+    if (userId)
+      batch.set(
+        db.doc(`memberships/${input.tenantId}_${userId}`),
+        { projectIds: FieldValue.arrayUnion(input.projectId) },
+        { merge: true },
+      );
+  }
+  await batch.commit();
+  return { assigned: input.people.length, addedToRoster: added, matched };
 }
 
 export async function attachImportedSignedCopy(input: {
@@ -514,16 +687,19 @@ export async function bringImportedBookingLive(input: {
     if (!project.get("importedAt")) throw new Error("NOT_AN_IMPORTED_BOOKING");
     if (!clientAutomationsPaused(project.data()))
       return { projectId: input.projectId, alreadyLive: true };
+    // A job imported after its event (2026-10-26) has no day to put in a
+    // calendar, and inviting the client is a choice, not its next step.
+    const past = pastImportStates.includes(String(project.get("state")) as never) || ["REVIEW_REQUESTED", "ARCHIVED"].includes(String(project.get("state")));
     transaction.update(reference, {
       clientAutomationsPausedAt: null,
       broughtLiveAt: input.timestamp,
       broughtLiveBy: input.actorId,
       clientPortalActive: true,
-      nextAction: "Invite the couple to their portal",
+      ...(past ? {} : { nextAction: "Invite the couple to their portal" }),
       updatedAt: input.timestamp,
       updatedBy: input.actorId,
     });
-    if (input.calendarAndFolders) {
+    if (input.calendarAndFolders && !past) {
       // The same job a live booking queues. completeBookingResources skips its
       // confirmation email for an imported booking — they booked long ago —
       // and the workflow it would start already exists.

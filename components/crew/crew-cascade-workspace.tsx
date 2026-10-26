@@ -188,6 +188,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
       id: profile.id,
       name: text(profile.name) || "Crew member",
       active: profile.active === true,
+      email: profile.email === undefined ? undefined : text(profile.email),
       specialties: list(profile.specialties).map(String),
       trades: list(profile.trades).map(String),
       serviceAreas: list(profile.serviceAreas).map(String),

@@ -13,12 +13,18 @@ import {
 } from "lucide-react";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { coverageRoleLabel, type CoverageRole } from "@/features/packages/coverage";
-import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import {
+  deliveryImportStates,
   existingBookingSchema,
+  importableBookingStates,
+  importedCrewRoleLabels,
+  importStateLabels,
   type ExistingBooking,
+  type ImportableBookingState,
+  type ImportedCoverageRole,
 } from "@/features/imports/existing-booking";
+import { importCrewRoles } from "@/features/imports/sheet-columns";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   findQuickBooksHistory,
@@ -58,13 +64,23 @@ export type ExistingBookingFormValues = {
   eventDate: string;
   venueName: string;
   city: string;
-  state: "BOOKED" | "PLANNING";
+  /** Where the job is now: before the event, or after it (2026-10-26). */
+  state: ImportableBookingState;
+  /** "HH:MM", when the day starts. */
+  startTime: string;
+  /** A delivered or finished job's gallery, and when it went out. */
+  galleryUrl: string;
+  deliveredOn: string;
   packageName: string;
   total: string;
   tax: string;
   coverageHours: string;
-  photographers: string;
-  videographers: string;
+  /**
+   * Who the studio sends, line by line: a role, how many, and who if the
+   * studio says ("Kim, Tara, Joy"). Replaces the two fixed counts, which had
+   * no room for a DJ's assistant or a stylist's three (2026-10-26).
+   */
+  crew: Array<{ role: ImportedCoverageRole; count: string; names: string }>;
   signedOn: string;
   signerName: string;
   payments: Array<{ amount: string; paidOn: string; method: string }>;
@@ -84,12 +100,14 @@ const blank: ExistingBookingFormValues = {
   venueName: "",
   city: "",
   state: "BOOKED",
+  startTime: "",
+  galleryUrl: "",
+  deliveredOn: "",
   packageName: "",
   total: "",
   tax: "0",
   coverageHours: "8",
-  photographers: "1",
-  videographers: "0",
+  crew: [],
   signedOn: "",
   signerName: "",
   payments: [{ amount: "", paidOn: "", method: "Retainer" }],
@@ -106,12 +124,59 @@ const money = (value: number) =>
     value / 100,
   );
 
-/** "Photographers", "Hair stylists": the heading of the form's first or second count, in the studio's roles. */
-export function importCountHeading(trade: unknown, index: 0 | 1): string | null {
-  const role = tradeProfile(trade).coverageRoles[index] as CoverageRole | undefined;
-  if (!role) return null;
-  const label = coverageRoleLabel(role, 2);
-  return label.charAt(0).toUpperCase() + label.slice(1);
+/** Where a job is, as the form offers it. */
+const STATE_CHOICES: Record<ImportableBookingState, string> = {
+  BOOKED: "Booked — planning hasn’t started",
+  PLANNING: "Planning is under way",
+  EVENT_COMPLETE: `${importStateLabels.EVENT_COMPLETE} — nothing left but closing it`,
+  POST_PRODUCTION: `${importStateLabels.POST_PRODUCTION} — not delivered yet`,
+  DELIVERED: `${importStateLabels.DELIVERED} — follow-ups still open`,
+  CLOSED: `${importStateLabels.CLOSED} — nothing left to do`,
+};
+
+/** A day's usual hours, by what the studio does, when nothing says otherwise. */
+const USUAL_HOURS: Record<string, string> = { photographer: "8", dj: "5", makeup: "2", hair: "2", planner: "10" };
+
+/** "Kim, Tara & Joy" → ["Kim", "Tara", "Joy"]. */
+const splitNames = (value: string) =>
+  value
+    .split(/\s*(?:,|&|\/|;|\band\b)\s*/i)
+    .map((name) => name.trim())
+    .filter(Boolean);
+
+/** A booking read from a sheet or a contract, as the form's values, to fix by hand. */
+export function formValuesFromBooking(booking: ExistingBooking): Partial<ExistingBookingFormValues> {
+  const [primary, partner] = booking.clients;
+  return {
+    firstName: primary?.firstName ?? "",
+    lastName: primary?.lastName ?? "",
+    email: primary?.email ?? "",
+    phone: primary?.phone ?? "",
+    partnerFirstName: partner?.firstName ?? "",
+    partnerLastName: partner?.lastName ?? "",
+    partnerEmail: partner?.email ?? "",
+    eventType: booking.eventType,
+    eventDate: booking.eventDate,
+    venueName: booking.venueName ?? "",
+    city: booking.city ?? "",
+    state: booking.state,
+    startTime: booking.startTime ?? "",
+    galleryUrl: booking.galleryUrl ?? "",
+    deliveredOn: booking.deliveredOn ?? "",
+    packageName: booking.packageName,
+    total: (booking.totalCents / 100).toFixed(2),
+    tax: (booking.taxCents / 100).toFixed(2),
+    coverageHours: String(booking.coverageMinutes / 60),
+    crew: (booking.crew ?? []).map((line) => ({ role: line.role, count: String(line.count), names: line.names.join(", ") })),
+    signedOn: booking.signedOn,
+    signerName: booking.signerName,
+    payments: booking.payments.map((payment) => ({
+      amount: (payment.amountCents / 100).toFixed(2),
+      paidOn: payment.paidOn,
+      method: payment.method,
+    })),
+    notes: booking.notes ?? "",
+  };
 }
 
 /**
@@ -125,6 +190,16 @@ export function bookingFromForm(
   trade?: unknown,
 ): { booking: ExistingBooking } | { problem: string } {
   const photo = tradeProfile(trade).family === "photo";
+  const delivered = values.state === "DELIVERED" || values.state === "CLOSED";
+  const crew = values.crew
+    .map((line) => {
+      const names = splitNames(line.names);
+      const count = Math.max(Math.round(Number(line.count) || 0), names.length);
+      return { role: line.role, count, names };
+    })
+    .filter((line) => line.count > 0);
+  // Nothing is assumed for the crew (2026-10-26): say who the studio sends.
+  if (!crew.length) return { problem: "Add who your studio sends: a role and how many." };
   const clients = [
     {
       firstName: values.firstName,
@@ -150,10 +225,14 @@ export function bookingFromForm(
     venueName: values.venueName.trim() || null,
     city: values.city.trim() || null,
     state: values.state,
-    packageName: values.packageName.trim() || (photo ? "Wedding photography" : `${values.eventType} ${tradeVocab(trade).service}`),
+    // The kind of job and what the studio does: "Family & portraits photography", "Wedding hair".
+    packageName: values.packageName.trim() || `${values.eventType} ${tradeVocab(trade).service}`,
     coverageMinutes: Math.round(Number(values.coverageHours) * 60),
-    photographers: Math.round(Number(values.photographers)),
-    videographers: Math.round(Number(values.videographers || 0)),
+    photographers: crew.find((line) => line.role === "photographer")?.count ?? 0,
+    crew,
+    startTime: values.startTime || null,
+    galleryUrl: delivered && values.galleryUrl.trim() ? values.galleryUrl.trim() : null,
+    deliveredOn: delivered && values.deliveredOn ? values.deliveredOn : null,
     currency: "USD",
     totalCents: cents(values.total),
     taxCents: cents(values.tax || "0"),
@@ -183,8 +262,9 @@ export function bookingFromForm(
     [/^totalCents/, "Add the contract total as an amount, like 6499."],
     [/^taxCents/, "Tax should be an amount, or 0."],
     [/^coverageMinutes/, photo ? "Coverage should be a number of hours." : "Hours should be a number."],
-    [/^photographers/, `${importCountHeading(trade, 0) ?? "The count"} should be a whole number.`],
-    [/^videographers/, `${importCountHeading(trade, 1) ?? "The count"} should be a whole number.`],
+    [/^crew/, "Each crew line needs how many, or their names."],
+    [/^galleryUrl/, "The delivery link should be a web address, starting https://."],
+    [/^deliveredOn/, "Add the date it was delivered, or leave it blank."],
     [/^payments\.\d+\.amountCents/, "Each payment needs an amount above zero."],
     [/^payments\.\d+\.paidOn/, "Each payment needs the date it was received."],
   ];
@@ -200,19 +280,34 @@ export function ExistingBookingForm({
   signedCopy,
   source,
   compact = false,
+  onImported,
 }: {
   initial?: Partial<ExistingBookingFormValues>;
   /** Supplied by Cue, which already holds the file. */
   signedCopy?: File | null;
-  source: "form" | "cue";
+  source: "form" | "cue" | "spreadsheet";
   compact?: boolean;
+  /** A spreadsheet row fixed here: told when it's in, so the sheet marks it. */
+  onImported?: (result: ImportedBookingResult) => void;
 }) {
   const trade = useWorkspace().tenantTrade;
+  const roles = importCrewRoles(trade);
+  const delivers = tradeProfile(trade).delivery;
   const [values, setValues] = useState<ExistingBookingFormValues>({
     ...blank,
+    // The studio's own day and crew until something says otherwise.
+    coverageHours: USUAL_HOURS[tradeOf(trade)] ?? blank.coverageHours,
+    crew: [{ role: roles[0]!, count: "1", names: "" }],
     ...initial,
     payments: initial?.payments?.length ? initial.payments : blank.payments,
   });
+  const setCrew = (index: number, key: "role" | "count" | "names", value: string) => {
+    setValues((prior) => ({
+      ...prior,
+      crew: prior.crew.map((line, at) => (at === index ? { ...line, [key]: value } : line)),
+    }));
+    if (phase === "reviewing") setPhase("editing");
+  };
   const [partner, setPartner] = useState(
     Boolean(initial?.partnerFirstName || initial?.partnerLastName),
   );
@@ -329,8 +424,10 @@ export function ExistingBookingForm({
         return;
       }
       refreshTenantRecords("projects");
+      if (imported.result.crew?.assigned) refreshTenantRecords("crewProfiles");
       setDone({ result: imported.result, signedCopyAttached: imported.signedCopyAttached });
       setPhase("done");
+      onImported?.(imported.result);
     } catch (caught: unknown) {
       setProblem(friendlyError(caught, "That booking couldn't be imported."));
       setPhase("reviewing");
@@ -363,6 +460,14 @@ export function ExistingBookingForm({
               ? `${money(result.paidCents)} recorded as paid before StudioCue.`
               : "No payments recorded yet."}
           </li>
+          {result.crew?.assigned ? (
+            <li>
+              {`${result.crew.assigned} crew booked on the job, with nothing sent to them.`}
+              {result.crew.addedToRoster.length
+                ? ` ${result.crew.addedToRoster.map((person) => person.name).join(", ")} ${result.crew.addedToRoster.length === 1 ? "was" : "were"} added to your crew list without an invite. Add an email to invite them.`
+                : ""}
+            </li>
+          ) : null}
           {result.workflow.started ? (
             <li>
               Workflow started, with anything that was due before today marked as done
@@ -411,12 +516,14 @@ export function ExistingBookingForm({
           Last name
           <input onChange={(e) => set("lastName", e.target.value)} required value={values.lastName} />
         </label>
+        {/* Either is enough (2026-10-26): many beauty and DJ clients are a phone
+            number. The portal invite waits for an email. */}
         <label>
-          Email
-          <input onChange={(e) => set("email", e.target.value)} required type="email" value={values.email} />
+          Email <small>or a phone</small>
+          <input onChange={(e) => set("email", e.target.value)} type="email" value={values.email} />
         </label>
         <label>
-          Phone <small>optional</small>
+          Phone <small>or an email</small>
           <input onChange={(e) => set("phone", e.target.value)} type="tel" value={values.phone} />
         </label>
         {partner ? (
@@ -465,13 +572,87 @@ export function ExistingBookingForm({
           City <small>optional</small>
           <input onChange={(e) => set("city", e.target.value)} value={values.city} />
         </label>
-        <label className="booking-import-span">
+        <label>
+          Starts at <small>optional</small>
+          <input onChange={(e) => set("startTime", e.target.value)} type="time" value={values.startTime} />
+        </label>
+        <label>
           Where it&rsquo;s at
-          <select onChange={(e) => set("state", e.target.value as "BOOKED" | "PLANNING")} value={values.state}>
-            <option value="BOOKED">Booked — planning hasn&rsquo;t started</option>
-            <option value="PLANNING">Planning is under way</option>
+          <select onChange={(e) => set("state", e.target.value as ImportableBookingState)} value={values.state}>
+            {importableBookingStates
+              .filter((state) => delivers || !deliveryImportStates.includes(state))
+              .map((state) => (
+                <option key={state} value={state}>
+                  {STATE_CHOICES[state]}
+                </option>
+              ))}
           </select>
         </label>
+        {delivers && (values.state === "DELIVERED" || values.state === "CLOSED") ? (
+          <>
+            <label>
+              Delivery link <small>optional, so the client can open it</small>
+              <input inputMode="url" onChange={(e) => set("galleryUrl", e.target.value)} placeholder="https://" value={values.galleryUrl} />
+            </label>
+            <label>
+              Delivered on <small>optional</small>
+              <input onChange={(e) => set("deliveredOn", e.target.value)} type="date" value={values.deliveredOn} />
+            </label>
+          </>
+        ) : null}
+      </fieldset>
+
+      {/* Who the studio sent, line by line: a DJ's assistant, a stylist's three
+          assistants with their names. Named people are booked on the job with
+          nothing sent; anyone not on the crew list is added to it quietly. */}
+      <fieldset>
+        <legend>The crew</legend>
+        {values.crew.map((line, index) => (
+          <div className="booking-import-crew booking-import-span" key={index}>
+            <label>
+              Role
+              <select onChange={(e) => setCrew(index, "role", e.target.value)} value={line.role}>
+                {roles.map((role) => (
+                  <option key={role} value={role}>
+                    {importedCrewRoleLabels[role]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              How many
+              <input inputMode="numeric" min="0" onChange={(e) => setCrew(index, "count", e.target.value)} value={line.count} />
+            </label>
+            <label>
+              Who <small>names, if you know them</small>
+              <input onChange={(e) => setCrew(index, "names", e.target.value)} placeholder="Kim, Tara" value={line.names} />
+            </label>
+            <button
+              aria-label="Remove this crew line"
+              className="booking-import-remove"
+              onClick={() => setValues((prior) => ({ ...prior, crew: prior.crew.filter((_, at) => at !== index) }))}
+              type="button"
+            >
+              <Trash2 size={15} aria-hidden="true" />
+            </button>
+          </div>
+        ))}
+        <button
+          className="button button-light button-sm booking-import-span"
+          onClick={() =>
+            setValues((prior) => ({
+              ...prior,
+              crew: [...prior.crew, { role: roles.find((role) => !prior.crew.some((line) => line.role === role)) ?? roles[0]!, count: "1", names: "" }],
+            }))
+          }
+          type="button"
+        >
+          <Plus size={14} aria-hidden="true" /> Add a role
+        </button>
+        <p className="booking-import-note booking-import-span">
+          Named people are booked on the job with nothing sent. Anyone not on your crew list is added to it,
+          without an invite.
+        </p>
       </fieldset>
 
       <fieldset>
@@ -498,16 +679,6 @@ export function ExistingBookingForm({
           {tradeVocab(trade).hoursLabel}
           <input inputMode="decimal" onChange={(e) => set("coverageHours", e.target.value)} required value={values.coverageHours} />
         </label>
-        <label>
-          {importCountHeading(trade, 0)}
-          <input inputMode="numeric" min="0" onChange={(e) => set("photographers", e.target.value)} required value={values.photographers} />
-        </label>
-        {importCountHeading(trade, 1) ? (
-          <label>
-            {importCountHeading(trade, 1)}
-            <input inputMode="numeric" min="0" onChange={(e) => set("videographers", e.target.value)} value={values.videographers} />
-          </label>
-        ) : null}
         <label className="booking-import-span">
           Signed by <small>defaults to the client</small>
           <input onChange={(e) => set("signerName", e.target.value)} placeholder={`${values.firstName} ${values.lastName}`.trim()} value={values.signerName} />
@@ -587,7 +758,7 @@ export function ExistingBookingForm({
         {compact ? null : (
           <label className="booking-import-span">
             Notes <small>optional, only you see these</small>
-            <textarea maxLength={2000} onChange={(e) => set("notes", e.target.value)} rows={2} value={values.notes} />
+            <textarea maxLength={4000} onChange={(e) => set("notes", e.target.value)} rows={2} value={values.notes} />
           </label>
         )}
       </fieldset>

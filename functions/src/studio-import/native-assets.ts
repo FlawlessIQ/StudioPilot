@@ -77,6 +77,12 @@ const ROLE_WORDS: Record<CoverageRole, string> = {
   dj: String.raw`djs?|disc\s+jockeys?`,
   makeup_artist: String.raw`(?:make-?up\s+)?artists?`,
   hair_stylist: String.raw`(?:hair\s*)?stylists?`,
+  // Each trade's assistants (2026-10-26): "2 assistants" in a hair studio's
+  // list is its hair assistants. The trade decides which is read (tradeRoles).
+  photo_assistant: String.raw`(?:photo(?:graphy)?\s+)?assistants?`,
+  dj_assistant: String.raw`(?:dj\s+)?assistants?`,
+  makeup_assistant: String.raw`(?:make-?up\s+)?assistants?`,
+  hair_assistant: String.raw`(?:hair\s+)?assistants?`,
   coordinator: String.raw`(?:assistant\s+)?(?:coordinators?|assistants?)`,
 };
 

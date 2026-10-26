@@ -259,14 +259,16 @@ const GUIDES: readonly ExplainerSource[] = [
       "Bring in the jobs you booked before StudioCue, one at a time or from a spreadsheet, without anything going to the clients.",
     steps: [
       "Open **Jobs** and choose **Import bookings**.",
-      "For one job, fill in **The couple**, **The event**, **The contract** and **Paid so far**, then **Check booking** and **Import booking**.",
-      "For many, go to **A spreadsheet of bookings**. **Download a template** if you need one, **Choose a CSV file**, check the columns, then import.",
+      "For one job, fill in **The couple**, **The event**, **The crew**, **The contract** and **Paid so far**, then **Check booking** and **Import booking**. Past jobs too: **Where it's at** says where it is now.",
+      "For many, go to **A spreadsheet of bookings**, **Choose a spreadsheet** (Excel or CSV) and check the columns. **What StudioCue read** shows each row in full; **Fix and import this one** corrects it.",
       "When you're ready to work with a client, open their job and tap **Bring this couple into StudioCue**.",
     ],
     next: "Imported jobs come in quiet: no emails, invoices or reminders reach the client until you bring them in. Inviting them to their portal is a separate checkbox.",
     goodToKnow: [
       "**Fill from QuickBooks** takes what's been paid from QuickBooks, matched by the client's email. Nothing in QuickBooks changes.",
+
       "Only owners and admins can import.",
+      "Named crew are booked on the job with nothing sent; anyone not on your crew list is added without an invite.",
     ],
     terms: ["quiet-import", "job"],
   },
