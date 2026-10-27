@@ -15,6 +15,7 @@ import {
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 import { isReturned } from "../planning/questionnaire-lifecycle.js";
 import { contractFormAnswers } from "./form-answers.js";
+import { contractDetailRows, scheduleAContractAnswers } from "../planning/contract-details.js";
 import { eventDetailsFrom, kindTermsBlocks, venueFromAnswers } from "./event-details.js";
 import { formatContractDate } from "./document.js";
 import { normalizeUnitLabel, quantityText } from "../packages/unit-label.js";
@@ -223,6 +224,10 @@ export async function loadContractSources(
       byQuestion.set(occurrence > 1 ? `${wording}#${occurrence}` : wording, row);
     }
   }
+  // An imported job's signed contract (planning/contract-details.ts): what the
+  // studio approved from it, for any question no returned form has answered.
+  for (const row of scheduleAContractAnswers(contractDetailRows(record(project.get("contractDetails")).rows), new Set(byQuestion.keys())))
+    byQuestion.set(row.key, { question: row.question, answer: row.answer });
   // The lock-day sign-off's limit: a contract is no place for a whole shot list.
   const formAnswers = [...byQuestion.values()].slice(0, 60);
   const client = record(proposal.get("clientSnapshot"));

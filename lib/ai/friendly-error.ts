@@ -492,6 +492,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "Only a studio owner or admin can import bookings, because importing one records that its contract was signed and its payments made.",
   NOT_AN_IMPORTED_BOOKING:
     "This job wasn't imported, so there's nothing to bring in — it's already live in StudioCue.",
+  // Details read off an imported job's signed contract (functions/src/imports/commands.ts).
+  CONTRACT_DETAILS_EMPTY: "There's nothing to keep yet. Check at least one answer, or type one in.",
   IMPORTED_CONTRACT_NOT_FOUND:
     "This job has no imported contract to attach a signed copy to.",
   SIGNED_COPY_ALREADY_ATTACHED:

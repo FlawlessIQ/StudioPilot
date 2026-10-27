@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { ExistingBookingForm } from "@/components/imports/existing-booking-form";
 import { SpreadsheetBookingImport } from "@/components/imports/spreadsheet-booking-import";
+import { ContractDetailsReader } from "@/components/imports/contract-details-reader";
 
 /**
  * Where a studio brings in the weddings it booked before StudioCue.
@@ -36,6 +37,17 @@ export function ImportBookingsWorkspace() {
   return (
     <div className="booking-import-stack">
       <SpreadsheetBookingImport />
+      <section className="panel booking-import-panel" id="signed-contracts">
+        <header>
+          <h2>Add the signed contracts</h2>
+          <p>
+            For jobs you&rsquo;ve imported. Cue reads the day from each contract (names,
+            places and times) and finds its job. You check every answer, and they fill
+            in your client&rsquo;s forms and the contract&rsquo;s Schedule A. Nothing is sent to anyone.
+          </p>
+        </header>
+        <ContractDetailsReader />
+      </section>
       <section className="panel booking-import-panel">
         <header>
           <h2>One booking</h2>

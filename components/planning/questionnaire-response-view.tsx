@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, LoaderCircle } from "lucide-react";
+import { ArrowLeft, FileText, LoaderCircle } from "lucide-react";
 import { doc, getDoc } from "firebase/firestore";
 import { demoTenantDocuments } from "@/components/live/tenant-records";
 import { FileLinks } from "@/components/documents/file-link";
@@ -18,6 +18,7 @@ import { parseQuestionnaireSections, type QuestionnaireField } from "@/features/
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { formatDueDate } from "@/lib/format/event-date";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { ContractDetailsReader } from "@/components/imports/contract-details-reader";
 
 type Row = Record<string, unknown> & { id: string };
 
@@ -60,6 +61,8 @@ export function QuestionnaireResponseView({ id }: { id: string }) {
       : ((demoTenantDocuments("questionnaireResponses") as Row[]).find((item) => item.id === id) ?? null),
   );
   const [projectName, setProjectName] = useState<string>("");
+  // Imported from before StudioCue: its blanks may be in a signed contract.
+  const [projectImported, setProjectImported] = useState(false);
   // Bumped after an action so the sheet shows the response as it now is.
   const [reload, setReload] = useState(0);
 
@@ -80,7 +83,10 @@ export function QuestionnaireResponseView({ id }: { id: string }) {
         const projectId = text(data.projectId);
         if (projectId) {
           const project = await getDoc(doc(firestore, "projects", projectId)).catch(() => null);
-          if (active && project?.exists()) setProjectName(text(project.get("name")));
+          if (active && project?.exists()) {
+            setProjectName(text(project.get("name")));
+            setProjectImported(typeof project.get("importedAt") === "string");
+          }
         }
       } catch {
         if (active) setResponse(null);
@@ -179,6 +185,29 @@ export function QuestionnaireResponseView({ id }: { id: string }) {
         response={response}
         sections={sections}
       />
+
+      {/* An imported job's form, still open: what the signed contract says
+          can fill it (GR Productions, 2026-10-27). */}
+      {projectImported &&
+      ["not_started", "in_progress", "reopened"].includes(text(response.status) || "not_started") &&
+      (workspace.role === "studio_owner" || workspace.role === "studio_admin") ? (
+        <details className="panel questionnaire-contract-fill">
+          <summary>
+            <FileText aria-hidden="true" size={15} />
+            Fill this in from the signed contract
+          </summary>
+          <p>
+            This job was imported, so its form starts nearly empty. Cue reads the names, places and
+            times from the contract; you check them, and they fill in the blanks here and on every
+            form you send them.
+          </p>
+          <ContractDetailsReader
+            onKept={() => setReload((value) => value + 1)}
+            projectId={projectId}
+            projectName={projectName}
+          />
+        </details>
+      ) : null}
 
       {sections.map((section) => {
         const fields = section.fields.filter((field) => {

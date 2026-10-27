@@ -1234,7 +1234,7 @@ async function handleInquiryForm(
       sources: Object.fromEntries(
         Object.keys(visibleAnswers).flatMap((fieldId) => {
           const entry = plain(provenance[fieldId]);
-          const source = ["project_fact", "inquiry_fact", "earlier_answer", "suggested_time"].includes(text(entry.sourceType))
+          const source = ["project_fact", "inquiry_fact", "earlier_answer", "suggested_time", "contract_fact"].includes(text(entry.sourceType))
             ? coupleSourceLabel(text(entry.label), jobIsBooked(project.get("state")))
             : "";
           return source ? [[fieldId, source]] : [];

@@ -401,6 +401,34 @@ const readableAttachment = /^(application\/pdf|image\/jpeg|image\/png)$/;
 const maxAttachmentBytes = 25 * 1024 * 1024;
 
 /**
+ * Stage a file in the signed-in member's own Cue folder for one reading. The
+ * malware scan runs on upload; the server reads it only once that clears, and
+ * deletes it once read.
+ */
+async function stageCueAttachment(tenantId: string, file: File): Promise<string> {
+  if (!process.env.NEXT_PUBLIC_AI_FUNCTIONS_URL)
+    throw new Error("AI Copilot is not configured.");
+  const client = getFirebaseClient();
+  const user = client.auth.currentUser;
+  if (!user) throw new Error("Sign in before attaching a file.");
+  const storage = getStorage(client.app);
+  if (
+    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" &&
+    !cueStorageEmulatorConnected
+  ) {
+    connectStorageEmulator(storage, "127.0.0.1", 9199);
+    cueStorageEmulatorConnected = true;
+  }
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120);
+  const attachmentPath = `tenants/${tenantId}/cueAttachments/${user.uid}/${crypto.randomUUID()}-${safeName}`;
+  await uploadBytes(ref(storage, attachmentPath), file, {
+    contentType: file.type,
+    customMetadata: { scanStatus: "pending", visibility: "studio" },
+  });
+  return attachmentPath;
+}
+
+/**
  * Hand a signed agreement to Cue and get back what it read.
  *
  * Stages the file in the owner's own Cue folder, then asks Cue to read it. The
@@ -420,25 +448,7 @@ export async function readSignedAgreementAttachment(input: {
     throw new Error("Cue can read a PDF, JPEG or PNG. Attach the signed agreement in one of those.");
   if (input.file.size >= maxAttachmentBytes)
     throw new Error("That file is over 25 MB. Attach a smaller copy of the signed agreement.");
-  if (!process.env.NEXT_PUBLIC_AI_FUNCTIONS_URL)
-    throw new Error("AI Copilot is not configured.");
-  const client = getFirebaseClient();
-  const user = client.auth.currentUser;
-  if (!user) throw new Error("Sign in before attaching a file.");
-  const storage = getStorage(client.app);
-  if (
-    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" &&
-    !cueStorageEmulatorConnected
-  ) {
-    connectStorageEmulator(storage, "127.0.0.1", 9199);
-    cueStorageEmulatorConnected = true;
-  }
-  const safeName = input.file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120);
-  const attachmentPath = `tenants/${input.tenantId}/cueAttachments/${user.uid}/${crypto.randomUUID()}-${safeName}`;
-  await uploadBytes(ref(storage, attachmentPath), input.file, {
-    contentType: input.file.type,
-    customMetadata: { scanStatus: "pending", visibility: "studio" },
-  });
+  const attachmentPath = await stageCueAttachment(input.tenantId, input.file);
 
   // The scan usually clears in seconds. Wait a little longer each time, and
   // give up well before anyone wonders whether it is still working.
@@ -471,6 +481,71 @@ export async function readSignedAgreementAttachment(input: {
       throw new Error(
         "The file is still being scanned. Try attaching it again in a minute.",
       );
+    input.onScanning?.();
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+}
+
+/** One answer read off a signed contract, as the studio's form words the question. */
+export type ContractDetailRow = { key: string; label: string; type: string; value: string; section?: string };
+export type ContractQuestion = { id: string; key: string; label: string; type: string; options: string[]; section: string };
+
+/** What Cue read off a signed contract for an imported job (functions/src/ai/contract-details.ts). */
+export type ContractDetailsReadResult = {
+  status: "read";
+  mode: "ai" | "unavailable";
+  isAgreement: boolean;
+  clientNames: string[];
+  eventDate: string | null;
+  match: { projectId: string; name: string } | null;
+  rows: ContractDetailRow[];
+  questions: ContractQuestion[];
+};
+
+/**
+ * Hand an imported job's signed contract to Cue and get back the day's
+ * details it states, answered against the studio's own questions.
+ *
+ * Staged and scanned as a signed agreement is; nothing is recorded. The
+ * studio checks the answers, and `applyContractDetails` keeps them.
+ */
+export async function readContractDetailsAttachment(input: {
+  tenantId: string;
+  file: File;
+  projectId?: string;
+  onScanning?: () => void;
+}): Promise<ContractDetailsReadResult> {
+  if (!readableAttachment.test(input.file.type))
+    throw new Error("Cue can read a PDF, JPEG or PNG. Add the signed contract in one of those.");
+  if (input.file.size >= maxAttachmentBytes)
+    throw new Error("That file is over 25 MB. Add a smaller copy of the signed contract.");
+  const attachmentPath = await stageCueAttachment(input.tenantId, input.file);
+  const delays = [1500, 2000, 3000, 4000, 5000, 6000, 8000, 10000, 12000];
+  for (let attempt = 0; ; attempt += 1) {
+    const result = await postCopilot<
+      | ContractDetailsReadResult
+      | { status: "scanning" }
+      | { status: "blocked"; reason: "unsafe" | "scanner_unavailable" | "unsupported" }
+    >(
+      {
+        kind: "read_contract_details",
+        tenantId: input.tenantId,
+        attachmentPath,
+        ...(input.projectId ? { projectId: input.projectId } : {}),
+      },
+      "Cue couldn't read that contract. Try adding it again.",
+    );
+    if (result.status === "read") return result;
+    if (result.status === "blocked")
+      throw new Error(
+        result.reason === "unsafe"
+          ? "That file didn't pass the safety scan, so Cue won't open it."
+          : result.reason === "unsupported"
+            ? "Cue can read a PDF, JPEG or PNG. Add the signed contract in one of those."
+            : "File scanning is unavailable right now, so Cue can't open contracts. Try again later.",
+      );
+    const delay = delays[attempt];
+    if (delay === undefined) throw new Error("The contract is still being scanned. Try adding it again in a minute.");
     input.onScanning?.();
     await new Promise((resolve) => setTimeout(resolve, delay));
   }

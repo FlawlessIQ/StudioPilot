@@ -24168,3 +24168,46 @@ label {
 .sheet-import-read dd em{font-style:normal;font-weight:700;color:var(--ds-amber-text, #7a5200)}
 .sheet-import-read dd small{color:var(--ds-muted, var(--muted));font-size:12px}
 .sheet-import-read .button{margin-top:4px}
+
+/*
+  Filling in imported jobs from their signed contracts
+  (components/imports/contract-details-reader.tsx). Each answer is a row
+  that wraps — question above its box when the column is narrow — never a
+  grid track the box can squeeze the question out of.
+*/
+.contract-details{display:grid;gap:12px;min-width:0}
+.contract-details-pick{position:relative;display:inline-flex;align-items:center;gap:8px;justify-self:start;padding:9px 14px;border:1px dashed var(--line);border-radius:10px;font-size:13.5px;font-weight:600;color:var(--ink);cursor:pointer}
+.contract-details-pick:hover{border-color:var(--accent)}
+.contract-details-pick input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.contract-details-card{display:grid;gap:10px;padding:14px;border:1px solid var(--line);border-radius:12px;min-width:0}
+.contract-details-card.is-done{gap:8px}
+.contract-details-file{margin:0;font-size:13.5px;font-weight:650;color:var(--ink);overflow-wrap:anywhere}
+.contract-details-status,.contract-details-problem,.contract-details-note,.contract-details-done{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0;font-size:13px;color:var(--muted)}
+.contract-details-problem{color:var(--ds-amber-text)}
+.contract-details-note svg{flex:none;color:var(--ds-amber-text)}
+.contract-details-done{align-items:flex-start;flex-wrap:nowrap;color:var(--ink)}
+.contract-details-done svg{flex:none;margin-top:2px;color:var(--accent)}
+.contract-details-done span{flex:1 1 auto;min-width:0}
+.contract-details-link{padding:0;border:0;background:none;color:var(--accent);font:inherit;font-weight:600;cursor:pointer}
+.contract-details-link:hover{text-decoration:underline}
+.contract-details-job{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.contract-details-job>span{display:grid;gap:2px;flex:1 1 220px;min-width:0;font-size:13.5px;font-weight:600;color:var(--ink)}
+.contract-details-job small{font-weight:500;font-size:12.5px;color:var(--muted)}
+.contract-details-job select{flex:1 1 240px;min-width:0;max-width:100%}
+.contract-details-rows,.contract-details-more{display:grid;gap:8px;min-width:0}
+.contract-details-lead{margin:0;font-size:12.5px;color:var(--muted)}
+.contract-details-row{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.contract-details-row.is-skipped .contract-details-question{color:var(--muted)}
+.contract-details-question{display:grid;gap:1px;flex:1 1 200px;min-width:0;font-size:13px;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.contract-details-question small{font-weight:500;font-size:12px;color:var(--muted)}
+.contract-details-row>input{flex:2 1 220px;min-width:0}
+.contract-details-use{display:inline-flex;gap:6px;align-items:center;flex:none;font-size:12.5px;font-weight:600;color:var(--muted)}
+.contract-details-use input{accent-color:var(--accent)}
+.contract-details-more>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--accent)}
+.contract-details-actions{display:flex;flex-wrap:wrap;gap:8px}
+.questionnaire-contract-fill{padding:14px 16px}
+.questionnaire-contract-fill>summary{display:flex;align-items:center;gap:8px;list-style:none;cursor:pointer;font-size:13.5px;font-weight:650;color:var(--ink)}
+.questionnaire-contract-fill>summary::-webkit-details-marker{display:none}
+.questionnaire-contract-fill>summary svg{flex:none;color:var(--accent)}
+.questionnaire-contract-fill>p{margin:8px 0 0;font-size:13px;line-height:1.5;color:var(--muted)}
+.questionnaire-contract-fill>.contract-details{margin-top:12px}

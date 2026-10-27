@@ -70,6 +70,8 @@ import {
   previewExistingBookingsInput,
   updateImportedBooking,
   updateImportedBookingInput,
+  applyContractDetails,
+  applyContractDetailsInput,
   holdImportRows,
   holdImportRowsInput,
   resolveImportDraft,
@@ -338,6 +340,12 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: updateImportedBookingInput,
+  }),
+  z.object({
+    type: z.literal("applyContractDetails"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: applyContractDetailsInput,
   }),
   z.object({
     type: z.literal("holdImportRows"),
@@ -3691,6 +3699,17 @@ export const bookingCommand = onRequest(
           projectId: command.input.projectId,
           changes: command.input.changes,
           confirmations: command.input.confirmations,
+        });
+      } else if (command.type === "applyContractDetails") {
+        result = await applyContractDetails({
+          tenantId: command.tenantId,
+          membership,
+          actorId: identity.uid,
+          timestamp,
+          userAgent: request.header("user-agent") ?? null,
+          projectId: command.input.projectId,
+          rows: command.input.rows,
+          drop: command.input.drop,
         });
       } else if (command.type === "holdImportRows") {
         result = await holdImportRows({

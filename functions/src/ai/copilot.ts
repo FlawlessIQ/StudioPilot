@@ -55,6 +55,7 @@ import {
   readSignedAgreement,
   readSignedAgreementRequestSchema,
 } from "./signed-agreement.js";
+import { readContractDetails, readContractDetailsRequestSchema } from "./contract-details.js";
 import {
   combineCoverage,
   describeCoverage,
@@ -2598,6 +2599,46 @@ export const aiCopilotCommand = onRequest(
               result.mode === "ai"
                 ? process.env.VERTEX_AI_EXTRACTION_MODEL
                 : "none",
+            createdAt: now,
+          });
+        }
+        response.status(200).json(result);
+        return;
+      }
+
+      /**
+       * Reading the day off an imported job's signed contract
+       * (./contract-details.ts): owner or admin, as importing is. It
+       * answers the studio's own questions and records nothing — the
+       * studio checks the answers and `applyContractDetails` writes them.
+       */
+      if (asRecord(request.body).kind === "read_contract_details") {
+        const readRequest = readContractDetailsRequestSchema.parse(request.body);
+        const db = getFirestore();
+        const readerMembership = await db.doc(`memberships/${readRequest.tenantId}_${identity.uid}`).get();
+        if (!readerMembership.exists || readerMembership.get("status") !== "active") throw new Error("FORBIDDEN");
+        if (!["studio_owner", "studio_admin"].includes(String(readerMembership.get("role"))))
+          throw new Error("BOOKING_IMPORT_PERMISSION_REQUIRED");
+        await requireActiveSubscription(db, readRequest.tenantId);
+        const now = new Date().toISOString();
+        const { interaction, ...result } = await readContractDetails({
+          tenantId: readRequest.tenantId,
+          userId: identity.uid,
+          attachmentPath: readRequest.attachmentPath,
+          projectId: readRequest.projectId ?? null,
+          consumeQuota: () => db.runTransaction((transaction) => consumeAiQuota(transaction, db, readRequest.tenantId, now)),
+        });
+        if (result.status === "read" && interaction) {
+          const interactionId = `ai_${randomUUID()}`;
+          await db.doc(`aiInteractions/${interactionId}`).create({
+            id: interactionId,
+            tenantId: readRequest.tenantId,
+            projectId: result.match?.projectId ?? null,
+            userId: identity.uid,
+            type: "contract_details_reading",
+            result: interaction,
+            mode: result.mode,
+            model: result.mode === "ai" ? process.env.VERTEX_AI_EXTRACTION_MODEL : "none",
             createdAt: now,
           });
         }

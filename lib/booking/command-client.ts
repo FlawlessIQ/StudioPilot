@@ -597,6 +597,25 @@ export async function attachSignedCopyToImportedBooking(input: {
   return { mode: "live" };
 }
 
+/**
+ * Keep what the studio checked from an imported job's signed contract, and
+ * fill the job's open forms from it (functions/src/imports/commands.ts).
+ */
+export async function applyContractDetails(input: {
+  projectId: string;
+  rows: Array<{ label: string; type: string; value: string; section?: string }>;
+  /** Questions the studio unticked, taken out of what an earlier reading kept. */
+  drop?: string[];
+}): Promise<{ mode: "preview" } | { mode: "live"; kept: number; answersFilled: number; formsFilled: number }> {
+  const sent = await sendBookingCommand({
+    type: "applyContractDetails",
+    idempotencyKey: crypto.randomUUID(),
+    input,
+  });
+  if (sent.mode === "preview") return { mode: "preview" };
+  return { mode: "live", ...(sent.payload as { kept: number; answersFilled: number; formsFilled: number }) };
+}
+
 export async function bringImportedBookingLive(input: {
   projectId: string;
   calendarAndFolders: boolean;

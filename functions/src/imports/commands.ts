@@ -1,5 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { signedCopyDocument } from "../contracts/signed-copy-document.js";
+import { contractDetailRows, mergeContractRows } from "../planning/contract-details.js";
+import { PREFILLABLE_STATUSES, refreshResponsePrefill } from "../planning/job-prefill.js";
 import {
   FieldValue,
   getFirestore,
@@ -90,6 +92,27 @@ export const updateImportedBookingInput = z.object({
     notes: z.string().trim().min(1).max(4000).optional(),
   }),
   confirmations: existingBookingSchema.shape.confirmations,
+});
+
+/**
+ * What the studio approved from an imported job's signed contract
+ * (planning/contract-details.ts): each question as its form words it, and the
+ * answer as checked.
+ */
+export const applyContractDetailsInput = z.object({
+  projectId: z.string().min(1),
+  rows: z
+    .array(
+      z.object({
+        label: z.string().trim().min(1).max(300),
+        type: z.string().trim().max(40),
+        value: z.string().trim().min(1).max(2000),
+        section: z.string().trim().max(120).optional(),
+      }),
+    )
+    .max(120),
+  /** Questions the studio unticked: taken out of what an earlier reading kept. */
+  drop: z.array(z.string().trim().min(1).max(300)).max(120).optional(),
 });
 
 /**
@@ -751,6 +774,102 @@ export async function attachImportedSignedCopy(input: {
   });
   await batch.commit();
   return { projectId: input.projectId, contractId: contract.id, attached: true };
+}
+
+/**
+ * Keep what the studio approved from the signed contract on the job, and fill
+ * the job's open forms from it (planning/contract-details.ts).
+ *
+ * Kept on the project, not as a form of the couple's: it never shows as a
+ * form they returned, and it reaches every form by the prefill — the ones on
+ * the job now, refreshed here, and the ones sent later. Only blanks nobody
+ * has touched are filled, and only on forms the couple can still change; a
+ * returned form is what they sent. Schedule A reads the same rows for any
+ * question no returned form answers (contracts/sources.ts).
+ */
+export async function applyContractDetails(input: {
+  tenantId: string;
+  membership: Record<string, unknown>;
+  actorId: string;
+  timestamp: string;
+  userAgent: string | null;
+  projectId: string;
+  rows: z.infer<typeof applyContractDetailsInput>["rows"];
+  drop?: string[];
+}) {
+  requireImportRole(input.membership);
+  const db = getFirestore();
+  const reference = db.doc(`projects/${input.projectId}`);
+  const incoming = contractDetailRows(input.rows);
+  const drop = input.drop ?? [];
+  if (!incoming.length && !drop.length) throw new Error("CONTRACT_DETAILS_EMPTY");
+  const prior = await db.runTransaction(async (transaction) => {
+    const project = await transaction.get(reference);
+    if (!project.exists || project.get("tenantId") !== input.tenantId) throw new Error("PROJECT_NOT_FOUND");
+    if (!project.get("importedAt")) throw new Error("NOT_AN_IMPORTED_BOOKING");
+    const before = contractDetailRows((project.get("contractDetails") as { rows?: unknown } | undefined)?.rows);
+    transaction.update(reference, {
+      contractDetails: {
+        rows: mergeContractRows(before, incoming, drop),
+        source: "signed_contract",
+        updatedAt: input.timestamp,
+        updatedBy: input.actorId,
+      },
+      updatedAt: input.timestamp,
+      updatedBy: input.actorId,
+    });
+    const auditId = randomUUID();
+    transaction.create(db.doc(`auditEvents/${auditId}`), {
+      id: auditId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      actorId: input.actorId,
+      actorType: "user",
+      action: "booking.contract_details_added",
+      entityType: "project",
+      entityId: input.projectId,
+      timestamp: input.timestamp,
+      // The questions, not the answers: names and addresses stay on the job.
+      before: { questions: before.map((row) => row.label) },
+      after: { questions: incoming.map((row) => row.label), dropped: drop },
+      ipAddress: null,
+      userAgent: input.userAgent,
+      correlationId: `booking_contract_details_${input.projectId}`,
+      automationRunId: null,
+      providerEventId: null,
+    });
+    return before;
+  });
+
+  // Every form the couple can still fill in takes what it now can.
+  const forms = await db
+    .collection("questionnaireResponses")
+    .where("tenantId", "==", input.tenantId)
+    .where("projectId", "==", input.projectId)
+    .limit(20)
+    .get();
+  let answersFilled = 0;
+  let formsFilled = 0;
+  for (const form of forms.docs) {
+    if (form.get("archivedAt") || !PREFILLABLE_STATUSES.includes(String(form.get("status") ?? "not_started"))) continue;
+    const filled = await refreshResponsePrefill(db, {
+      tenantId: input.tenantId,
+      responseId: form.id,
+      projectId: input.projectId,
+      allowAi: false,
+      actorId: input.actorId,
+    });
+    if (filled) {
+      answersFilled += filled;
+      formsFilled += 1;
+    }
+  }
+  return {
+    projectId: input.projectId,
+    kept: mergeContractRows(prior, incoming, drop).length,
+    answersFilled,
+    formsFilled,
+  };
 }
 
 export async function bringImportedBookingLive(input: {

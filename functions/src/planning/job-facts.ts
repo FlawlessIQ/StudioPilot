@@ -115,12 +115,13 @@ export const FACT_DESCRIPTIONS: Record<FactKey, string> = {
 };
 
 /** Where a fact came from, as the couple reads it: "Filled in from your booking." */
-export type FactOrigin = "booking" | "inquiry" | "run_of_show" | "earlier_answer";
+export type FactOrigin = "booking" | "inquiry" | "run_of_show" | "earlier_answer" | "contract";
 const ORIGIN_LABEL: Record<FactOrigin, string> = {
   booking: "your booking",
   inquiry: "your inquiry",
   run_of_show: "your timeline",
   earlier_answer: "your earlier answers",
+  contract: "your signed contract",
 };
 
 /** Before the retainer is paid there is no booking yet (intake/convert.ts, PRE_BOOKING_STATES). */
@@ -163,6 +164,12 @@ export type EarlierAnswer = {
   fieldId: string;
   /** When it was answered: the newest answer to a question is the one a prefill takes. */
   answeredAt?: string;
+  /**
+   * Read off the signed contract and approved by the studio
+   * (planning/contract-details.ts), not answered on a form. Offered after
+   * every form answer, so the couple's own word always wins.
+   */
+  source?: "contract";
 };
 
 export type JobFactSheet = {
@@ -424,6 +431,14 @@ export function jobFactSheet(input: {
   // back from an unordered query, so an older answer could fill a later form
   // over a newer one (GR, 2026-10-13; planning/resolved-answers.ts has the rule).
   earlier.sort((left, right) => text(right.answeredAt).localeCompare(text(left.answeredAt)) || left.responseId.localeCompare(right.responseId));
+  // Then what the studio approved from the signed contract (contract-details.ts),
+  // after every form answer: a couple who has said otherwise is believed.
+  for (const row of list(record(project.contractDetails).rows).map(record)) {
+    const label = normalisedQuestion(text(row.key) || text(row.label));
+    const value = text(row.value);
+    if (!label || !value || !input.projectId) continue;
+    earlier.push({ label, type: text(row.type), value, responseId: input.projectId, fieldId: label, answeredAt: text(record(project.contractDetails).updatedAt), source: "contract" });
+  }
   return { facts, earlier, booked: jobIsBooked(project.state) };
 }
 
@@ -617,13 +632,24 @@ export function prefillFromFacts(input: {
         const value = typeof earlier.value === "string" ? valueForField(field, earlier.value) : earlier.type === type ? earlier.value : undefined;
         if (!blank(value)) {
           answers[fieldId] = value;
-          answerProvenance[fieldId] = {
-            sourceType: "earlier_answer",
-            sourceId: earlier.responseId,
-            sourceField: earlier.fieldId,
-            label: ORIGIN_LABEL.earlier_answer,
-            verified: false,
-          };
+          answerProvenance[fieldId] =
+            earlier.source === "contract"
+              ? {
+                  // The studio checked it against the signed contract.
+                  sourceType: "contract_fact",
+                  sourceId: earlier.responseId,
+                  sourceCollection: "projects",
+                  sourceField: "contractDetails",
+                  label: ORIGIN_LABEL.contract,
+                  verified: true,
+                }
+              : {
+                  sourceType: "earlier_answer",
+                  sourceId: earlier.responseId,
+                  sourceField: earlier.fieldId,
+                  label: ORIGIN_LABEL.earlier_answer,
+                  verified: false,
+                };
           continue;
         }
       }

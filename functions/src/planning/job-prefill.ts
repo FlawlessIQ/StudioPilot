@@ -19,6 +19,24 @@ export function touchedFields(changeHistory: unknown): Set<string> {
   );
 }
 
+/** How much of a form's required questions are answered, as send-questionnaire.ts counts it. */
+export function requiredAnswered(sections: unknown, answers: Record<string, unknown>): number {
+  const required = (Array.isArray(sections) ? sections : [])
+    .flatMap((section) => {
+      const fields = record(section).fields;
+      return Array.isArray(fields) ? fields : [];
+    })
+    .map(record)
+    .filter((field) => field.required === true)
+    .map((field) => String(field.id));
+  if (!required.length) return 0;
+  const given = required.filter((fieldId) => {
+    const value = answers[fieldId];
+    return value !== undefined && value !== null && value !== "" && !(Array.isArray(value) && !value.length);
+  }).length;
+  return Math.round((given / required.length) * 100);
+}
+
 /**
  * A form's answers from what the job knows (job-facts.ts): the fact sheet,
  * the form version's AI map when the caller may make one, and only the
@@ -134,8 +152,12 @@ export async function refreshResponsePrefillWithChoices(
     // Only what is still blank and untouched now: the couple may have typed since.
     const still = filled.filter((fieldId) => (answers[fieldId] === undefined || answers[fieldId] === "" || answers[fieldId] === null) && !touched.has(fieldId));
     if (!still.length) return;
+    const nextAnswers = { ...answers, ...Object.fromEntries(still.map((fieldId) => [fieldId, prefill.answers[fieldId]])) };
     transaction.update(reference, {
-      answers: { ...answers, ...Object.fromEntries(still.map((fieldId) => [fieldId, prefill.answers[fieldId]])) },
+      answers: nextAnswers,
+      // The studio reads "Answered" off this; it was only ever set when the
+      // form went out, so a form filled since still said 9% (GR, 2026-10-27).
+      completionPercent: requiredAnswered(record(current.templateSnapshot).sections, nextAnswers),
       answerProvenance: {
         ...record(current.answerProvenance),
         ...Object.fromEntries(still.map((fieldId) => [fieldId, prefill.answerProvenance[fieldId]])),

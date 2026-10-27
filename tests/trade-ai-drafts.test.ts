@@ -59,6 +59,7 @@ const MODEL_CALLS: Record<string, { kind: "draft" | "extraction" | "retrieval" |
   "functions/src/ai/message-draft.ts#generateDraft": { kind: "draft", why: "message drafts and lifecycle emails" },
   "functions/src/ai/schedule.ts#fetchVertexWithRetry": { kind: "transport", why: "retries the body generate built" },
   "functions/src/ai/schedule.ts#generate": { kind: "draft", why: "the run-of-show the client and crew read" },
+  "functions/src/ai/contract-details.ts#readWithVertex": { kind: "extraction", why: "answers the studio's own questions from a signed contract" },
   "functions/src/ai/signed-agreement.ts#readWithVertex": { kind: "extraction", why: "reads a signed agreement into fields" },
   "functions/src/ai/timing-rules.ts#propose": { kind: "extraction", why: "learns the studio's own timing rules" },
   "functions/src/intake/enrich.ts#modelExtraction": { kind: "extraction", why: "fills an inquiry's empty fields from its message" },
