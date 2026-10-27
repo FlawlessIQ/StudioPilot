@@ -227,7 +227,9 @@ async function main() {
   for (const change of membershipChanges) {
     await db.doc(`memberships/${change.id}`).update({
       projectIds: change.remaining,
-      ...(change.revoke ? { status: "revoked" } : {}),
+      // Only because its jobs are gone: a later invitation for a new job
+      // reopens it (functions/src/client/returning-client-access.ts).
+      ...(change.revoke ? { status: "revoked", revokedForNoJobs: true } : {}),
       updatedAt: now,
       updatedBy: "platform-script",
     });

@@ -805,9 +805,15 @@ async function emailContext(
         tenant?.get("contactEmail"),
         tenant?.get("email"),
       );
+  // The job's client contact names the recipient only when it is them. Mail
+  // to the studio about a client ("Erin Hoffman sent you a message") opened
+  // "Hi Erin," to Gabe, because the fallback was the job's contact whoever
+  // the email was for (2026-10-27).
   const recipientName = firstString(
     document.get("recipientName"),
-    contact?.get("displayName"),
+    String(contact?.get("email") ?? "").trim().toLowerCase() === recipient.trim().toLowerCase()
+      ? contact?.get("displayName")
+      : null,
   );
   const projectName = firstString(
     document.get("projectName"),

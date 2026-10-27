@@ -304,7 +304,10 @@ export const clientInvitationCommand = onRequest(
           // is someone's decision, never a link's.
           if (
             membership.exists &&
-            clientMembershipTurnedOff(membership.get("status"))
+            clientMembershipTurnedOff(
+              membership.get("status"),
+              membership.get("revokedForNoJobs"),
+            )
           ) {
             throw new Error("CLIENT_ACCESS_TURNED_OFF");
           }
@@ -331,6 +334,7 @@ export const clientInvitationCommand = onRequest(
               explicitPermissions: [],
               projectIds,
               status: "active",
+              revokedForNoJobs: false,
               createdAt: membership.get("createdAt") ?? now,
               updatedAt: now,
               createdBy: membership.get("createdBy") ?? identity.uid,

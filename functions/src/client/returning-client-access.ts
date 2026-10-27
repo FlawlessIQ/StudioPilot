@@ -168,9 +168,22 @@ export function accessPlanFromSnapshots(input: {
  * turned back on by anything a client is sent: not a grant here, and not an
  * invitation's accept (client/invitations.ts), which would otherwise write
  * `status: "active"` over it with every job it had.
+ *
+ * Except a login revoked only because its jobs were deleted
+ * (`revokedForNoJobs`, scripts/purge-tenant-jobs.ts). Nobody decided that
+ * client should be kept out: the purge tidied an empty portal. When the
+ * studio later puts them on a new job and invites them, accepting opens it.
+ * GR's "start afresh" (2026-10-01) revoked Erin Hoffman's login; Gabe
+ * re-imported her wedding on 10-23, and every form link since ended on
+ * "Your access … has been turned off" with nothing at the studio to turn
+ * it back on (2026-10-27). A Team revoke clears the flag
+ * (saas/memberships.ts), so a deliberate one stays off.
  */
-export const clientMembershipTurnedOff = (status: unknown): boolean =>
-  status === "revoked" || status === "suspended";
+export const clientMembershipTurnedOff = (
+  status: unknown,
+  revokedForNoJobs?: unknown,
+): boolean =>
+  status === "suspended" || (status === "revoked" && revokedForNoJobs !== true);
 
 /** Pure: whether a plan leaves the client able to open the job. */
 export const accessOpensJob = (plan: ClientAccessPlan): boolean =>

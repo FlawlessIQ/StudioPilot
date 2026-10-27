@@ -510,6 +510,9 @@ export const membershipCommand = onRequest(
           role: nextRole,
           status: nextStatus,
           statusReason: parsed.input.reason,
+          // A person chose this status: a purge's "no jobs left" no longer
+          // explains it (client/returning-client-access.ts).
+          revokedForNoJobs: false,
           archivedAt: nextStatus === "revoked" ? now : null,
           updatedAt: now,
           updatedBy: identity.uid,

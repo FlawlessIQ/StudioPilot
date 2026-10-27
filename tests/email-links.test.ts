@@ -105,3 +105,23 @@ test("the consultation email gives the join link once", () => {
 test("the booking steps never claim an agreement is ready while it has blanks", () => {
   assert.doesNotMatch(read("components/booking/project-booking-workspace.tsx"), /\? "Ready to send"\s*: "Waits for the proposal"/);
 });
+
+// Gabe, 2026-10-27: the studio's "Erin Hoffman sent you a message" alert
+// opened "Hi Erin," — the job's client named the studio's email.
+test("the job's client names an email only when it is addressed to them", () => {
+  const source = readFileSync("functions/src/operations/jobs.ts", "utf8");
+  const block = source.slice(source.indexOf("const recipientName = firstString("));
+  assert.match(
+    block.slice(0, 400),
+    /String\(contact\?\.get\("email"\) \?\? ""\)\.trim\(\)\.toLowerCase\(\) === recipient\.trim\(\)\.toLowerCase\(\)\s+\? contact\?\.get\("displayName"\)\s+: null/,
+  );
+  const alert = renderEmailTemplate({
+    key: "client_message_received",
+    brand,
+    recipientName: null,
+    projectName: "Erin Hoffman & Joseph DeMattia",
+    values: { senderName: "Erin Hoffman", messagePreview: "Is there a form I can fill out?" },
+  });
+  assert.doesNotMatch(alert.text, /Hi Erin/);
+  assert.match(alert.text, /Hello,/);
+});

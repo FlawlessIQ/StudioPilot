@@ -320,7 +320,10 @@ test("a turned-off membership stays off: accepting an invitation refuses it", ()
   const accept = invitations.slice(invitations.indexOf('if (parsed.type === "accept")'), invitations.indexOf('if (parsed.type === "status"'));
   const refusal = accept.indexOf('throw new Error("CLIENT_ACCESS_TURNED_OFF")');
   assert.ok(refusal > 0, "accept refuses a turned-off membership");
-  assert.match(accept, /membership\.exists &&\s*clientMembershipTurnedOff\(membership\.get\("status"\)\)/);
+  assert.match(
+    accept,
+    /membership\.exists &&\s*clientMembershipTurnedOff\(\s*membership\.get\("status"\),\s*membership\.get\("revokedForNoJobs"\),?\s*\)/,
+  );
   const membershipWrite = accept.search(/transaction\.set\(\s*membershipReference,/);
   assert.ok(membershipWrite > 0 && refusal < membershipWrite, "the refusal comes before the membership is written");
   // And the client is told what happened, in words.
@@ -605,4 +608,23 @@ test("the backfill is dry by default, one named studio at a time, and uses the s
   const write = script.slice(script.indexOf("async function grant("), script.indexOf("async function backfillTenant("));
   assert.match(write, /holdFor\(project\)\) return false;/);
   assert.match(write, /jobClientContactIds\(project\.get\("clientContactIds"\)\)\.includes\(contactId\)/);
+});
+
+// Erin Hoffman, GR Productions, 2026-10-27: the 10-01 purge revoked her
+// login because her jobs were deleted; every invitation for her re-imported
+// wedding then ended on "Your access … has been turned off".
+test("a login revoked only because its jobs were deleted reopens on the studio's invitation", () => {
+  assert.equal(clientMembershipTurnedOff("revoked", true), false);
+  // A deliberate revoke, or one from before the flag, stays off.
+  assert.equal(clientMembershipTurnedOff("revoked", false), true);
+  assert.equal(clientMembershipTurnedOff("revoked", undefined), true);
+  assert.equal(clientMembershipTurnedOff("suspended", true), true);
+
+  // The purge says why it revoked.
+  assert.match(source("scripts/purge-tenant-jobs.ts"), /change\.revoke \? \{ status: "revoked", revokedForNoJobs: true \}/);
+  // Accepting clears it, and a person changing the status in Team clears it.
+  const invitations = source("functions/src/client/invitations.ts");
+  const accept = invitations.slice(invitations.indexOf('if (parsed.type === "accept")'), invitations.indexOf('if (parsed.type === "status"'));
+  assert.match(accept, /status: "active",\s*revokedForNoJobs: false,/);
+  assert.match(source("functions/src/saas/memberships.ts"), /statusReason: parsed\.input\.reason,[\s\S]{0,200}revokedForNoJobs: false,/);
 });
