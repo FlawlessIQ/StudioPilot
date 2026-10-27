@@ -14,7 +14,7 @@
 # worked and only the rendering was old. That is the same silence as the crew
 # invitation, so this is the check that breaks it.
 #
-# Read-only. Run after every `firebase deploy --only functions:...`.
+# Read-only. Run after every functions deploy, selective or not.
 set -euo pipefail
 
 project_id="${1:-studiohub-prod}"
@@ -23,16 +23,50 @@ region="${2:-us-east4}"
 # The newest commit that touched functions/ source. A function whose deployed
 # source predates it is running code from before that change — which may be
 # fine (the change did not touch what it imports) or may be the bug above.
+last_change_sha="$(git log -1 --format=%H -- functions/src)"
 last_change="$(git log -1 --format=%ct -- functions/src)"
 last_change_subject="$(git log -1 --format=%s -- functions/src)"
-printf '\nLast functions/src commit: %s\n  %s\n\n' \
+printf '\nLast functions/src commit: %s %s\n  %s\n\n' \
+  "$(git rev-parse --short "${last_change_sha}")" \
   "$(date -r "${last_change}" '+%Y-%m-%d %H:%M:%S')" "${last_change_subject}"
+
+# What each function runs is the image on its Cloud Run service. Since
+# 2026-10-22 functions deploy with deploy-functions-self-contained.sh, which
+# swaps that image (tagged `studiocue-functions:<commit>-<time>`) and never
+# touches the Cloud Functions record, so its updateTime stayed on the last
+# `firebase deploy`. Read by that time, a deploy of every function at
+# 684645ae reported 36 of them BEHIND (2026-10-27). The commit in the tag is
+# the answer: current when the last functions/src change is in its history.
+# An image without one (a `firebase deploy`) is still read by updateTime.
+images="$(mktemp)"
+trap 'rm -f "${images}"' EXIT
+gcloud run services list --project "${project_id}" --region "${region}" \
+  --format='value[separator="	"](metadata.name,spec.template.spec.containers[0].image)' \
+  2>/dev/null > "${images}" || true
 
 behind=0
 current=0
 
-while IFS=$'\t' read -r name update_time; do
+while IFS=$'\t' read -r name update_time service; do
   [ -z "${name}" ] && continue
+  image="$(awk -F '\t' -v s="${service}" '$1 == s { print $2; exit }' "${images}")"
+  commit=""
+  case "${image}" in
+    */studiocue-functions:*) commit="${image##*:}"; commit="${commit%%-*}" ;;
+  esac
+  if [ -n "${commit}" ]; then
+    if ! git cat-file -e "${commit}^{commit}" 2>/dev/null; then
+      # Not in this clone: fetch, or the answer is unknown — never a pass.
+      printf '  UNKNOWN %-36s image commit %s is not in this clone (git fetch)\n' "${name}" "${commit}"
+      behind=$((behind + 1))
+    elif git merge-base --is-ancestor "${last_change_sha}" "${commit}"; then
+      current=$((current + 1))
+    else
+      printf '  BEHIND  %-36s image at %s\n' "${name}" "${commit}"
+      behind=$((behind + 1))
+    fi
+    continue
+  fi
   deployed_at="$(date -j -f '%Y-%m-%dT%H:%M:%S' "${update_time%%.*}" '+%s' 2>/dev/null || echo 0)"
   if [ "${deployed_at}" -lt "${last_change}" ]; then
     printf '  BEHIND  %-36s deployed %s\n' "${name}" "${update_time%%.*}"
@@ -43,7 +77,7 @@ while IFS=$'\t' read -r name update_time; do
 done < <(
   gcloud functions list \
     --project "${project_id}" --regions "${region}" \
-    --format='value[separator="	"](name,updateTime)' 2>/dev/null
+    --format='value[separator="	"](name,updateTime,serviceConfig.service.basename())' 2>/dev/null
 )
 
 printf '\n%s current, %s behind the last functions/src commit.\n' "${current}" "${behind}"
