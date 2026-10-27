@@ -96,6 +96,50 @@ test("what was read is shaped for each question, and what doesn't fit is dropped
   assert.deepEqual(shaped, [], "an unknown question, a choice it doesn't offer and a bad email are all left blank");
 });
 
+test("a fact asked in two wordings fills both, when they are the same field", () => {
+  // Prod walk, 2026-10-27: the contract said 140 guests; the reader answered
+  // the studio's "Expected guest count" and the Final schedule's "Number of
+  // invited guests" stayed blank.
+  const questions = contractQuestions([
+    { sections: [{ title: "Access and consent", fields: [{ id: "guest-count", label: "Expected guest count", type: "text" }] }] },
+    {
+      sections: [
+        {
+          title: "Ceremony and reception",
+          fields: [
+            { id: "guest-count", label: "Number of invited guests", type: "text" },
+            { id: "kids-count", label: "How many of them are kids", type: "text" },
+          ],
+        },
+      ],
+    },
+    // Same id, another type: not the same question.
+    { sections: [{ title: "Other", fields: [{ id: "guest-count", label: "Guest count range", type: "dropdown", options: ["Under 100", "100+"] }] }] },
+  ]);
+  const id = (label: string) => questions.find((question) => question.label === label)!.id;
+  const rows = contractRowsFromAnswers(questions, [{ id: id("Expected guest count"), answer: "140" }]);
+  assert.deepEqual(
+    rows.map((row) => [row.label, row.value]),
+    [
+      ["Expected guest count", "140"],
+      ["Number of invited guests", "140"],
+    ],
+  );
+
+  // Both answered, differently: each keeps what the reader said for it.
+  const both = contractRowsFromAnswers(questions, [
+    { id: id("Expected guest count"), answer: "about 140" },
+    { id: id("Number of invited guests"), answer: "140" },
+  ]);
+  assert.equal(both.find((row) => row.label === "Number of invited guests")?.value, "140");
+
+  // A field with no id is only ever its own question.
+  const unnamed = contractQuestions([
+    { sections: [{ fields: [{ label: "Expected guest count", type: "text" }, { label: "Number of invited guests", type: "text" }] }] },
+  ]);
+  assert.equal(contractRowsFromAnswers(unnamed, [{ id: "q1", answer: "140" }]).length, 1);
+});
+
 test("the client's form fills from the contract, saying so — and their own answer still wins", () => {
   const { rows } = read();
   const sheet = (responses: Parameters<typeof jobFactSheet>[0]["responses"] = []) =>

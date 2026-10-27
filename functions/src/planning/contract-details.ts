@@ -51,6 +51,8 @@ export type ContractDetailRow = {
 export type ContractQuestion = {
   /** "q1", "q2": what the reader answers by. */
   id: string;
+  /** The form field's own id: the same field on two forms ("guest-count") is one fact. */
+  fieldId: string;
   key: string;
   label: string;
   type: string;
@@ -86,6 +88,7 @@ export function contractQuestions(forms: ReadonlyArray<{ sections: unknown }>): 
         seen.add(key);
         questions.push({
           id: `q${questions.length + 1}`,
+          fieldId: text(field.id),
           key,
           label: label.slice(0, 300),
           type,
@@ -112,17 +115,35 @@ export function contractRowsFromAnswers(
   const byId = new Map(questions.map((question) => [question.id, question]));
   const rows: ContractDetailRow[] = [];
   const done = new Set<string>();
+  const add = (question: ContractQuestion, said: string) => {
+    if (done.has(question.key)) return false;
+    const value = valueForField({ type: question.type, options: question.options }, said);
+    if (!value) return false;
+    done.add(question.key);
+    rows.push({ key: question.key, label: question.label, type: question.type, value: value.slice(0, 2000), section: question.section });
+    return true;
+  };
+  // What was said, by form field: "Expected guest count" on one form and
+  // "Number of invited guests" on another are both `guest-count`.
+  const byField = new Map<string, string>();
   for (const answer of answers) {
     const question = byId.get(answer.id);
     const said = answer.answer.trim();
-    if (!question || !said || done.has(question.key)) continue;
-    const value = valueForField({ type: question.type, options: question.options }, said);
-    if (!value) continue;
-    done.add(question.key);
-    rows.push({ key: question.key, label: question.label, type: question.type, value: value.slice(0, 2000), section: question.section });
+    if (!question || !said) continue;
+    if (add(question, said) && question.fieldId && !byField.has(sameField(question))) byField.set(sameField(question), said);
+  }
+  // The reader answered a fact under one wording and left its other
+  // wordings blank (prod walk, 2026-10-27: the Final schedule's guest count
+  // stayed empty while the contract said 140). The same field takes the
+  // same answer.
+  for (const question of questions) {
+    const said = question.fieldId ? byField.get(sameField(question)) : undefined;
+    if (said) add(question, said);
   }
   return rows;
 }
+
+const sameField = (question: ContractQuestion) => `${question.fieldId}\u0000${question.type}`;
 
 /** Rows as stored on a project, whatever shape the record is in. */
 export function contractDetailRows(value: unknown): ContractDetailRow[] {
