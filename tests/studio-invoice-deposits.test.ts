@@ -194,3 +194,23 @@ test("a voided invoice says it's void, never paid in full", () => {
   assert.match(actions, /\{voided\s*\? "Voided\. Nothing is owed on it\."\s*: settled/);
   assert.match(actions, /voided \? invoice\.amountCents : invoice\.balanceCents/);
 });
+
+test("emailing an invoice draws its PDF again, and the email waits for that copy", () => {
+  // Prod walk, 2026-10-28: INV-0006 was drafted before the studio said how
+  // clients pay, then emailed; the email said "How to pay" and the attached
+  // PDF, drawn before, didn't.
+  const send = read("functions/src/billing/studio-invoice-send.ts");
+  assert.match(send, /input\.via === "email"\s*\? queueStudioInvoicePdf\(db, transaction,/);
+  assert.match(send, /\.\.\.\(pdfRevision \? \{ pdfRevision \} : \{\}\)/);
+  assert.match(send, /attachmentRevision: pdfRevision,/);
+  const worker = read("functions/src/operations/jobs.ts");
+  assert.match(worker, /Number\(attachment\.get\("providerRevision"\) \?\? 0\) < wanted\) throw new Error\("INVOICE_PDF_NOT_READY"\)/);
+  // Retried until the copy lands, never given up on.
+  assert.doesNotMatch(read("functions/src/operations/job-retry.ts"), /"INVOICE_PDF_NOT_READY"/);
+});
+
+test("recording a balance paid another way says what happened, not a step weeks away", () => {
+  const panel = read("components/booking/record-final-payment.tsx");
+  assert.doesNotMatch(panel, /Reconcile the closeout to finish/);
+  assert.match(panel, /recorded as paid, on your word\./);
+});

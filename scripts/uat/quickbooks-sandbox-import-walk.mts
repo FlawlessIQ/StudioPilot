@@ -119,6 +119,7 @@ const { sendFinalBalance } = await import(`${REPO}/functions/src/booking/send-fi
 const { processJobDocument } = await import(`${REPO}/functions/src/operations/jobs.ts`);
 const { quickbooksWebhook } = await import(`${REPO}/functions/src/booking/webhooks.ts`);
 const { sendHeldInvoiceIn, heldInvoiceConfirmFigure } = await import(`${REPO}/functions/src/booking/held-invoice-send.ts`);
+const { recordInvoicePayment } = await import(`${REPO}/functions/src/booking/invoice-payments.ts`);
 
 const now = () => new Date().toISOString();
 const ownerId = `owner-${runKey}`;
@@ -282,11 +283,42 @@ const webhook = async (entity: string, id: string, operation: string) => {
   await (quickbooksWebhook as unknown as (q: unknown, r: unknown) => Promise<void>)(req, res);
   return response;
 };
+// --- 6b. a $1,000 check, recorded by the studio by hand --------------------------
+// It reaches QuickBooks as a Payment, QuickBooks' own webhook for that payment
+// must not count it twice, and the rest is what the couple pays below.
+const handPaymentIds: string[] = [];
+let leftCents = qbTotalCents;
+if (customerId && final.providerInvoiceId) {
+  await recordInvoicePayment(
+    db,
+    { tenantId, role: "studio_owner", actorId: ownerId, now: now(), idempotencyKey: `${runKey}-check`, ipAddress: null, userAgent: null },
+    { projectId: P, invoiceId: finalId, amountCents: 100000, paidAt: now().slice(0, 10), method: "Check", reference: "1042", attestation: true },
+  );
+  const handJobs = await drain();
+  const afterHand = await invoiceDoc(finalId);
+  const entry = ((afterHand.studioPayments as Array<Record<string, unknown>> | undefined) ?? []).at(-1) ?? {};
+  const providerPaymentId = String((entry.provider as Record<string, unknown> | undefined)?.providerPaymentId ?? "");
+  if (providerPaymentId) handPaymentIds.push(providerPaymentId);
+  const qbAfterHand = await qbInvoice(String(final.providerInvoiceId));
+  leftCents = qbTotalCents - 100000;
+  record(
+    "6b check recorded by hand → in QuickBooks",
+    Number(afterHand.balanceCents) === leftCents && Math.round(Number(qbAfterHand.Balance) * 100) === leftCents && Boolean(providerPaymentId),
+    `${handJobs.join(", ")}; StudioCue balance ${afterHand.balanceCents}, QuickBooks balance ${qbAfterHand.Balance}, QuickBooks payment ${providerPaymentId || "none"}`,
+  );
+  if (providerPaymentId) {
+    const echo = await webhook("Payment", providerPaymentId, "Create");
+    const echoJobs = await drain();
+    const afterEcho = await invoiceDoc(finalId);
+    record("6b QuickBooks' webhook for it doesn't count it twice", echo.statusCode === 200 && Number(afterEcho.balanceCents) === leftCents, `${echoJobs.join(", ") || "no jobs"} → balance ${afterEcho.balanceCents}`);
+  }
+}
+
 let paymentId = "";
 if (customerId && final.providerInvoiceId) {
   const payment = (await company.post(
     "payment",
-    { CustomerRef: { value: customerId }, TotalAmt: qbTotalCents / 100, Line: [{ Amount: qbTotalCents / 100, LinkedTxn: [{ TxnId: String(final.providerInvoiceId), TxnType: "Invoice" }] }] },
+    { CustomerRef: { value: customerId }, TotalAmt: leftCents / 100, Line: [{ Amount: leftCents / 100, LinkedTxn: [{ TxnId: String(final.providerInvoiceId), TxnType: "Invoice" }] }] },
     "QUICKBOOKS_PAYMENT_FAILED",
     `${runKey}-pay`,
   )).Payment as { Id: string };
@@ -313,6 +345,11 @@ if (paymentId)
   await attempt(`payment ${paymentId} deleted`, async () => {
     const current = (await company.get(`payment/${paymentId}`, "QUICKBOOKS_PAYMENT_READ_FAILED")).Payment as { SyncToken: string };
     await company.post("payment?operation=delete", { Id: paymentId, SyncToken: current.SyncToken }, "QUICKBOOKS_PAYMENT_DELETE_FAILED", `${runKey}-delete`);
+  });
+for (const id of handPaymentIds)
+  await attempt(`payment ${id} deleted`, async () => {
+    const current = (await company.get(`payment/${id}`, "QUICKBOOKS_PAYMENT_READ_FAILED")).Payment as { SyncToken: string };
+    await company.post("payment?operation=delete", { Id: id, SyncToken: current.SyncToken }, "QUICKBOOKS_PAYMENT_DELETE_FAILED", `${runKey}-delete-${id}`);
   });
 if (final.providerInvoiceId && !String(final.providerInvoiceId).startsWith("pending_"))
   await attempt(`invoice ${final.providerInvoiceId} voided`, async () => {

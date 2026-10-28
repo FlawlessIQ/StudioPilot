@@ -87,7 +87,9 @@ export function RecordFinalPayment({
       onRecorded(
         onTheDay && input.paidAt === todayLocalIso()
           ? `Balance${balanceLabel ? ` of ${balanceLabel}` : ""} recorded as paid today.`
-          : "Balance recorded against your name. Reconcile the closeout to finish.",
+          : // It used to send the studio to reconcile the closeout: said three
+            // weeks before the day, a step weeks away (prod walk, 2026-10-28).
+            `Balance${balanceLabel ? ` of ${balanceLabel}` : ""} recorded as paid, on your word.`,
       );
       return true;
     } catch (caught: unknown) {

@@ -1342,6 +1342,10 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       attachment.get("canonicalPath"),
     );
     if (!objectName) throw new Error("PROPOSAL_ATTACHMENT_REFERENCE_INVALID");
+    // An invoice drawn again for this send (billing/studio-invoice-send.ts):
+    // wait for that revision, rather than attach the one it replaces.
+    const wanted = Number(document.get("attachmentRevision") ?? 0);
+    if (wanted > 0 && Number(attachment.get("providerRevision") ?? 0) < wanted) throw new Error("INVOICE_PDF_NOT_READY");
     const [bytes] = await getStorage().bucket().file(objectName).download();
     if (bytes.length > 15 * 1024 * 1024) {
       throw new Error("PROPOSAL_ATTACHMENT_TOO_LARGE");

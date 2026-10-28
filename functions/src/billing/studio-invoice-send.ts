@@ -3,7 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { jobBillingFor } from "./job-billing-reader.js";
 import { draftStudioDeposit } from "./studio-invoice-issue.js";
-import { invoicePdfDocumentId } from "./studio-invoice-pdf.js";
+import { invoicePdfDocumentId, queueStudioInvoicePdf } from "./studio-invoice-pdf.js";
 import { invoiceDate, invoiceKindLabel, invoiceMoney } from "./studio-invoice-document.js";
 import { normaliseStudioInvoiceSettings } from "./studio-invoice-settings.js";
 
@@ -81,8 +81,23 @@ export async function sendStudioInvoice(context: CommandContext, input: z.infer<
       throw new Error("STUDIO_INVOICE_NO_WAY_TO_PAY");
     const now = context.timestamp;
     const firstSend = status === "draft";
+    // The PDF the email carries is drawn again now, from the settings as they
+    // stand: one drafted before the studio said how clients pay went out
+    // without saying it, while the email above it did (prod walk,
+    // 2026-10-28, INV-0006). The email waits for this revision (operations/jobs.ts).
+    const pdfRevision =
+      input.via === "email"
+        ? queueStudioInvoicePdf(db, transaction, {
+            tenantId: context.tenantId,
+            projectId,
+            invoiceId: invoice.id,
+            currentRevision: invoice.get("pdfRevision"),
+            now: context.timestamp,
+          })
+        : null;
     transaction.update(invoiceReference, {
       ...(firstSend ? { status: "sent", sentAt: now, sentBy: context.actorId } : {}),
+      ...(pdfRevision ? { pdfRevision } : {}),
       sentVia: input.via,
       ...(input.via === "email" ? { lastEmailedAt: now } : {}),
       updatedAt: now,
@@ -105,6 +120,7 @@ export async function sendStudioInvoice(context: CommandContext, input: z.infer<
         // (operations/jobs.ts), and the words come from it, not QuickBooks.
         billedBy: "studio",
         attachmentDocumentId: invoicePdfDocumentId(invoice.id),
+        attachmentRevision: pdfRevision,
         invoiceNumber: text(invoice.get("number")),
         invoiceKindLabel: invoiceKindLabel(kind, invoice.get("paidInFull") === true, {
           sequence: invoice.get("installmentSequence"),
