@@ -31,5 +31,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "dist", "functions", "cloud-run", "tests", "scripts/purge-tenant-jobs.ts", "scripts/sweep-vendor-invites.mts", "scripts/backfill-platform-vendors.mts", "scripts/backfill-returning-client-access.mts"]
+  "exclude": ["node_modules", "dist", "functions", "cloud-run", "tests", "scripts/purge-tenant-jobs.ts", "scripts/sweep-vendor-invites.mts", "scripts/backfill-platform-vendors.mts", "scripts/backfill-returning-client-access.mts", "scripts/start-missing-workflows.mts"]
 }
