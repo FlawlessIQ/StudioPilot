@@ -1452,9 +1452,54 @@ async function executeReadTool(
           crewNames.set(profile.id, String(profile.get("name") ?? ""));
     }
     const selectedPackage = jobPackages?.selectedPackage ?? null;
+    /**
+     * Whether each client can get into their portal.
+     *
+     * Gabe asked Cue "How do I know if she accepted her portal invite?" about
+     * Kim Karpinski (2026-10-28) and was told the records don't say: Cue was
+     * never given them. Names and a status only — never the invitation link.
+     */
+    const clientPortal = await (async () => {
+      const db = getFirestore();
+      const project = await db.doc(`projects/${projectId}`).get();
+      const ids = (Array.isArray(project.get("clientContactIds")) ? (project.get("clientContactIds") as unknown[]) : [])
+        .filter((id): id is string => typeof id === "string" && Boolean(id))
+        .slice(0, 6);
+      const [contacts, invitations] = await Promise.all([
+        Promise.all(ids.map((id) => db.doc(`contacts/${id}`).get())),
+        db.collection("clientInvitations").where("tenantId", "==", tenantId).where("projectId", "==", projectId).limit(20).get(),
+      ]);
+      const now = new Date().toISOString();
+      return contacts
+        .filter((contact) => contact.exists && contact.get("tenantId") === tenantId)
+        .map((contact) => {
+          const invitation = invitations.docs
+            .filter((item) => item.get("contactId") === contact.id)
+            .sort((a, b) => String(b.get("lastSentAt") ?? "").localeCompare(String(a.get("lastSentAt") ?? "")))[0];
+          const status = contact.get("portalUserId")
+            ? "portal_active"
+            : !contact.get("email")
+              ? "no_email_so_cannot_be_invited"
+              : !invitation
+                ? "not_invited_yet"
+                : invitation.get("status") === "pending" && String(invitation.get("expiresAt") ?? "") > now
+                  ? "invited_not_accepted_yet"
+                  : invitation.get("status") === "pending"
+                    ? "invitation_expired_not_accepted"
+                    : `invitation_${String(invitation.get("status"))}`;
+          return {
+            name: String(contact.get("displayName") ?? "Client"),
+            portal: status,
+            invitationSentAt: invitation ? String(invitation.get("lastSentAt") ?? "") || null : null,
+            invitationExpiresAt: invitation ? String(invitation.get("expiresAt") ?? "") || null : null,
+            whereToSee: "Clients page: 'Portal active' or 'No portal yet' beside each client",
+          };
+        });
+    })();
     return {
       projectId,
       name: projectNames.get(projectId) ?? projectId,
+      clientPortal,
       contracts,
       invoices,
       crew: crew.map((item) => ({

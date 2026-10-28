@@ -47,14 +47,17 @@ export function ContractDetailsReader({
   projectId,
   projectName,
   onKept,
+  file,
 }: {
   projectId?: string;
   projectName?: string;
   /** Called once a contract's details are kept, so a page can show them. */
   onKept?: () => void;
+  /** A contract already in hand (dropped into Cue): read at once, no picker. */
+  file?: File;
 }) {
   const workspace = useWorkspace();
-  const [items, setItems] = useState<Item[]>([]);
+  const [items, setItems] = useState<Item[]>(() => (file ? [{ id: crypto.randomUUID(), file, phase: "waiting" }] : []));
   const update = (id: string, patch: Partial<Item>) =>
     setItems((prior) => prior.map((item) => (item.id === id ? { ...item, ...patch } : item)));
 
@@ -90,6 +93,7 @@ export function ContractDetailsReader({
 
   return (
     <div className="contract-details">
+      {file ? null : (
       <label className="contract-details-pick">
         <FileText size={16} aria-hidden="true" />
         <span>{projectId ? "Choose the signed contract" : "Choose signed contracts"}</span>
@@ -103,6 +107,7 @@ export function ContractDetailsReader({
           type="file"
         />
       </label>
+      )}
       {items.map((item) => (
         <ContractCard
           item={item}

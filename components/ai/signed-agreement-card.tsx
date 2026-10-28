@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   CircleAlert,
@@ -8,7 +8,9 @@ import {
   LoaderCircle,
   ShieldCheck,
 } from "lucide-react";
-import { refreshTenantRecords } from "@/components/live/tenant-records";
+import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
+import { ContractDetailsReader } from "@/components/imports/contract-details-reader";
+import { importedJobForContract } from "@/features/imports/contract-match";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   readSignedAgreementAttachment,
@@ -78,7 +80,21 @@ export function SignedAgreementCard({
   }, [file, tenantId]);
 
   const [importing, setImporting] = useState(false);
+  const [filling, setFilling] = useState(false);
   const jobs = result?.candidates.filter((candidate) => candidate.proposalId) ?? [];
+  // A contract for a booking already imported fills that job's forms; it is
+  // never a signature to record nor a booking to import again (Gabe, Kim
+  // Karpinski & Drew Gizzi, 2026-10-28: Cue offered to import their wedding a
+  // second time and the Final schedule stayed at 9%).
+  const projectRecords = useTenantDocuments("projects").records;
+  const importedJobs = useMemo(
+    () =>
+      (projectRecords ?? [])
+        .filter((project) => typeof project.importedAt === "string" && !project.archivedAt)
+        .map((project) => ({ id: String(project.id), name: String(project.name ?? ""), eventDate: typeof project.eventDate === "string" ? project.eventDate : null })),
+    [projectRecords],
+  );
+  const importedMatch = result && !result.assessment.suggestion ? importedJobForContract(result.reading, importedJobs) : null;
   // A signed contract that belongs to no job waiting on a signature is, far
   // more often than not, a booking the studio made before StudioCue. Offer to
   // bring it in as one — prefilled, with this same PDF attached — rather than
@@ -87,6 +103,7 @@ export function SignedAgreementCard({
   const offerImport =
     result !== null &&
     !result.assessment.suggestion &&
+    !importedMatch &&
     !flagCodes.includes("NOT_A_SIGNED_AGREEMENT") &&
     (jobs.length === 0 ||
       flagCodes.includes("NO_MATCHING_JOB") ||
@@ -178,7 +195,21 @@ export function SignedAgreementCard({
         </div>
       ) : null}
 
-      {phase === "ready" && result && !importing ? (
+      {phase === "ready" && result && filling ? (
+        <div className="cue-signed-agreement-import">
+          <ContractDetailsReader
+            file={file}
+            onKept={() => refreshTenantRecords("projects")}
+            projectId={importedMatch?.id}
+            projectName={importedMatch?.name}
+          />
+          <button className="booking-import-another" onClick={() => setFilling(false)} type="button">
+            Back
+          </button>
+        </div>
+      ) : null}
+
+      {phase === "ready" && result && !importing && !filling ? (
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -202,6 +233,27 @@ export function SignedAgreementCard({
                 </li>
               ))}
             </ul>
+          ) : null}
+
+          {importedMatch ? (
+            <div className="cue-signed-agreement-offer">
+              <p className="cue-signed-agreement-note">
+                This is the contract for {importedMatch.name}, a booking you imported. Cue can fill in their forms from it:
+                the names, places and times. You check every answer before anything is kept.
+              </p>
+              <button className="button button-light button-sm" onClick={() => setFilling(true)} type="button">
+                Fill in {importedMatch.name}&rsquo;s forms
+              </button>
+            </div>
+          ) : offerImport && importedJobs.length ? (
+            <div className="cue-signed-agreement-offer">
+              <p className="cue-signed-agreement-note">
+                Is this a booking you already imported? Fill in its forms from the contract instead.
+              </p>
+              <button className="button button-light button-sm" onClick={() => setFilling(true)} type="button">
+                Fill in an imported booking&rsquo;s forms
+              </button>
+            </div>
           ) : null}
 
           {offerImport ? (
