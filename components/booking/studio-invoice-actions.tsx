@@ -92,7 +92,11 @@ export function StudioInvoiceActions({
   // "Priya & Jordan", without the address, for a button; the confirm step names the address.
   const shortRecipient = recipient?.replace(/\s*\([^)]*\)\s*$/, "") || null;
   const number = text(invoice.number);
-  const amount = formatCentsExact(Number(invoice.balanceCents ?? 0));
+  // A voided invoice owes nothing too, but it was never paid: it read "Paid
+  // in full. The PDF shows the payment." (prod walk, 2026-10-28). It shows
+  // what it was for, and says it is void.
+  const voided = invoice.status === "voided";
+  const amount = formatCentsExact(Number((voided ? invoice.amountCents : invoice.balanceCents) ?? 0));
   const label = invoiceKindLabel(
     text(invoice.kind),
     invoice.paidInFull === true,
@@ -276,7 +280,9 @@ export function StudioInvoiceActions({
         <p className="studio-invoice-summary">
           <strong>{`${number} · ${amount}`}</strong>
           <span>
-            {settled
+            {voided
+              ? "Voided. Nothing is owed on it."
+              : settled
               ? `Paid in full. The PDF shows the payment${Array.isArray(invoice.studioPayments) && invoice.studioPayments.length > 1 ? "s" : ""}.`
               : draft
                 ? `Your ${label} invoice is ready${text(invoice.dueDate) ? `, due ${formatDueDate(invoice.dueDate)}` : ""}. Nothing has gone to ${recipient ?? "the client"} yet.${paymentDetailsReady ? "" : " Add how clients pay you before you email it, so it says how to pay."}`

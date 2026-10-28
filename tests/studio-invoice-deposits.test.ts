@@ -185,3 +185,12 @@ test("the booking page, Today and the agreement send all offer the studio invoic
   assert.match(actions, /I sent it myself/);
   assert.match(actions, /Download PDF/);
 });
+
+test("a voided invoice says it's void, never paid in full", () => {
+  // Prod walk, 2026-10-28: INV-0005, voided when the job moved to QuickBooks,
+  // read "$0.00 · Paid in full. The PDF shows the payment."
+  const actions = read("components/booking/studio-invoice-actions.tsx");
+  assert.match(actions, /const voided = invoice\.status === "voided";/);
+  assert.match(actions, /\{voided\s*\? "Voided\. Nothing is owed on it\."\s*: settled/);
+  assert.match(actions, /voided \? invoice\.amountCents : invoice\.balanceCents/);
+});
