@@ -265,6 +265,17 @@ Mirrored to `functions/src/trades/trades.ts`.
   shows a tab per `CHECKLIST_KINDS` entry and saves under `"<kind>:<scope>"`.
 - **Schedulers:** `functions/src/planning/planning-form-scheduler.ts` —
   `planningFormDue`, `sendPlanningFormAtBooking`, `shotListTemplateFor`.
+- **Readiness checklist:** a starter in `starterTemplates()`
+  (`features/workflows/starter-templates.ts`, text-mirrored to
+  `functions/src/workflow/starter-templates.ts`) with the kind as
+  `eventTypeId`. Without one `autoInstantiateWorkflow` skips with
+  `no_active_template` and every job of the kind, booked or imported, sits at
+  0% ready with no reminders — GR's two mitzvahs did, two weeks after the
+  kind shipped (2026-10-28). Onboarding writes it for new studios; for
+  existing ones run `scripts/backfill-starter-workflows.mts --all --apply`,
+  then `scripts/start-missing-workflows.mts --prod --all --write` for jobs
+  already booked. `tests/workflow-starter-templates.test.ts` fails until the
+  kind has one.
 
 ---
 
@@ -432,7 +443,7 @@ Confirm the rollout reached SUCCEEDED **on your commit**.
 - [ ] Inquiry fields → job, named for who it's for (2)
 - [ ] `KIND_VOCAB` for every trade; kind passed at every job-aware call (3)
 - [ ] Portal payload, emails, Cue compact + draft context (4)
-- [ ] Forms per trade, seeding, inquiry-form setting, day plans, checklist, schedulers (5)
+- [ ] Forms per trade, seeding, inquiry-form setting, day plans, checklist, schedulers, readiness starter + backfill (5)
 - [ ] Schedule A labels, Schedule B + counsel pack, starter text (6)
 - [ ] Vendor types if needed (7)
 - [ ] Kind test files in `package.json`; every guard green (8)
