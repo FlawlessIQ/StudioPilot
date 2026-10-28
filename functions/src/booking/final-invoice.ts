@@ -3,7 +3,7 @@ import type { DocumentSnapshot, Firestore, Transaction } from "firebase-admin/fi
 import { retainerFromSchedule } from "./agreed-retainer.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { finalBillBasis, quickBooksIsTaxAuthority } from "./final-tax-authority.js";
-import { combinedSnapshot, readJobSnapshots } from "../packages/combined-snapshot.js";
+import { combinedSnapshot, jobPackagesName, readJobSnapshots } from "../packages/combined-snapshot.js";
 import type { JobBilling } from "../billing/job-billing.js";
 import { writeStudioInvoiceDraft } from "../billing/studio-invoice-issue.js";
 import { invoiceRecordsDeleted } from "../billing/invoice-purge-policy.js";
@@ -303,7 +303,7 @@ export async function raiseFinalInvoice(
     // The agreed price as the line, taxed whole (above); what was paid
     // towards it before is printed with the payments, after the total, so
     // the tax reads against the price it was worked out on.
-    const packageName = String(packageSnapshot.get("packageName") ?? "") || "Your booking";
+    const packageName = jobPackagesName(jobSnapshots);
     const lines = [
       { description: packageName, quantity: 1, unitAmountCents: studioPreTaxCents, amountCents: studioPreTaxCents },
     ];

@@ -1,7 +1,7 @@
 "use client";
 
 import { balanceWithSalesTax, readPricedSalesTax } from "@/features/billing/sales-tax-pricing";
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { AMENDABLE_STATES, shiftInZone } from "@/features/booking/amendable";
 import { CalendarClock, LoaderCircle, PackagePlus } from "lucide-react";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
@@ -152,6 +152,12 @@ export function BookingAmendmentPanel({
   // Withdrawing and recording a signature each ask once more, saying what
   // follows; both used to act on the first tap.
   const [confirming, setConfirming] = useState<"withdraw" | "record" | null>(null);
+  // The confirm opens below the change, past the dialog's fold: "Withdraw
+  // the change" looked like it did nothing, because its confirm sat under
+  // the edge (prod walk, 2026-10-28). Bring it into view as it opens.
+  const showConfirm = useCallback((node: HTMLDivElement | null) => {
+    node?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, []);
   const [withdrawReason, setWithdrawReason] = useState("");
   // Back to the choices from a draft; writing it up again replaces the draft.
   const [editing, setEditing] = useState(false);
@@ -426,7 +432,7 @@ export function BookingAmendmentPanel({
           </div>
         ) : null}
         {confirming === "withdraw" ? (
-          <div className="amendment-confirm" role="group" aria-label="Withdraw the change">
+          <div className="amendment-confirm" ref={showConfirm} role="group" aria-label="Withdraw the change">
             <p className="form-notice">
               {sent
                 ? "Withdraw this change? The couple can no longer sign it, and they're emailed that it was withdrawn and their booking stands as it was."
@@ -460,9 +466,9 @@ export function BookingAmendmentPanel({
           </div>
         ) : null}
         {confirming === "record" ? (
-          <div className="amendment-confirm" role="group" aria-label="Record their signature">
+          <div className="amendment-confirm" ref={showConfirm} role="group" aria-label="Record their signature">
             <p className="form-notice">
-              {`Record ${recordName.trim() || "their"} signature? The booking takes the change now, and it can't be undone — a further change is a new one.`}
+              {`Record ${recordName.trim() ? `${recordName.trim()}’s` : "their"} signature? The booking takes the change now, and it can't be undone — a further change is a new one.`}
             </p>
             <ul className="amendment-changes">
               {num(pending.dateShiftDays) !== 0 ? (

@@ -274,3 +274,19 @@ test("booking a call from a job starts on that job, and same-name couples are to
   assert.match(calendar, /useState\(initial \? initial\.id : ""\)/);
   assert.match(calendar, /`\$\{String\(project\.name\)\} · \$\{formatDueDate\(project\.eventDate\)\}`/);
 });
+
+test("the withdraw and record confirms come into view as they open", () => {
+  // Prod walk, 2026-10-28: "Withdraw the change" opened its confirm under the
+  // dialog's fold and read as doing nothing; the change stayed a draft.
+  const panel = read("components/booking/booking-amendment.tsx");
+  assert.match(panel, /scrollIntoView\(\{ block: "nearest"/);
+  assert.equal(panel.match(/className="amendment-confirm" ref=\{showConfirm\}/g)?.length, 2);
+});
+
+test("a signature the studio records itself doesn't alert the studio as a message from the couple", () => {
+  // Prod walk, 2026-10-28: "They signed it another way" emailed the studio
+  // and the job's history read "Ivy Northwalk sent you a message".
+  const apply = read("functions/src/booking/amendment-apply.ts");
+  assert.match(apply, /const studio = core\.attested \? null : await studioNotificationAddress/);
+  assert.match(read("components/booking/booking-amendment.tsx"), /recordName\.trim\(\) \? `\$\{recordName\.trim\(\)\}’s` : "their"/);
+});

@@ -36,6 +36,18 @@ export function combinedSnapshot(snapshots: readonly SnapshotLike[]): SnapshotLi
 }
 
 /**
+ * What the job's packages are called, together: "Silver Photo Package and
+ * Video Package". A job's own bill named its primary package alone over the
+ * price of all of them — a $6,200 line called "Silver Photo Package" ($4,200)
+ * on a wedding that had added a $2,000 film (imported-job walk, 2026-10-28).
+ */
+export function jobPackagesName(snapshots: readonly SnapshotLike[], fallback = "Your booking"): string {
+  const names = snapshots.map((snapshot) => String(snapshot.get("packageName") ?? "").trim()).filter(Boolean);
+  if (names.length <= 1) return names[0] || fallback;
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+}
+
+/**
  * The job's snapshots, primary first, that exist and belong to the tenant.
  * `read` is `transaction.get` inside a transaction, or a plain `get`.
  */

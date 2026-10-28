@@ -339,6 +339,8 @@ export async function applyAmendment(db: Firestore, amendmentId: string) {
       changes: strings(amendment.get("changes")),
       clientEmail: text(amendment.get("clientEmail")),
       clientName: text(amendment.get("clientName")),
+      // The studio recorded the signature itself ("They signed it another way").
+      attested,
       projectName: text(project.get("name")),
       timezone: text(project.get("timezone")) || null,
       state: text(project.get("state")),
@@ -418,7 +420,10 @@ export async function applyAmendment(db: Firestore, amendmentId: string) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
-  const studio = await studioNotificationAddress(db, core.tenantId).catch(() => null);
+  // Not when the studio recorded the signature itself: it was told so on the
+  // spot, and the alert read as "Ivy Northwalk sent you a message" in the
+  // job's history when the couple had sent nothing (prod walk, 2026-10-28).
+  const studio = core.attested ? null : await studioNotificationAddress(db, core.tenantId).catch(() => null);
   if (studio)
     batch.set(db.doc(`emailJobs/amendment_studio_${amendmentId}`), {
       id: `amendment_studio_${amendmentId}`,

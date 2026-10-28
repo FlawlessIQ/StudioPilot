@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { combinedSnapshot } from "../functions/src/packages/combined-snapshot.ts";
+import { combinedSnapshot, jobPackagesName } from "../functions/src/packages/combined-snapshot.ts";
 
 const snapshot = (fields: Record<string, unknown>) => ({ get: (field: string) => fields[field] });
 const read = (path: string) => readFileSync(path, "utf8");
@@ -44,4 +44,17 @@ test("every money fallback reads the whole job, not the primary snapshot", () =>
 
   // And the closeout screen shows the number the server will record.
   assert.match(read("components/post-event/delivery-closeout-workspace.tsx"), /currentJobSnapshots\(packageSnapshots \?\? \[\], project\)\.reduce\(/);
+});
+
+test("a job's own bill names every package it's for, not the first", () => {
+  // Imported-job walk, 2026-10-28: a $6,200 final for a $4,200 photo package
+  // plus a $2,000 film read "Silver Photo Package · $6,200".
+  const snap = (packageName: unknown) => ({ get: (field: string) => (field === "packageName" ? packageName : undefined) });
+  assert.equal(jobPackagesName([snap("Silver Photo Package")]), "Silver Photo Package");
+  assert.equal(jobPackagesName([snap("Silver Photo Package"), snap("Film")]), "Silver Photo Package and Film");
+  assert.equal(jobPackagesName([snap("Photo"), snap("Film"), snap("Album")]), "Photo, Film and Album");
+  assert.equal(jobPackagesName([snap(""), snap(null)]), "Your booking");
+  const read = (path: string) => readFileSync(path, "utf8");
+  assert.match(read("functions/src/booking/final-invoice.ts"), /const packageName = jobPackagesName\(jobSnapshots\);/);
+  assert.match(read("functions/src/booking/installment-invoice.ts"), /const packageName = jobPackagesName\(jobSnapshots\);/);
 });

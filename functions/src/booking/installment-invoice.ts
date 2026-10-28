@@ -1,7 +1,7 @@
 import type { DocumentSnapshot, Firestore, Transaction } from "firebase-admin/firestore";
 import { retainerFromSchedule } from "./agreed-retainer.js";
 import { isStandingInvoice } from "./invoice-standing.js";
-import { combinedSnapshot, readJobSnapshots } from "../packages/combined-snapshot.js";
+import { combinedSnapshot, jobPackagesName, readJobSnapshots } from "../packages/combined-snapshot.js";
 import type { JobBilling } from "../billing/job-billing.js";
 import { writeStudioInvoiceDraft } from "../billing/studio-invoice-issue.js";
 import { invoiceRecordsDeleted } from "../billing/invoice-purge-policy.js";
@@ -155,7 +155,7 @@ export async function raiseInstallmentInvoice(
   const planFields = { installmentSequence: due.sequence, installmentCount: due.count };
 
   if (studioBilled) {
-    const packageName = String(packageSnapshot?.get("packageName") ?? "") || "Your booking";
+    const packageName = jobPackagesName(jobSnapshots);
     const written = await writeStudioInvoiceDraft(db, transaction, {
       tenantId,
       projectId: project.id,
