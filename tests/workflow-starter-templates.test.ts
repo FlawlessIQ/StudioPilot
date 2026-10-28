@@ -6,6 +6,7 @@ import {
   weddingCheckpointDefinitions,
 } from "@/features/workflows/starter-templates";
 import { checkpointTemplateSchema } from "@/features/workflows/schema";
+import { JOB_KINDS } from "@/features/job-kinds/job-kinds";
 
 test("a new studio gets one published workflow per event type", () => {
   // autoInstantiateWorkflow resolves by event type, so one each is the
@@ -13,9 +14,24 @@ test("a new studio gets one published workflow per event type", () => {
   const starters = starterTemplates();
   const types = starters.map((template) => template.eventTypeId);
   // Every kind of job (job-kinds.ts) — a family session or an "other" event
-  // with no workflow never engaged readiness (job-types plan, B4).
-  assert.deepEqual(types.sort(), ["corporate", "other", "portraits", "sports", "wedding"]);
+  // with no workflow never engaged readiness (job-types plan, B4), and nor
+  // did a bar mitzvah, until GR's two sat at 0% (2026-10-28). A kind added
+  // to JOB_KINDS without one fails here.
+  assert.deepEqual(types.sort(), [...JOB_KINDS].sort());
   assert.equal(new Set(types).size, types.length);
+});
+
+test("every trade's studio gets a checklist for every kind of job", () => {
+  // A DJ's or a planner's mitzvah needs its checks as much as a
+  // photographer's; the vendor sets are cut from the full one.
+  for (const readiness of ["essentials", "planner"] as const) {
+    const types = starterTemplates(readiness).map((template) => template.eventTypeId);
+    assert.deepEqual(types.sort(), [...JOB_KINDS].sort(), readiness);
+  }
+  // A mitzvah carries a wedding's weight, a sacrament a session's.
+  const checks = (kind: string) => starterTemplates().find((template) => template.eventTypeId === kind)!.checkpointTemplates.length;
+  assert.equal(checks("mitzvah"), checks("wedding"));
+  assert.equal(checks("sacrament"), checks("portraits"));
 });
 
 test("every starter checkpoint satisfies the engine's schema", () => {

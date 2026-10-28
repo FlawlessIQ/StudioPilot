@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { starterQuestionnaires } from "@/features/questionnaires/starter-templates";
 import { questionnaireTemplateSchema } from "@/features/questionnaires/schema";
 import { starterTemplates } from "@/features/workflows/starter-templates";
+import { recommendedQuestionnaires } from "@/features/questionnaires/recommended-templates";
 
 /**
  * A new tenant had no questionnaire at all, so "Questionnaire complete" — a
@@ -16,10 +17,13 @@ test("one questionnaire per event type the workflows cover", () => {
   // type, so a workflow for an event type with no questionnaire is the gap
   // this closes.
   const questionnaireTypes = starterQuestionnaires().map((q) => q.eventTypeId);
+  // The kinds added since (a mitzvah, a quinceañera…) bring their own
+  // recommended forms instead (recommended-templates.ts).
+  const recommendedTypes = recommendedQuestionnaires().map((q) => q.eventTypeId);
   for (const workflow of starterTemplates()) {
     assert.ok(
-      questionnaireTypes.includes(workflow.eventTypeId),
-      `${workflow.eventTypeId} has a starter workflow but no starter questionnaire`,
+      questionnaireTypes.includes(workflow.eventTypeId) || recommendedTypes.includes(workflow.eventTypeId),
+      `${workflow.eventTypeId} has a starter workflow but no starter or recommended questionnaire`,
     );
   }
   assert.equal(new Set(questionnaireTypes).size, questionnaireTypes.length);

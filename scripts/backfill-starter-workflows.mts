@@ -15,6 +15,13 @@
  *
  *   npx tsx scripts/backfill-starter-workflows.mts <tenantId>            # dry run
  *   npx tsx scripts/backfill-starter-workflows.mts <tenantId> --apply
+ *   npx tsx scripts/backfill-starter-workflows.mts --all [--apply]       # every studio
+ *
+ * Trade-aware, as onboarding is: a DJ's studio gets a DJ's checks under
+ * "Bar & bat mitzvah (DJ)", never a photographer's twelve. Re-run after a
+ * new kind of job gains a starter (2026-10-28: mitzvah, quinceañera, Sweet
+ * 16, vow renewal, sacrament and prom had none, so GR's two mitzvahs never
+ * got a checklist).
  *
  * Idempotent per event type: a tenant that already has a wedding template
  * keeps the one it has, so this is safe to re-run and safe on a tenant that
@@ -28,15 +35,17 @@
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { starterTemplates } from "@/features/workflows/starter-templates";
+import { TRADE_LABELS, tradeProfile } from "@/features/trades/trades";
 
 const project = process.env.FIREBASE_PROJECT ?? "studiohub-prod";
 const root = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
-const tenantId = process.argv[2];
+const all = process.argv.includes("--all");
+const tenantArgument = process.argv[2];
 const apply = process.argv.includes("--apply");
 
-if (!tenantId || tenantId.startsWith("--")) {
+if (!all && (!tenantArgument || tenantArgument.startsWith("--"))) {
   console.error(
-    "usage: npx tsx scripts/backfill-starter-workflows.mts <tenantId> [--apply]",
+    "usage: npx tsx scripts/backfill-starter-workflows.mts <tenantId|--all> [--apply]",
   );
   process.exit(1);
 }
@@ -75,7 +84,53 @@ const toFields = (record: Record<string, unknown>) =>
     Object.entries(record).map(([key, value]) => [key, toValue(value)]),
   );
 
+/** What onboarding.ts publishes for a studio of this trade. */
+function startersFor(tradeValue: unknown) {
+  const trade = tradeProfile(tradeValue);
+  const photographer = trade.trade === "photographer";
+  const starters =
+    trade.journey.readiness !== "full"
+      ? starterTemplates(trade.journey.readiness, {
+          balanceDueDaysBefore: trade.balanceDueDaysBefore,
+          balanceOnTheDay: trade.journey.balanceOnTheDay,
+        })
+      : starterTemplates();
+  return starters.map((starter) => ({
+    ...starter,
+    name: photographer ? starter.name : `${starter.eventTypeLabel} (${TRADE_LABELS[trade.trade]})`,
+    description: photographer ? starter.description : starter.description.replace(/ shoot\b/, " event"),
+  }));
+}
+
+async function tenantIds(): Promise<string[]> {
+  if (!all) return [tenantArgument!];
+  const ids: string[] = [];
+  let pageToken = "";
+  do {
+    const page = (await fetch(
+      `${root}/tenants?pageSize=300&mask.fieldPaths=tenantId${pageToken ? `&pageToken=${pageToken}` : ""}`,
+      { headers },
+    ).then((response) => response.json())) as { documents?: { name: string }[]; nextPageToken?: string };
+    for (const document of page.documents ?? []) ids.push(document.name.split("/").at(-1)!);
+    pageToken = page.nextPageToken ?? "";
+  } while (pageToken);
+  return ids;
+}
+
 async function main() {
+  let failed = false;
+  for (const tenantId of await tenantIds()) {
+    if (!(await backfill(tenantId))) failed = true;
+  }
+  if (!apply) console.log("\nDRY RUN — pass --apply to write.");
+  if (failed) process.exit(1);
+}
+
+/** One studio. False when a write failed. */
+async function backfill(tenantId: string): Promise<boolean> {
+  const tenant = (await fetch(`${root}/tenants/${tenantId}`, { headers }).then((response) => response.json())) as {
+    fields?: { trade?: { stringValue?: string } };
+  };
   const query = (await fetch(`${root}:runQuery`, {
     method: "POST",
     headers,
@@ -97,14 +152,14 @@ async function main() {
   const present = new Set(
     existing.map((row) => row.document?.fields?.eventTypeId?.stringValue),
   );
-  console.log(`project ${project}`);
-  console.log(`tenant  ${tenantId}`);
+  const trade = tenant.fields?.trade?.stringValue ?? "photographer";
+  console.log(`\n${project}  ${tenantId}  trade=${trade}`);
   console.log(
     `existing templates: ${existing.length}` +
       (existing.length ? ` (${[...present].join(", ")})` : ""),
   );
 
-  const missing = starterTemplates().filter(
+  const missing = startersFor(trade).filter(
     (starter) => !present.has(starter.eventTypeId),
   );
   console.log(`to create: ${missing.length}`);
@@ -113,11 +168,7 @@ async function main() {
       `  ${starter.name}  event=${starter.eventTypeId}  checkpoints=${starter.checkpointTemplates.length}`,
     );
 
-  if (!missing.length) return;
-  if (!apply) {
-    console.log("\nDRY RUN — pass --apply to write.");
-    return;
-  }
+  if (!missing.length || !apply) return true;
 
   const now = new Date().toISOString();
   const actor = "backfill:starter-workflows";
@@ -189,7 +240,7 @@ async function main() {
     }),
   });
   console.log(audit.ok ? "audit event written" : "audit event FAILED");
-  if (created !== missing.length) process.exit(1);
+  return created === missing.length;
 }
 
 void main();

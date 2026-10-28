@@ -343,10 +343,11 @@ export function starterTemplates(
 
   // A family or portrait session: no agreement, paid in full to book, and
   // the details form goes two weeks out, so it is due a week before.
-  const portraits = [
-    checkpointFrom(["questionnaire-complete", "Session details complete", "Planning", "client", -7, "form_submitted"]),
+  const session = (detailsName: string) => [
+    checkpointFrom(["questionnaire-complete", detailsName, "Planning", "client", -7, "form_submitted"]),
     checkpointFrom(["locations-confirmed", "Location confirmed", "Logistics", "studio", -3, "manual"]),
   ];
+  const portraits = session("Session details complete");
 
   return [
     {
@@ -388,6 +389,54 @@ export function starterTemplates(
       eventTypeId: "other",
       eventTypeLabel: "Other event",
       checkpointTemplates: subset(CORPORATE_KEYS),
+    },
+    // The kinds added since (job-kinds.ts) had none, so a bar mitzvah, booked
+    // or imported, never got a checklist: GR's two sat at 0% ready with
+    // nothing to remind anyone (2026-10-28). A kind with a wedding's weight —
+    // an agreement, crew, a certificate, a run of show, a deposit and a
+    // balance — carries the wedding's checks; one with a session's, the
+    // session's two.
+    {
+      name: "Bar & Bat Mitzvah Photography",
+      description: "Everything a bar or bat mitzvah needs between booking and the day itself.",
+      eventTypeId: "mitzvah",
+      eventTypeLabel: "Bar & bat mitzvah",
+      checkpointTemplates: wedding,
+    },
+    {
+      name: "Quinceañera Photography",
+      description: "Everything a quinceañera needs between booking and the day itself.",
+      eventTypeId: "quince",
+      eventTypeLabel: "Quinceañera",
+      checkpointTemplates: wedding,
+    },
+    {
+      name: "Sweet 16 Photography",
+      description: "Everything a Sweet 16 needs between booking and the day itself.",
+      eventTypeId: "sweet16",
+      eventTypeLabel: "Sweet 16",
+      checkpointTemplates: wedding,
+    },
+    {
+      name: "Vow Renewal & Anniversary Photography",
+      description: "Everything a vow renewal or anniversary needs between booking and the day itself.",
+      eventTypeId: "vow_renewal",
+      eventTypeLabel: "Vow renewal & anniversary",
+      checkpointTemplates: wedding,
+    },
+    {
+      name: "Communion, Confirmation & Baptism Sessions",
+      description: "A light path for sessions: the details form, then the location.",
+      eventTypeId: "sacrament",
+      eventTypeLabel: "Communion, confirmation & baptism",
+      checkpointTemplates: session("Details form complete"),
+    },
+    {
+      name: "Prom Sessions",
+      description: "A light path for sessions: the details form, then the location.",
+      eventTypeId: "prom",
+      eventTypeLabel: "Prom",
+      checkpointTemplates: session("Details form complete"),
     },
   ];
 }
