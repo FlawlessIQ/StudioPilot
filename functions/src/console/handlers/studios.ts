@@ -2,6 +2,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
 import { REASON_MIN, consoleHandler, fail } from "../command-kit.js";
 import { refreshAllSummaries, refreshStudioSummary } from "../rollup.js";
+import { loadStudioProfile } from "../studio-profile.js";
 
 const tenantId = z.string().min(1).max(200);
 
@@ -118,6 +119,17 @@ export const studioHandlers = {
         result: { tenantId: input.tenantId, membershipId: membershipReference.id, repaired },
         audit: { tenantId: input.tenantId, entityType: "membership", entityId: membershipReference.id, after: { repaired } },
       };
+    },
+  }),
+
+  /** The long form of one studio for its record (studio-profile.ts). A read: nothing is audited. */
+  studioProfile: consoleHandler({
+    capability: "console.read",
+    input: z.object({ tenantId }),
+    async run({ db, auth, now }, input) {
+      const profile = await loadStudioProfile(db, auth, input.tenantId, new Date(now));
+      if (!profile) fail("TENANT_NOT_FOUND");
+      return { result: profile, audit: null };
     },
   }),
 
