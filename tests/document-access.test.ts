@@ -89,7 +89,7 @@ test("the journey carries each step's files and its specific record", () => {
 
 test("the history's moments carry their files and open their own record", () => {
   const thread = read("features/journey/thread.ts");
-  assert.match(thread, /title: "Agreement fully signed",[\s\S]{0,200}files: FILE_BEARING\.contracts\(contract\)/);
+  assert.match(thread, /title: authority === "imported" \? "Agreement signed before StudioCue" : "Agreement fully signed",[\s\S]{0,400}files: FILE_BEARING\.contracts\(contract\)/);
   assert.match(thread, /href: `\/studio\/invoices\?project=\$\{input\.projectId\}`/);
   assert.match(thread, /href: `\/studio\/questionnaires\/\$\{response\.id\}`/);
   assert.match(thread, /href: `\/studio\/schedules\/\$\{schedule\.id\}`/);

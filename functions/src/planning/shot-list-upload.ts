@@ -40,7 +40,9 @@ function addDays(day: string, days: number): string {
 export function shotListRequestDue(input: { project: Row; timeline: PlanningTimeline; trade: unknown; today: string }): boolean {
   const { project, timeline, today } = input;
   if (!timeline.shotListUpload || !tradeProfile(input.trade).shotList) return false;
-  if (!journeyProfile(jobKindOf(project)).shotList || project.importedAt) return false;
+  // An imported job is quiet until the studio brings the couple in
+  // (clientOutreachStop, below), and asked like any other after.
+  if (!journeyProfile(jobKindOf(project)).shotList) return false;
   if (!BOOKED.includes(text(project.state))) return false;
   const eventDate = text(project.eventDate).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate) || today >= eventDate) return false;
@@ -68,7 +70,10 @@ export async function requestShotListUpload(
 ): Promise<ShotListRequestOutcome> {
   const data = project.data() ?? {};
   const tenantId = text(data.tenantId);
-  if (!tenantId || data.importedAt || clientOutreachStop(data) !== null) return "quiet";
+  // Quiet while paused; an imported couple brought in is asked like any
+  // other — "Ask now" on an imported job did nothing (imported-job walk,
+  // 2026-10-27), because `importedAt` never clears.
+  if (!tenantId || clientOutreachStop(data) !== null) return "quiet";
   const reference = db.doc(`clientShotLists/${project.id}`);
   if ((await reference.get()).exists) return "has_it";
   const emailJobId = `shot_list_request_${project.id}`;

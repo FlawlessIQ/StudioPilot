@@ -172,7 +172,9 @@ export function coupleVendorAsk(input: {
   const { project, timeline, today } = input;
   const eventDate = text(project.eventDate).slice(0, 10);
   const closed: CoupleVendorAsk = { available: false, open: false, opensOn: null, dueDate: null };
-  if (!journeyProfile(jobKindOf(project)).vendorTeam || project.importedAt) return closed;
+  // An imported job is closed while quiet (clientOutreachStop, below), and
+  // open like any other once the studio brings the couple in.
+  if (!journeyProfile(jobKindOf(project)).vendorTeam) return closed;
   if (!BOOKED_STATES.has(text(project.state)) || clientOutreachStop(project) !== null) return closed;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate) || today >= eventDate) return closed;
   // The studio said the planner runs the vendors (Phase 1: "The planner handles vendors").

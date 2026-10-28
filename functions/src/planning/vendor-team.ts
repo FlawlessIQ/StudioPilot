@@ -381,7 +381,8 @@ const ASK_STATES = new Set(["BOOKED", "PLANNING", "READY"]);
  */
 export function vendorAskOwed(input: { project: DocumentData; trade: unknown; answered: boolean; today: string }): boolean {
   const { project } = input;
-  if (input.answered || project.importedAt || project.vendorTeamByPlanner === true) return false;
+  // An imported job is quiet until brought in (clientOutreachStop, below).
+  if (input.answered || project.vendorTeamByPlanner === true) return false;
   if (!journeyProfile(jobKindOf(project)).vendorTeam || !ASK_STATES.has(str(project.state))) return false;
   if (tradeProfile(input.trade).vendorTeam === "default" || clientOutreachStop(project) !== null) return false;
   const eventDate = str(project.eventDate).slice(0, 10);
@@ -1037,9 +1038,10 @@ async function sendCredits(
     // Sent once: a second press says so rather than mailing the couple again.
     if (existing.exists) return { emailJobId: jobId, alreadySent: true, count: Number(existing.get("creditCount") ?? 0) };
     if (!AFTER_THE_DAY.has(str(project.get("state")))) throw new Error("VENDOR_CREDITS_AFTER_THE_DAY");
-    // Quiet by default: an imported, paused, put-away or canceled job's
-    // couple is never written to (client-outreach.ts, ADR 0005).
-    if (project.get("importedAt") || clientOutreachStop(project.data()) !== null) throw new Error("CLIENT_OUTREACH_PAUSED");
+    // Quiet by default: an imported job until it's brought in, and a paused,
+    // put-away or canceled job's couple, are never written to
+    // (client-outreach.ts, ADR 0005).
+    if (clientOutreachStop(project.data()) !== null) throw new Error("CLIENT_OUTREACH_PAUSED");
     const entries = team.docs.map((entry) => entry.data());
     const vendorIds = [...new Set(entries.filter((entry) => entry.status === "booked").map((entry) => str(entry.vendorId)).filter(Boolean))];
     const vendorDocs = vendorIds.length ? await transaction.getAll(...vendorIds.map((id) => db.doc(`vendors/${id}`))) : [];

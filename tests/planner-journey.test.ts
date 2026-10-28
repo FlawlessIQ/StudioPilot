@@ -698,7 +698,7 @@ test("vendor credits: the studio first, then every booked vendor, once", () => {
   const server = read("functions/src/planning/vendor-team.ts");
   // Once per job; quiet jobs never; only after the day; the studio presses it.
   assert.match(server, /if \(existing\.exists\) return \{ emailJobId: jobId, alreadySent: true/);
-  assert.match(server, /if \(project\.get\("importedAt"\) \|\| clientOutreachStop\(project\.data\(\)\) !== null\) throw new Error\("CLIENT_OUTREACH_PAUSED"\);/);
+  assert.match(server, /if \(clientOutreachStop\(project\.data\(\)\) !== null\) throw new Error\("CLIENT_OUTREACH_PAUSED"\);/);
   assert.match(server, /if \(!AFTER_THE_DAY\.has\(str\(project\.get\("state"\)\)\)\) throw new Error\("VENDOR_CREDITS_AFTER_THE_DAY"\);/);
 });
 

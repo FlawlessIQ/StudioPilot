@@ -16,6 +16,7 @@ import { newestPartyNames, type BeautyService } from "./party-list.js";
 import { FINAL_DETAILS_STATES, finalDetailsDue, finalDetailsToday } from "./final-details-due.js";
 import { vendorAskOwedFor } from "./vendor-team.js";
 import { answersResolvedFor, resolveAnswers } from "./resolved-answers.js";
+import { contractDetailRows, scheduleAContractAnswers } from "./contract-details.js";
 
 /**
  * The couple's final details, confirmed when they lock.
@@ -135,6 +136,10 @@ export async function finalDetailsSnapshot(db: Firestore, tenantId: string, proj
       limit: 60,
     }))
       byQuestion.set(row.question.trim().toLowerCase(), row);
+  // An imported job's signed contract, for what no returned form says — as
+  // Schedule A prints it (contracts/sources.ts).
+  for (const row of scheduleAContractAnswers(contractDetailRows(record(project.get("contractDetails")).rows), new Set(byQuestion.keys())))
+    byQuestion.set(row.key, { question: row.question, answer: row.answer });
   const eventDate = text(project.get("eventDate")).slice(0, 10);
   const details = eventDetailsFrom({
     eventType: text(project.get("eventType")) || "Wedding",
@@ -235,6 +240,25 @@ export async function openSignoff(
   const headcount = tradeProfile(trade).perPersonPricing ? (snapshot.people ?? []).length : null;
   // No list, no headcount: "Still 0 getting ready?" asked nothing anyone could answer.
   if (headcount === 0) return "no_party_list";
+  /**
+   * Nothing to confirm yet: an imported job with no form back and no signed
+   * contract read. A
+   * wedding imported 11 days out was brought in and the couple's first email
+   * from StudioCue was "Your final details are ready to confirm" — every
+   * place and time "To be confirmed" (imported-job walk, 2026-10-27). It
+   * opens when their form comes back (crew-brief-trigger.ts), or the studio
+   * adds the contract and the next sweep finds it.
+   */
+  // Imported jobs only: a job booked in StudioCue inside the window is asked
+  // at booking on purpose, with the call's link, before its form is back
+  // (tests/final-details-lock-window.test.ts) — its inquiry said something.
+  if (
+    headcount === null &&
+    project.get("importedAt") &&
+    !snapshot.responseIds.length &&
+    !contractDetailRows(record(project.get("contractDetails")).rows).length
+  )
+    return "nothing_to_confirm";
   const call =
     headcount !== null
       ? null

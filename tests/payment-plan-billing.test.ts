@@ -291,7 +291,7 @@ test("wired through: scheduler order, the final's wait, amendments, the email an
   assert.match(scheduler, /waitForInstallments: true/);
   assert.match(read("functions/src/operations/installment-billing.ts"), /return clientOutreachStop\(project\) === null;/);
   const final = read("functions/src/booking/final-invoice.ts");
-  assert.match(final, /totalCents - retainerPaidCents - earlierFinalsPaidCents - installmentsCents/);
+  assert.match(final, /totalCents - retainerPaidCents - retainerOpenCents - earlierFinalsPaidCents - installmentsCents/);
   assert.match(read("functions/src/contracts/amendments.ts"), /respreadPaymentPlan\(\{/);
   assert.match(read("functions/src/booking/amendment-apply.ts"), /kind === "installment" && paidOf\(invoice\) === 0/);
   // Emailed as a balance bill, named for what it is — never as a retainer.

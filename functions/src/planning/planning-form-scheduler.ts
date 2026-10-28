@@ -164,7 +164,8 @@ export async function sendShotListWithForm(
 ): Promise<string> {
   const data = project.data() ?? {};
   const tenantId = text(data.tenantId);
-  if (!tenantId || data.importedAt || clientOutreachStop(data) !== null) return "quiet";
+  // Quiet while paused, not for ever: `importedAt` never clears.
+  if (!tenantId || clientOutreachStop(data) !== null) return "quiet";
   const studio = await loadStudio(db, tenantId);
   // A kind on the studio's planning timeline uses the studio's chosen form;
   // another (a mitzvah) its own (job-kinds.ts `planningTimeline`).

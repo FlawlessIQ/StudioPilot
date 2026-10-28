@@ -880,3 +880,26 @@ test("when it was written decides: the lock day on, never before; an amendment k
   const renderers = ["functions/src/contracts/document.ts", "features/contracts/document.ts"].map(read);
   for (const source of renderers) assert.equal(source.match(/eventDetailsBlocks\(sources\.eventDetails\)/g)?.length, 2);
 });
+
+test("an imported job brought in with nothing known is not asked to confirm blanks; its signed contract is enough", async () => {
+  // Imported 11 days out and brought in: "Your final details are ready to
+  // confirm", every place and time "To be confirmed" (imported-job walk,
+  // 2026-10-27).
+  const imported = job({ eventDate: "2026-10-30", importedAt: "2026-10-12T12:00:00.000Z" });
+  const blank = fakeDb({ "tenants/t": studio("photographer"), "projects/p": imported, "contacts/c": { tenantId: "t", email: "ivy@example.com" } });
+  assert.equal(await openFinalDetailsIfDue(blank.db, { tenantId: "t", projectId: "p" }, NOW), "nothing_to_confirm");
+  assert.deepEqual(opened(blank.docs), [], "nothing written, nothing emailed");
+
+  // The studio adds the signed contract: those details are what they confirm.
+  const read = fakeDb({
+    "tenants/t": studio("photographer"),
+    "projects/p": {
+      ...imported,
+      contractDetails: { rows: [{ key: "ceremony location", label: "Ceremony location", type: "text", value: "Harborview Hall" }] },
+    },
+    "contacts/c": { tenantId: "t", email: "ivy@example.com" },
+  });
+  assert.equal(await openFinalDetailsIfDue(read.db, { tenantId: "t", projectId: "p" }, NOW), "opened");
+  const rows = JSON.stringify((read.docs.get("detailSignoffs/t_p")!.snapshot as { rows: unknown }).rows);
+  assert.match(rows, /Harborview Hall/);
+});

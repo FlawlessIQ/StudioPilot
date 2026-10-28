@@ -14,6 +14,7 @@ import { invitationLinkFields, mintClientInvitation } from "../client/invitation
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { readReturningClientAccess, writeReturningClientAccess } from "../client/returning-client-access.js";
 import { combineSnapshotPricing } from "../proposals/combined-pricing.js";
+import { importedAmendmentBase } from "./imported-amendment-base.js";
 import { pricePackage, type SalesTaxTreatment } from "../pricing/package-price.js";
 import { readPricedSalesTax, treatmentOf } from "../billing/sales-tax-pricing.js";
 import {
@@ -423,6 +424,56 @@ async function dateHolders(db: Firestore, tenantId: string, projectId: string, e
   );
 }
 
+/** What a change is written against: the accepted proposal, or an imported job's stand-in. */
+type AmendmentBase = { id: string; get(field: string): unknown; data(): Record<string, unknown> | undefined };
+
+/**
+ * An imported booking's base: what the import recorded was agreed
+ * (./imported-amendment-base.ts). Null when the job has no package to restate.
+ */
+async function importedBase(db: Firestore, tenantId: string, project: DocumentSnapshot): Promise<AmendmentBase | null> {
+  const ids = [text(project.get("packageSnapshotId")), ...strings(project.get("additionalPackageSnapshotIds"))].filter(Boolean);
+  const contactId = strings(project.get("clientContactIds"))[0];
+  const [snapshots, invoices, contact] = await Promise.all([
+    Promise.all(ids.map((id) => db.doc(`packageSnapshots/${id}`).get())),
+    db.collection("invoiceReferences").where("tenantId", "==", tenantId).where("projectId", "==", project.id).limit(40).get(),
+    contactId ? db.doc(`contacts/${contactId}`).get() : Promise.resolve(null),
+  ]);
+  const owned = snapshots
+    .filter((snapshot) => snapshot.exists && snapshot.get("tenantId") === tenantId)
+    .map((snapshot) => ({ id: snapshot.id, data: snapshot.data() as Record<string, unknown> }));
+  if (!owned.length) return null;
+  const pricing = combineSnapshotPricing(
+    owned.map(({ data }) => ({
+      packageName: text(data.packageName, "Coverage package"),
+      currency: text(data.currency, "USD"),
+      subtotalCents: num(data.subtotalCents),
+      discountCents: num(data.discountCents),
+      taxCents: num(data.taxCents),
+      retainerCents: num(data.retainerCents),
+      totalCents: num(data.totalCents),
+      salesTax: readPricedSalesTax(data.salesTax),
+      lineItems: lineItems(data),
+    })),
+  );
+  const ownContact = contact?.exists && contact.get("tenantId") === tenantId ? contact : null;
+  const record = importedAmendmentBase({
+    projectId: project.id,
+    project: project.data() as Record<string, unknown>,
+    snapshots: owned,
+    pricing: pricing as unknown as Record<string, unknown>,
+    packageDetails: packageDetails(owned),
+    retainers: invoices.docs
+      .filter((invoice) => invoice.get("kind") === "retainer" && isStandingInvoice(invoice.get("status")))
+      .map((invoice) => invoice.data() as Record<string, unknown>),
+    client: {
+      displayName: text(ownContact?.get("displayName")) || text(ownContact?.get("firstName")) || text(project.get("name")),
+      email: text(ownContact?.get("email")),
+    },
+  });
+  return { id: String(record.id), get: (field) => record[field], data: () => record };
+}
+
 async function latestAccepted(db: Firestore, tenantId: string, projectId: string) {
   const accepted = await db
     .collection("proposals")
@@ -526,7 +577,11 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
       ? pending.id
       : stableId("amendment", context.tenantId, context.idempotencyKey);
 
-  const base = await latestAccepted(db, context.tenantId, input.projectId);
+  // A booking imported from before StudioCue has no proposal: what the
+  // import recorded is the base (./imported-amendment-base.ts).
+  const base: AmendmentBase | null =
+    (await latestAccepted(db, context.tenantId, input.projectId)) ??
+    (project.get("importedAt") ? await importedBase(db, context.tenantId, project) : null);
   if (!base) throw new Error("AMENDMENT_NEEDS_ACCEPTED_PROPOSAL");
   // A package the change adds is priced as the booking was: pre-tax "plus
   // sales tax" when that is what the couple signed for, never because the
@@ -970,6 +1025,8 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     signingMode: document ? "studiocue" : "record",
     base: {
       proposalId: base.id,
+      // No proposal document behind it: the staleness check can't re-read one.
+      ...(base.get("importedBase") === true ? { importedBase: true } : {}),
       contractId: signedContract?.id ?? null,
       eventDate: previousDate,
       packageSnapshotIds: currentIds,
@@ -1090,7 +1147,9 @@ async function requireStillCurrent(db: Firestore, amendment: DocumentSnapshot) {
     project.get("pendingAmendmentId") !== amendment.id ||
     text(project.get("eventDate")) !== text(base.eventDate) ||
     currentIds.join(",") !== strings(base.packageSnapshotIds).join(",") ||
-    baseProposal.get("status") !== "accepted"
+    // An imported booking's stand-in base is current while no proposal has
+    // been filed over it; any other base must still be the accepted one.
+    (base.importedBase === true ? baseProposal.exists : baseProposal.get("status") !== "accepted")
   )
     throw new Error("AMENDMENT_STALE");
   return project;

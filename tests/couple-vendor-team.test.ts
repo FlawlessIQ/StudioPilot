@@ -58,7 +58,9 @@ test("never asked: an inquiry, a portrait session, an imported or paused job, th
   const today = "2027-01-10";
   assert.equal(coupleVendorAsk({ project: { ...wedding, state: "INQUIRY" }, timeline, today }).available, false);
   assert.equal(coupleVendorAsk({ project: { ...wedding, eventKind: "portraits" }, timeline, today }).available, false);
-  assert.equal(coupleVendorAsk({ project: { ...wedding, importedAt: "2026-09-01T00:00:00Z" }, timeline, today }).available, false);
+  assert.equal(coupleVendorAsk({ project: { ...wedding, importedAt: "2026-09-01T00:00:00Z", clientAutomationsPausedAt: "2026-09-01T00:00:00Z" }, timeline, today }).available, false);
+  // Brought in (the pause cleared), an imported couple is asked like any other.
+  assert.equal(coupleVendorAsk({ project: { ...wedding, importedAt: "2026-09-01T00:00:00Z" }, timeline, today }).available, true);
   assert.equal(coupleVendorAsk({ project: { ...wedding, clientAutomationsPausedAt: "2026-09-01T00:00:00Z" }, timeline, today }).available, false);
   assert.equal(coupleVendorAsk({ project: wedding, timeline, today: "2027-06-12" }).available, false);
   assert.equal(coupleVendorAsk({ project: { ...wedding, vendorTeamByPlanner: true }, timeline, today }).available, false);
@@ -184,7 +186,8 @@ test("the planning form's emails carry the vendor ask only while the couple owes
   assert.equal(vendorAskOwed({ project, trade: "photographer", answered: true, today }), false);
   assert.equal(vendorAskOwed({ project, trade: "planner", answered: false, today }), false);
   assert.equal(vendorAskOwed({ project: { ...project, vendorTeamByPlanner: true }, trade: "dj", answered: false, today }), false);
-  assert.equal(vendorAskOwed({ project: { ...project, importedAt: "2026-09-01T00:00:00Z" }, trade: "dj", answered: false, today }), false);
+  assert.equal(vendorAskOwed({ project: { ...project, importedAt: "2026-09-01T00:00:00Z", clientAutomationsPausedAt: "2026-09-01T00:00:00Z" }, trade: "dj", answered: false, today }), false);
+  assert.equal(vendorAskOwed({ project: { ...project, importedAt: "2026-09-01T00:00:00Z" }, trade: "dj", answered: false, today }), true, "brought in");
   assert.equal(vendorAskOwed({ project: { ...project, eventKind: "portraits" }, trade: "photographer", answered: false, today }), false);
   assert.equal(vendorAskOwed({ project, trade: "hair", answered: false, today: "2027-06-12" }), false);
 

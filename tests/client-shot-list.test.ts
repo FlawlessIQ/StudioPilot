@@ -30,7 +30,10 @@ test("asked four weeks out by default, at photo studios, for booked weddings onl
   assert.equal(due(wedding, "2027-06-12"), false, "never on the day");
   assert.equal(due({ ...wedding, state: "PROPOSAL" }, "2027-05-20"), false, "not booked");
   assert.equal(due({ ...wedding, eventKind: "family" }, "2027-05-20"), false, "weddings only");
-  assert.equal(due({ ...wedding, importedAt: "2026-01-01" }, "2027-05-20"), false, "imported stays quiet");
+  assert.equal(due({ ...wedding, importedAt: "2026-01-01", clientAutomationsPausedAt: "2026-01-01" }, "2027-05-20"), false, "imported stays quiet");
+  // Brought in, an imported couple is asked like any other: `importedAt`
+  // never clears, and "Ask now" did nothing (imported-job walk, 2026-10-27).
+  assert.equal(due({ ...wedding, importedAt: "2026-01-01" }, "2027-05-20"), true, "imported and brought in");
   assert.equal(due({ ...wedding, clientAutomationsPausedAt: "2027-05-01" }, "2027-05-20"), false, "paused stays quiet");
   assert.equal(due(wedding, "2027-05-20", "dj"), false, "a DJ has no shot list");
   assert.equal(due(wedding, "2027-05-20", "photographer", { ...timeline, shotListUpload: false }), false, "turned off");

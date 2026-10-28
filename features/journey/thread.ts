@@ -328,8 +328,15 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
 
   // ── Contracts ──────────────────────────────────────────────────────
   for (const contract of rows(input.contracts)) {
-    const sent = firstAt(contract, "sentAt", "createdAt");
     const status = text(contract.status);
+    // Signed before StudioCue and recorded at import, or recorded by hand:
+    // nothing was sent for signature, and no provider verified it. An
+    // imported job's history read "Agreement sent for signature" dated the
+    // day of the import, and "Verified by the signing provider" (imported-job
+    // walk, 2026-10-27).
+    const authority = text(contract.completionAuthority);
+    const recorded = authority === "imported" || authority === "manual_attested";
+    const sent = recorded ? "" : firstAt(contract, "sentAt", "createdAt");
     push(
       sent
         ? {
@@ -356,10 +363,15 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
         ? {
             id: `contract-signed-${contract.id}`,
             at: completed,
-            actor: "provider",
+            actor: recorded ? "studio" : "provider",
             kind: "system",
-            title: "Agreement fully signed",
-            detail: "Verified by the signing provider",
+            title: authority === "imported" ? "Agreement signed before StudioCue" : "Agreement fully signed",
+            detail:
+              authority === "imported"
+                ? "Recorded by you when you imported the booking"
+                : authority === "manual_attested"
+                  ? "Recorded by you"
+                  : "Verified by the signing provider",
             artifact: null,
             files: FILE_BEARING.contracts(contract),
           }

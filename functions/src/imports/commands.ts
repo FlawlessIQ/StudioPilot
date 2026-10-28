@@ -536,6 +536,8 @@ export async function importExistingBooking(input: {
       bookingDate: input.booking.signedOn,
       importedOn: today,
       balanceOwed: balanceOwedCents(input.booking) > 0,
+      retainerOwed: (input.booking.retainerOwedCents ?? 0) > 0,
+      eventAhead: input.booking.eventDate >= today,
     },
   });
 

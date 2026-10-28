@@ -139,7 +139,7 @@ test("an imported booking with money owed keeps its final balance open", () => {
   const workflow = read("functions/src/workflow/commands.ts");
   assert.match(
     workflow,
-    /checkpoint\.resolvedDueDate < importedOn &&\s*!\(input\.imported\.balanceOwed && checkpoint\.templateKey === "final-balance"\)/,
+    /checkpoint\.resolvedDueDate < importedOn &&\s*settledBeforeImport &&\s*!\(input\.imported\.balanceOwed && checkpoint\.templateKey === "final-balance"\)/,
   );
   const imports = read("functions/src/imports/commands.ts");
   assert.match(imports, /balanceOwed: balanceOwedCents\(input\.booking\) > 0/);

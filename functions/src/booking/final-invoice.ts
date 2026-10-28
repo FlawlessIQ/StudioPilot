@@ -111,7 +111,15 @@ export async function raiseFinalInvoice(
   // Another final is still owed: one bill for one balance.
   if (standing.some((invoice) => invoice.get("kind") === "final" && Number(invoice.get("balanceCents") ?? 0) > 0))
     return { raised: false, reason: "final_outstanding" };
-  const retainer = standing.find((invoice) => invoice.get("kind") === "retainer") ?? null;
+  /**
+   * Every retainer on the job, not the first one found. An import with some
+   * paid and some still owed has two (imports/existing-booking.ts): the final
+   * took off one of them, so it overcharged by the other — or asked for the
+   * whole total when the one it found was the owed one, still unpaid
+   * (imported-job walk, 2026-10-27). The one that names a customer bills.
+   */
+  const retainers = standing.filter((invoice) => invoice.get("kind") === "retainer");
+  const retainer = retainers.find((invoice) => invoice.get("providerCustomerId")) ?? retainers[0] ?? null;
   /**
    * A retainer the studio waived is a retainer satisfied, with nothing paid.
    *
@@ -133,7 +141,10 @@ export async function raiseFinalInvoice(
             .limit(5),
         )
       ).docs.find((exception) => exception.get("status") === "approved") ?? null;
-  if (!retainer && !waiver && !options.billedWithoutRetainer) return { raised: false, reason: "no_retainer" };
+  // An import with nothing paid and nothing owed booked on paper: there is no
+  // retainer record to bill after, and its balance is the whole total.
+  if (!retainer && !waiver && !options.billedWithoutRetainer && !project.get("importedAt"))
+    return { raised: false, reason: "no_retainer" };
   // Billed by whoever billed the retainer; a retainer recorded by hand names
   // no provider, and then the studio's invoicing provider decides. Before
   // this, every final went to QuickBooks — a Stripe studio's final carried a
@@ -209,7 +220,13 @@ export async function raiseFinalInvoice(
         Number(packageSnapshot.get("retainerCents") ?? 0),
       )
     : 0;
-  const retainerPaidCents = retainer ? paidOf(retainer) : 0;
+  const retainerPaidCents = retainers.reduce((sum, invoice) => sum + paidOf(invoice), 0);
+  // A retainer still owed is billed on its own bill, as an installment is:
+  // the final leaves it there rather than asking for it twice.
+  const retainerOpenCents = retainers.reduce(
+    (sum, invoice) => sum + Math.max(0, Number(invoice.get("amountCents") ?? 0) - paidOf(invoice)),
+    0,
+  );
   const earlierFinalsPaidCents = standing
     .filter((invoice) => invoice.get("kind") === "final")
     .reduce((sum, invoice) => sum + paidOf(invoice), 0);
@@ -218,7 +235,7 @@ export async function raiseFinalInvoice(
     .filter((invoice) => invoice.get("kind") === "installment")
     .sort((a, b) => Number(a.get("installmentSequence") ?? 0) - Number(b.get("installmentSequence") ?? 0));
   const installmentsCents = installmentsBilledCents(installments.map((invoice) => invoice.data() as Record<string, unknown>));
-  const amountCents = totalCents - retainerPaidCents - earlierFinalsPaidCents - installmentsCents;
+  const amountCents = totalCents - retainerPaidCents - retainerOpenCents - earlierFinalsPaidCents - installmentsCents;
   if (!Number.isSafeInteger(totalCents) || !Number.isSafeInteger(amountCents) || amountCents <= 0)
     return { raised: false, reason: "nothing_owed" };
 
@@ -240,9 +257,9 @@ export async function raiseFinalInvoice(
         : { label: "Approved tax", amountCents: taxCents, source },
       retainer
         ? {
-            label: "Retainer payment received",
+            label: retainers.length > 1 ? "Retainer payments received" : "Retainer payment received",
             amountCents: -retainerPaidCents,
-            source: `invoiceReferences/${retainer.id}`,
+            source: retainers.length > 1 ? "invoiceReferences" : `invoiceReferences/${retainer.id}`,
           }
         : waiver
           ? {
@@ -255,6 +272,9 @@ export async function raiseFinalInvoice(
               amountCents: 0,
               source: "job_kind",
             },
+      ...(retainerOpenCents
+        ? [{ label: "Retainer still owed, billed separately", amountCents: -retainerOpenCents, source: "invoiceReferences" }]
+        : []),
       ...(earlierFinalsPaidCents
         ? [{ label: "Earlier balance payments received", amountCents: -earlierFinalsPaidCents, source: "invoiceReferences" }]
         : []),
@@ -289,8 +309,9 @@ export async function raiseFinalInvoice(
     ];
     const credits = [
       ...(retainerPaidCents
-        ? [{ description: `Deposit paid${retainer?.get("number") ? ` (${String(retainer.get("number"))})` : ""}`, amountCents: retainerPaidCents }]
+        ? [{ description: `Deposit paid${retainers.length === 1 && retainer?.get("number") ? ` (${String(retainer.get("number"))})` : ""}`, amountCents: retainerPaidCents }]
         : []),
+      ...(retainerOpenCents ? [{ description: "Deposit, billed separately", amountCents: retainerOpenCents }] : []),
       ...(earlierFinalsPaidCents ? [{ description: "Earlier balance payments", amountCents: earlierFinalsPaidCents }] : []),
       // Each installment of a payment plan: paid, or billed on its own.
       ...installments.map((invoice) => {

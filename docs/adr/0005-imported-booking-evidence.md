@@ -116,3 +116,14 @@ row goes in (features/imports/import-questions.ts), and the answers travel
 with the booking as `confirmations`. They are stored on the job as
 `importConfirmations`, with who answered and when: the studio's word that it
 checked, alongside its word that the contract was signed.
+
+## Amendment, 2026-10-27: after the import
+
+An imported job walked forward on production (one 11 days out, one in editing) found the import right and what followed it wrong:
+
+- **Steps due before the import.** Still recorded as done before StudioCue, but for a day still to come only the booking and the money (`Booking` and `Payments` checkpoints, and not a retainer still owed). Planning, certificate, crew, schedule and shot-list steps stay open: a wedding 11 days out came in "2 things before the day" with two photographers sold and nobody booked.
+- **Booking changes.** An imported job has no accepted proposal, and "Change the booking" refused it. The change is now written against what the import recorded (`contracts/imported-amendment-base.ts`); signed, it files as the job's first accepted proposal.
+- **The final bill** takes off every retainer record (paid and owed), and an import with nothing paid can be billed its whole balance.
+- **Quiet means paused, not imported.** Couple-facing features gate on `clientOutreachStop` (the pause), never on `importedAt`, which never clears: brought in, an imported couple is asked for their shot list and vendors like any other.
+- **Final details sign-off** is not opened on an imported job with no form back and no signed contract read: there is nothing to confirm.
+- **History** says an imported agreement was signed before StudioCue, not sent for signature or verified by a provider.
