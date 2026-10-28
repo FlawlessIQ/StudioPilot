@@ -19,6 +19,8 @@ export type LifecycleProject = {
   eventDate: string | null; // YYYY-MM-DD
   /** Set while an imported booking is being held quiet. */
   clientAutomationsPausedAt?: string | null;
+  /** An imported booking: when the studio brought the couple in. */
+  broughtLiveAt?: string | null;
 };
 
 export type DueLifecycleMessage = {
@@ -70,12 +72,16 @@ export function dueLifecycleMessages(input: {
   if (typeof project.clientAutomationsPausedAt === "string") return [];
   if (!project.eventDate || !ACTIVE_STATES.has(project.state)) return [];
   if (today >= project.eventDate) return [];
+  // Brought in later: what fell due while it was quiet is skipped, not
+  // caught up all at once (functions/src/communications/lifecycle-core.ts).
+  const broughtLiveOn = typeof project.broughtLiveAt === "string" ? project.broughtLiveAt.slice(0, 10) : "";
   const due: DueLifecycleMessage[] = [];
   for (const trigger of lifecycleTriggers) {
     const setting = settings[trigger];
     if (!setting.enabled) continue;
     const dueOn = addDays(project.eventDate, setting.offsetDays);
     if (!dueOn || today < dueOn) continue;
+    if (broughtLiveOn && dueOn < broughtLiveOn) continue;
     due.push({
       trigger,
       projectId: project.id,

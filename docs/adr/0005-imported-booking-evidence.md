@@ -127,3 +127,10 @@ An imported job walked forward on production (one 11 days out, one in editing) f
 - **Quiet means paused, not imported.** Couple-facing features gate on `clientOutreachStop` (the pause), never on `importedAt`, which never clears: brought in, an imported couple is asked for their shot list and vendors like any other.
 - **Final details sign-off** is not opened on an imported job with no form back and no signed contract read: there is nothing to confirm.
 - **History** says an imported agreement was signed before StudioCue, not sent for signature or verified by a provider.
+
+And the second pass, the same day:
+
+- **Quiet time is the old system's time.** A lifecycle message that fell due before the couple was brought in (`broughtLiveAt`) is skipped, not caught up all at once on bring-in, as steps due before the import are done before StudioCue. A review ask due while the job is quiet waits a day at a time instead of being skipped for good.
+- **Imported after the day,** the journey shows what the day overtook as "Before StudioCue", not "missed" (`JourneyInput.importedOn`).
+- **An unbilled balance is visible:** Invoices counts final balances due and on no bill ("Not billed yet"), and the job's Final balance step says "Due now — not billed yet".
+- The Plan brief says what crew the package sold and how many are still to book; the history opens with the import and the bring-in; the import preview names the couple as the job is named.

@@ -11,6 +11,7 @@ import {
   ledgerRows,
   ledgerStateLabel,
   ledgerTotals,
+  unbilledFinalBalances,
   type LedgerFilter,
   type LedgerRow,
 } from "@/features/billing/invoice-ledger";
@@ -38,6 +39,10 @@ export function InvoiceLedger({ projectId }: { projectId?: string }) {
   const { records: invoices, loading } = useTenantDocuments("invoiceReferences");
   const { records: projects } = useTenantDocuments("projects");
   const { records: contacts } = useTenantDocuments("contacts");
+  const { records: proposals } = useTenantDocuments("proposals");
+  const { records: packageSnapshots } = useTenantDocuments("packageSnapshots");
+  const { records: billingSettings } = useTenantDocuments("billingSettings");
+  const { records: connections } = useTenantDocuments("integrationConnections");
   const [filter, setFilter] = useState<LedgerFilter>("all");
   const [notice, setNotice] = useState<string | null>(null);
   const [pdfLink, setPdfLink] = useState<{ id: string; url: string } | null>(null);
@@ -47,6 +52,12 @@ export function InvoiceLedger({ projectId }: { projectId?: string }) {
     [invoices, projects, contacts, today, projectId],
   );
   const totals = useMemo(() => ledgerTotals(rows), [rows]);
+  // Due, and not on any bill yet: the totals above count bills only.
+  const unbilled = useMemo(
+    () =>
+      unbilledFinalBalances({ projects, proposals, invoices, packageSnapshots, billingSettings, connections, today, projectId: projectId ?? null }),
+    [projects, proposals, invoices, packageSnapshots, billingSettings, connections, today, projectId],
+  );
   const shown = useMemo(() => filterLedger(rows, filter), [rows, filter]);
 
   function downloadCsv() {
@@ -99,6 +110,13 @@ export function InvoiceLedger({ projectId }: { projectId?: string }) {
           <strong>{formatCentsExact(totals.draftCents)}</strong>
           {totals.draftCount ? <span>{`${totals.draftCount} ${totals.draftCount === 1 ? "invoice" : "invoices"}`}</span> : null}
         </div>
+        {unbilled.count ? (
+          <div className="is-late">
+            <small>Not billed yet</small>
+            <strong>{formatCentsExact(unbilled.cents)}</strong>
+            <span>{`${unbilled.count} final ${unbilled.count === 1 ? "balance" : "balances"} due, on no bill`}</span>
+          </div>
+        ) : null}
         <div>
           <small>Received</small>
           <strong>{formatCentsExact(totals.paidCents)}</strong>

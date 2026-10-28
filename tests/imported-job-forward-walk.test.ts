@@ -172,3 +172,107 @@ test("an import whose day is still ahead leaves the day's preparation open", () 
   const imports = readFileSync("functions/src/imports/commands.ts", "utf8");
   assert.match(imports, /eventAhead: input\.booking\.eventDate >= today/);
 });
+
+// ── The second pass: what the walk left open ───────────────────────────────
+
+test("the import preview names the couple as the job will be named", () => {
+  // "Ivy & Sam Northwalk" for Ivy Northwalk and Sam Reed.
+  const preview = readFileSync("components/imports/spreadsheet-booking-import.tsx", "utf8");
+  assert.match(preview, /label: `\$\{\("projectName" in record && record\.projectName\) \|\| defaultBookingName\(record\.clients\)\} · \$\{record\.eventDate\}`/);
+});
+
+test("an imported job's history starts where it came from, and says when the couple was brought in", async () => {
+  const { projectThread } = await import("../features/journey/thread.ts");
+  const entries = projectThread({
+    projectId: "p",
+    projectName: "Ivy Northwalk & Sam Reed",
+    projectCreatedAt: "2026-10-27T12:00:00.000Z",
+    importedAt: "2026-10-27T12:00:00.000Z",
+    broughtLiveAt: "2026-10-28T09:00:00.000Z",
+    clientName: "Ivy",
+  });
+  const titles = entries.map((entry) => entry.title);
+  assert.ok(titles.includes("You imported this booking"));
+  assert.ok(titles.includes("You brought the client into StudioCue"));
+  const native = projectThread({ projectId: "p", projectName: "Native", projectCreatedAt: "2026-10-27T12:00:00.000Z", clientName: "Ivy" });
+  assert.ok(!native.some((entry) => entry.id === "imported"));
+});
+
+test("a job imported after its day shows what the day overtook as before StudioCue, not missed", async () => {
+  const { projectJourney } = await import("../features/journey/steps.ts");
+  const input = {
+    projectId: "p",
+    state: "POST_PRODUCTION",
+    eventDate: "2026-10-17",
+    today: "2026-10-27",
+    lead: null,
+    hasConsultation: true,
+    proposalStatus: null,
+    contractStatus: "completed",
+    retainerInvoiceStatus: "paid",
+    finalInvoiceStatus: null,
+    questionnaireStatus: null,
+    questionnaireHasAnswers: false,
+    scheduleStatus: null,
+    scheduleHasUsableItems: false,
+    crewAccepted: 0,
+    crewCascadeActive: false,
+    coiStatus: null,
+    dayBeforeDraftStatus: null,
+    hasDelivery: false,
+    albumOrReviewDone: false,
+  } as Parameters<typeof projectJourney>[0];
+  const native = projectJourney(input).steps;
+  assert.ok(native.some((step) => step.status === "passed"), "a native job's undone prep is still missed");
+  const imported = projectJourney({ ...input, importedOn: "2026-10-27" }).steps;
+  assert.equal(imported.filter((step) => step.status === "passed").length, 0);
+  assert.ok(imported.some((step) => step.detail === "Before StudioCue"));
+  // Imported before the day: what's missed is missed.
+  const early = projectJourney({ ...input, importedOn: "2026-10-01" }).steps;
+  assert.ok(early.some((step) => step.status === "passed"));
+});
+
+test("a due final balance on no bill is counted on Invoices, and the job says it isn't billed", async () => {
+  const { unbilledFinalBalances } = await import("../features/billing/invoice-ledger.ts");
+  const job = { id: "p", tenantId: "t", state: "BOOKED", eventDate: "2026-11-07", packageSnapshotId: "s", importedAt: "2026-10-27T12:00:00.000Z" };
+  const input = {
+    projects: [job],
+    proposals: [],
+    invoices: [{ id: "r", tenantId: "t", projectId: "p", kind: "retainer", status: "paid", amountCents: 150000, balanceCents: 0 }],
+    packageSnapshots: [{ id: "s", tenantId: "t", totalCents: 420000, taxCents: 0 }],
+    billingSettings: [],
+    connections: [],
+    today: "2026-10-27",
+    projectId: null,
+  };
+  assert.deepEqual(unbilledFinalBalances(input), { cents: 270000, count: 1 });
+  // Quiet, months away, or already on a final bill: not counted.
+  assert.equal(unbilledFinalBalances({ ...input, projects: [{ ...job, clientAutomationsPausedAt: "2026-10-27" }] }).count, 0);
+  assert.equal(unbilledFinalBalances({ ...input, projects: [{ ...job, eventDate: "2027-06-01" }] }).count, 0);
+  assert.equal(
+    unbilledFinalBalances({ ...input, invoices: [...input.invoices, { id: "f", tenantId: "t", projectId: "p", kind: "final", status: "sent", amountCents: 270000, balanceCents: 270000 }] }).count,
+    0,
+  );
+  assert.match(readFileSync("features/journey/steps.ts", "utf8"), /finalDue && !input\.finalInvoiceStatus\s*\? "Due now — not billed yet"/);
+});
+
+test("the plan says how much crew the package sold, not 'shooting solo'", () => {
+  const brief = readFileSync("components/projects/wedding-brief.tsx", "utf8");
+  assert.match(brief, /crewRequiredFromCoverage\(coverage, ownerShootsJob\(project\)\)/);
+  assert.match(brief, /sold — \$\{toBook\} still to book/);
+});
+
+test("messages that fell due while a job was quiet are skipped, not sent all at once; review asks wait", async () => {
+  const { dueLifecycleMessages } = await import("../functions/src/communications/lifecycle-core.ts");
+  const { dueLifecycleMessages: shown } = await import("../features/messaging/lifecycle.ts");
+  const { defaultLifecycleMessagingSettings } = await import("../features/messaging/schema.ts");
+  const project = { id: "p", tenantId: "t", state: "BOOKED", eventDate: "2026-11-07" };
+  for (const due of [dueLifecycleMessages, shown]) {
+    const caughtUp = due({ project, settings: defaultLifecycleMessagingSettings as never, today: "2026-10-28" });
+    const brought = due({ project: { ...project, broughtLiveAt: "2026-10-28T09:00:00.000Z" }, settings: defaultLifecycleMessagingSettings as never, today: "2026-10-28" });
+    assert.ok(caughtUp.length > brought.length, "a job booked late still catches up");
+    assert.ok(brought.every((message) => message.dueOn >= "2026-10-28"));
+  }
+  const reviews = readFileSync("functions/src/post-event/jobs.ts", "utf8");
+  assert.match(reviews, /if \(stop === "automations_paused"\) \{[\s\S]{0,200}scheduledAt: new Date\(Date\.parse\(now\) \+ 86_400_000\)/);
+});

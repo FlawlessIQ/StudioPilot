@@ -260,6 +260,7 @@ export function useProjectJourney({
     trade: tenantTrade,
     state: projectState,
     eventDate,
+    importedOn: text(journeyProject?.importedAt).slice(0, 10) || null,
     today: todayLocalIso(),
     lead: lead
           ? {

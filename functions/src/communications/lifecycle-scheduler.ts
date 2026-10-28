@@ -82,6 +82,7 @@ export const lifecycleMessageScheduler = onSchedule(
           eventDate: text(project.get("eventDate")) || null,
           clientAutomationsPausedAt:
             text(project.get("clientAutomationsPausedAt")) || null,
+          broughtLiveAt: text(project.get("broughtLiveAt")) || null,
         },
         settings: tenantEntry.settings,
         today,

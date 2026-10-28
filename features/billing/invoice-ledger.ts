@@ -10,8 +10,14 @@
  */
 
 import { installmentName } from "@/features/billing/payment-plan";
+import { invoiceRecordsDeleted } from "@/features/billing/invoice-purge-policy";
+import { journeyPaymentPlan } from "@/features/billing/payment-plan-view";
+import { studioTaxRateFor } from "@/features/billing/job-billing-from-records";
+import { balanceMayBeAttested } from "@/features/booking/agreed-final-balance";
+import { balanceFallbackSnapshot, outstandingFinalBalance } from "@/features/booking/final-balance-due";
 
 type Row = Readonly<Record<string, unknown>>;
+type IdRow = Row & { id: string };
 
 export type LedgerSource = "studio" | "quickbooks" | "stripe" | "recorded";
 
@@ -255,4 +261,54 @@ export function ledgerCsv(rows: readonly LedgerRow[]): string {
       .join(","),
   );
   return [header.join(","), ...lines].join("\r\n") + "\r\n";
+}
+
+/**
+ * Final balances that are due and that nothing has billed: not invoices, so
+ * not in the totals above. An imported wedding 11 days out had $2,700 to pay
+ * and no bill, and the ledger read $0 outstanding, $0 overdue, $0 not sent
+ * (imported-job walk, 2026-10-27). Due from four weeks before the day, when
+ * the scheduler raises a booking's own; the same arithmetic as the job's
+ * "final balance hasn't been billed" card (final-invoice-reconciliation.tsx).
+ */
+export function unbilledFinalBalances(input: {
+  projects: readonly IdRow[] | null | undefined;
+  proposals: readonly IdRow[] | null | undefined;
+  invoices: readonly IdRow[] | null | undefined;
+  packageSnapshots: readonly IdRow[] | null | undefined;
+  billingSettings: readonly IdRow[] | null | undefined;
+  connections: readonly IdRow[] | null | undefined;
+  today: string;
+  projectId: string | null;
+}): { cents: number; count: number } {
+  const inFour = new Date(Date.parse(`${input.today}T12:00:00Z`) + 28 * 86_400_000).toISOString().slice(0, 10);
+  let cents = 0;
+  let count = 0;
+  for (const project of input.projects ?? []) {
+    const projectId = String(project.id ?? "");
+    if (!projectId || (input.projectId && projectId !== input.projectId)) continue;
+    if (project.archivedAt || project.clientAutomationsPausedAt || !balanceMayBeAttested(String(project.state ?? ""))) continue;
+    const eventDate = typeof project.eventDate === "string" ? project.eventDate.slice(0, 10) : "";
+    if (!eventDate || eventDate > inFour) continue;
+    const plan = journeyPaymentPlan({ projectId, proposals: input.proposals, invoices: input.invoices, today: input.today });
+    if (plan?.installmentsPending) continue;
+    const due = outstandingFinalBalance({
+      projectId,
+      proposals: input.proposals,
+      invoices: input.invoices,
+      studioTaxBasisPoints: studioTaxRateFor({
+        projectId,
+        project,
+        connections: input.connections,
+        invoices: input.invoices,
+        billingSettings: (input.billingSettings ?? []).find((record) => record.tenantId === project.tenantId) ?? null,
+      }),
+      recordsDeleted: invoiceRecordsDeleted(project),
+      packageSnapshot: balanceFallbackSnapshot(project, input.packageSnapshots),
+    });
+    if (!due.cents || due.finalStanding) continue;
+    cents += due.cents;
+    count += 1;
+  }
+  return { cents, count };
 }

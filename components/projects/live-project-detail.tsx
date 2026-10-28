@@ -1286,6 +1286,8 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
     projectName: String(project?.name ?? "This job"),
     projectCreatedAt:
       typeof project?.createdAt === "string" ? project.createdAt : null,
+    importedAt: typeof project?.importedAt === "string" ? project.importedAt : null,
+    broughtLiveAt: typeof project?.broughtLiveAt === "string" ? project.broughtLiveAt : null,
     contactIds: Array.isArray(project?.clientContactIds)
       ? project.clientContactIds.filter(
           (value): value is string => typeof value === "string",

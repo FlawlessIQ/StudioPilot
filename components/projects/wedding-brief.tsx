@@ -15,6 +15,9 @@ import {
   UsersRound,
 } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { combineCoverage, describeCoverage, resolveCoverage } from "@/features/packages/coverage";
+import { jobPackageSnapshotIds } from "@/features/packages/job-packages";
+import { crewRequiredFromCoverage, ownerShootsJob } from "@/features/crew/staffing-plan";
 import { useProjectJourney } from "@/components/projects/use-project-journey";
 import {
   briefFacts,
@@ -67,6 +70,7 @@ export function WeddingBrief({ projectId }: { projectId: string }) {
   const schedules = useTenantDocuments("schedules");
   const assignments = useTenantDocuments("crewAssignments");
   const profiles = useTenantDocuments("crewProfiles");
+  const packageSnapshots = useTenantDocuments("packageSnapshots");
   const project = (projects.records ?? []).find((row) => row.id === projectId) as Row | undefined;
   const { steps } = useProjectJourney({
     projectId,
@@ -130,6 +134,15 @@ export function WeddingBrief({ projectId }: { projectId: string }) {
     "Crew member";
 
   if (!project) return null;
+  // What the package sold, for a job with nobody booked yet: "shooting solo"
+  // on a wedding sold with two photographers read as nothing to do
+  // (imported-job walk, 2026-10-27).
+  const coverage = combineCoverage(
+    jobPackageSnapshotIds(project).map((id) =>
+      resolveCoverage(((packageSnapshots.records ?? []) as Row[]).find((snapshot) => snapshot.id === id) ?? null),
+    ),
+  );
+  const toBook = jobPackageSnapshotIds(project).length ? crewRequiredFromCoverage(coverage, ownerShootsJob(project)) : 0;
   const timeZone = text(project.timezone) || undefined;
   // The kind's words: "Session brief", "the family" (job-kinds.ts).
   const words = vocab(jobKindOf(project));
@@ -269,7 +282,11 @@ export function WeddingBrief({ projectId }: { projectId: string }) {
               ))}
             </ul>
           ) : (
-            <p className="wedding-brief-empty">{`No crew on this job — ${verb}ing solo unless you add someone.`}</p>
+            <p className="wedding-brief-empty">
+              {toBook
+                ? `${describeCoverage(coverage)} sold — ${toBook} still to book.`
+                : `No crew on this job — ${verb}ing solo unless you add someone.`}
+            </p>
           )}
           <Link className="wedding-brief-link" href={`/studio/crew?project=${projectId}`}>
             Crew for this job <ArrowRight size={13} />

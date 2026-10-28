@@ -242,6 +242,14 @@ export type JourneyInput = {
   eventDate: string | null; // YYYY-MM-DD
   today: string; // YYYY-MM-DD
   /**
+   * The day a booking imported from before StudioCue came in (YYYY-MM-DD).
+   * A step the event overtook before then happened before StudioCue — or
+   * didn't, outside it — and is not "missed": a job imported in editing read
+   * "8/15 · 4 missed" for a form, a run of show, a call and a checklist that
+   * belonged to the studio's old system (imported-job walk, 2026-10-27).
+   */
+  importedOn?: string | null;
+  /**
    * The inquiry this job came from. `replied` is read from the thread
    * (features/inquiries/next-move.ts); without it, only a lead's status can
    * say, and "converted" no longer means anyone replied — every dated
@@ -1687,7 +1695,12 @@ export function projectJourney(input: JourneyInput): {
         ? "Past its due date — worth a nudge"
         : finalWaiting
           ? "Invoice with the client"
-          : `Total − ${tradeVocab(input.trade).deposit}, computed exactly · one month out`,
+          : // Due and on no bill: an import, whose balance nothing raises
+            // by itself, read "one month out" eleven days before the
+            // wedding (imported-job walk, 2026-10-27).
+            finalDue && !input.finalInvoiceStatus
+            ? "Due now — not billed yet"
+            : `Total − ${tradeVocab(input.trade).deposit}, computed exactly · one month out`,
     status: finalDone
       ? "complete"
       : finalOverdue
@@ -1968,6 +1981,17 @@ export function projectJourney(input: JourneyInput): {
    * the history of the job — and only the *current* step is dropped, so nothing
    * asks the studio for work on a job that is not live.
    */
+  // Imported after its day: what the day overtook was before StudioCue, as
+  // the readiness checks record it (workflow/commands.ts, import branch).
+  const importedOn = typeof input.importedOn === "string" ? input.importedOn.slice(0, 10) : "";
+  if (importedOn && input.eventDate && input.eventDate < importedOn)
+    for (const step of steps)
+      if (step.status === "passed") {
+        step.status = "complete";
+        step.detail = "Before StudioCue";
+        step.explain = true;
+        step.action = null;
+      }
   if (["POSTPONED", "CANCELLED", "ARCHIVED"].includes(String(input.state))) {
     return { steps, current: null };
   }

@@ -71,6 +71,13 @@ export type ThreadInput = {
   projectId: string;
   projectName: string;
   projectCreatedAt: string | null;
+  /**
+   * A booking imported from before StudioCue, and when the studio brought the
+   * couple in. Its history began with the paper agreement and had nothing to
+   * say where the job came from (imported-job walk, 2026-10-27).
+   */
+  importedAt?: string | null;
+  broughtLiveAt?: string | null;
   clientName: string | null;
   lead?: ThreadRecord | null;
   /**
@@ -136,6 +143,30 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
   };
 
   // ── The beginning ──────────────────────────────────────────────────
+  if (input.importedAt) {
+    push({
+      id: "imported",
+      at: input.importedAt,
+      actor: "studio",
+      kind: "system",
+      title: "You imported this booking",
+      detail: "Booked before StudioCue. Nothing was sent to the client until you brought them in.",
+      artifact: null,
+    });
+    push(
+      input.broughtLiveAt
+        ? {
+            id: "brought-in",
+            at: input.broughtLiveAt,
+            actor: "studio",
+            kind: "system",
+            title: "You brought the client into StudioCue",
+            detail: "From here StudioCue emails them as it would any booking.",
+            artifact: null,
+          }
+        : null,
+    );
+  }
   if (input.lead) {
     const lead = input.lead;
     const at = firstAt(lead, "createdAt", "receivedAt", "updatedAt");

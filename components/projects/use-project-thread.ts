@@ -59,6 +59,9 @@ export function useProjectThread(input: {
   projectId: string;
   projectName: string;
   projectCreatedAt: string | null;
+  /** An imported booking: when it came in, and when the couple was brought in. */
+  importedAt?: string | null;
+  broughtLiveAt?: string | null;
   contactIds: string[];
   leadId: string | null;
 }): { entries: ThreadEntry[]; openConsultationId: string | null } {
@@ -107,6 +110,8 @@ export function useProjectThread(input: {
     projectId: input.projectId,
     projectName: input.projectName,
     projectCreatedAt: input.projectCreatedAt,
+    importedAt: input.importedAt ?? null,
+    broughtLiveAt: input.broughtLiveAt ?? null,
     clientName,
     lead:
       (leads.records ?? []).find(

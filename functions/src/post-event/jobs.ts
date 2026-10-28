@@ -49,6 +49,20 @@ export const reviewRequestScheduler = onSchedule(
         const stop = project.exists
           ? clientOutreachStop(project.data())
           : "put_away";
+        // Quiet (an import not yet brought in): the ask waits, a day at a
+        // time, rather than being skipped for good — a delivered wedding
+        // imported quiet and brought in later was never asked for a review
+        // (imported-job walk, 2026-10-27). Moved on, not left due, so held
+        // asks never crowd the front of this queue.
+        if (stop === "automations_paused") {
+          transaction.update(current.ref, {
+            scheduledAt: new Date(Date.parse(now) + 86_400_000).toISOString(),
+            heldWhileQuiet: true,
+            updatedAt: now,
+            updatedBy: "review-request-scheduler",
+          });
+          return;
+        }
         if (stop) {
           transaction.update(current.ref, {
             status: "skipped",

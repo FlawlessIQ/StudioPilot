@@ -88,6 +88,8 @@ export function dueLifecycleMessages(input: {
     state: string;
     eventDate: string | null;
     clientAutomationsPausedAt?: string | null;
+    /** An imported booking: when the studio brought the couple in. */
+    broughtLiveAt?: string | null;
   };
   settings: LifecycleMessagingSettings;
   today: string;
@@ -105,6 +107,11 @@ export function dueLifecycleMessages(input: {
   if (typeof project.clientAutomationsPausedAt === "string") return [];
   if (!project.eventDate || !ACTIVE_STATES.has(project.state)) return [];
   if (today >= project.eventDate) return [];
+  // Brought in later: a message due while it was quiet belonged to the
+  // studio's old system, as the steps due before the import did. Caught up,
+  // a wedding brought in 11 days out got its 30-day message and its
+  // final-balance notice on the same morning (imported-job walk, 2026-10-27).
+  const broughtLiveOn = typeof project.broughtLiveAt === "string" ? project.broughtLiveAt.slice(0, 10) : "";
   const due: Array<{
     trigger: LifecycleTrigger;
     projectId: string;
@@ -117,6 +124,7 @@ export function dueLifecycleMessages(input: {
     if (!setting.enabled) continue;
     const dueOn = addDays(project.eventDate, setting.offsetDays);
     if (!dueOn || today < dueOn) continue;
+    if (broughtLiveOn && dueOn < broughtLiveOn) continue;
     due.push({
       trigger,
       projectId: project.id,

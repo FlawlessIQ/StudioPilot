@@ -331,7 +331,9 @@ export function SpreadsheetBookingImport() {
       const record = candidate.kind === "booking" ? candidate.booking : candidate.inquiry;
       return {
         ...base,
-        label: `${record.clients.map((client) => client.firstName).join(" & ")} ${record.clients[0]!.lastName} · ${record.eventDate}`,
+        // The name the job will have: "Ivy Northwalk & Sam Reed", never
+        // "Ivy & Sam Northwalk" when they don't share a surname (2026-10-27).
+        label: `${("projectName" in record && record.projectName) || defaultBookingName(record.clients)} · ${record.eventDate}`,
         candidate,
         problems: [],
         notes: result.notes,
