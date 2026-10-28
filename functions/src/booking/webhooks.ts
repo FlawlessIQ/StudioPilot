@@ -155,6 +155,23 @@ export const docusignWebhook = onRequest(
 // signing replaced it and Dropbox Sign is not an offered integration
 // (features/integrations/schema.ts), so the endpoint only widened the surface.
 
+/**
+ * The studio a QuickBooks company's webhook belongs to.
+ *
+ * It took the first connection with the company's id, connected or not: a
+ * company that had been connected to another studio before sent that studio
+ * its payments (QuickBooks sandbox walk, 2026-10-28 — three studios on one
+ * company, the oldest disconnected one took them). The connected one, and of
+ * several the most recently connected.
+ */
+export function quickBooksWebhookConnection<T extends { get(field: string): unknown }>(connections: readonly T[]): T | undefined {
+  const when = (connection: T) => String(connection.get("updatedAt") ?? connection.get("connectedAt") ?? connection.get("createdAt") ?? "");
+  const live = connections
+    .filter((connection) => connection.get("status") === "connected")
+    .sort((left, right) => when(right).localeCompare(when(left)));
+  return live[0] ?? connections[0];
+}
+
 export const quickbooksWebhook = onRequest(
   { cors: false, invoker: "private", secrets: ["QUICKBOOKS_WEBHOOK_VERIFIER_TOKEN"] },
   async (request, response) => {
@@ -174,9 +191,9 @@ export const quickbooksWebhook = onRequest(
       const connections = await firestore.collection("integrationConnections")
         .where("provider", "==", "quickbooks")
         .where("providerAccountId", "==", event.realmId)
-        .limit(1)
+        .limit(20)
         .get();
-      const connection = connections.docs[0];
+      const connection = quickBooksWebhookConnection(connections.docs);
       if (!connection) {
         console.warn("quickbooks_webhook_connection_not_found", {
           providerEventId: event.providerEventId,

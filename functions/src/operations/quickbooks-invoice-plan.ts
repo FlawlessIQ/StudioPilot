@@ -311,6 +311,7 @@ async function planInvoiceLines(db: Firestore, invoice: DocumentSnapshot): Promi
       retainerPaidCents: typeof retainerPaid === "number" ? retainerPaid : null,
       taxApplies: gated.taxApplies,
       installmentsCents: cents(calculation.installmentsCents),
+      retainerOwedCents: cents(calculation.retainerOpenCents),
     });
     return { ...result, gated };
   } catch (caught) {

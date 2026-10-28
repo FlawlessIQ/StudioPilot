@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { raiseFinalInvoice } from "../functions/src/booking/final-invoice.ts";
+import { quickBooksFinalLines } from "../functions/src/operations/quickbooks-invoice-lines.ts";
 import { importedAmendmentBase, importedBaseProposalId } from "../functions/src/contracts/imported-amendment-base.ts";
 
 /**
@@ -95,6 +96,18 @@ test("an import with part of its retainer paid and the rest owed bills the balan
   assert.equal((result as { amountCents: number }).amountCents, 220000);
   const lines = JSON.stringify((writeTo(writes, "invoiceReferences/final_p")!.calculation as Doc).lines);
   assert.match(lines, /Retainer still owed, billed separately/);
+  // Paid and owed add up to the agreed retainer: nothing to look at, so it
+  // goes to QuickBooks rather than waiting on the studio (sandbox walk, 2026-10-28).
+  assert.equal((result as { reviewRequired: boolean }).reviewRequired, false);
+});
+
+test("a retainer short of what was agreed, with nothing owed for the rest, is still held", async () => {
+  const { result } = await raise(
+    imported({
+      "invoiceReferences/paid": { tenantId: "t", projectId: "p", kind: "retainer", status: "paid", amountCents: 150000, balanceCents: 0 },
+    }),
+  );
+  assert.equal((result as { reviewRequired: boolean }).reviewRequired, true);
 });
 
 test("once the owed retainer is paid, both payments come off", async () => {
@@ -275,4 +288,42 @@ test("messages that fell due while a job was quiet are skipped, not sent all at 
   }
   const reviews = readFileSync("functions/src/post-event/jobs.ts", "utf8");
   assert.match(reviews, /if \(stop === "automations_paused"\) \{[\s\S]{0,200}scheduledAt: new Date\(Date\.parse\(now\) \+ 86_400_000\)/);
+});
+
+test("QuickBooks final: a retainer still owed is its own line, never 'Payments received'", () => {
+  // QuickBooks sandbox walk, 2026-10-28: the $500 of the retainer still owed
+  // read "Payments received −$500" on the couple's QuickBooks invoice.
+  const built = quickBooksFinalLines({
+    amountCents: 270_000,
+    packageTotalCents: 420_000,
+    taxCents: 0,
+    discountCents: 0,
+    items: [{ kind: "package", name: "Silver Photo Package", summary: null, inclusions: [], quantity: 1, unitPriceCents: 420_000, amountCents: 420_000, taxable: true }],
+    retainerPaidCents: 100_000,
+    retainerOwedCents: 50_000,
+  });
+  assert.deepEqual(
+    built.lines.map((line) => [line.title, line.description, line.amountCents]),
+    [
+      ["Silver Photo Package", built.lines[0]!.description, 420_000],
+      ["Retainer received", "Retainer received — thank you", -100_000],
+      ["Retainer", "Retainer, billed separately", -50_000],
+    ],
+  );
+  // The final records it for the QuickBooks worker to read.
+  const finalInvoice = readFileSync("functions/src/booking/final-invoice.ts", "utf8");
+  assert.match(finalInvoice, /\.\.\.\(retainerOpenCents \? \{ retainerOpenCents \} : \{\}\)/);
+  assert.match(readFileSync("functions/src/operations/quickbooks-invoice-plan.ts", "utf8"), /retainerOwedCents: cents\(calculation\.retainerOpenCents\)/);
+});
+
+test("a QuickBooks webhook goes to the studio connected to that company now", async () => {
+  // QuickBooks sandbox walk, 2026-10-28: the first connection with the
+  // company's id took the payment, though it had been disconnected.
+  const { quickBooksWebhookConnection } = await import("../functions/src/booking/webhooks.ts");
+  const row = (tenantId: string, status: string, updatedAt: string) => ({ tenantId, get: (field: string) => ({ tenantId, status, updatedAt })[field as "status"] });
+  const picked = (rows: ReturnType<typeof row>[]) => quickBooksWebhookConnection(rows)?.tenantId;
+  assert.equal(picked([row("old", "disconnected", "2026-09-01"), row("now", "connected", "2026-10-01")]), "now");
+  assert.equal(picked([row("a", "connected", "2026-09-05"), row("b", "connected", "2026-10-01")]), "b");
+  assert.equal(picked([row("only", "disconnected", "2026-09-01")]), "only", "a lone record still settles its own bills");
+  assert.equal(picked([]), undefined);
 });

@@ -293,6 +293,13 @@ export function quickBooksFinalLines(input: {
    * since one may not be paid yet.
    */
   installmentsCents?: number;
+  /**
+   * The part of the retainer still owed, on its own bill (an imported
+   * booking's, final-invoice.ts): "Retainer, billed separately". It read
+   * "Payments received" on the couple's invoice for money not yet paid
+   * (QuickBooks sandbox walk, 2026-10-28).
+   */
+  retainerOwedCents?: number;
 }): FinalLinesResult {
   const amount = cents(input.amountCents);
   const total = cents(input.packageTotalCents);
@@ -348,12 +355,16 @@ export function quickBooksFinalLines(input: {
     credit,
     input.retainerPaidCents === null ? credit : Math.max(0, cents(input.retainerPaidCents)),
   );
-  const installments = Math.min(credit - retainerReceived, Math.max(0, cents(input.installmentsCents ?? 0)));
-  const otherPayments = credit - retainerReceived - installments;
+  const retainerOwed = Math.min(credit - retainerReceived, Math.max(0, cents(input.retainerOwedCents ?? 0)));
+  const installments = Math.min(credit - retainerReceived - retainerOwed, Math.max(0, cents(input.installmentsCents ?? 0)));
+  const otherPayments = credit - retainerReceived - retainerOwed - installments;
   const lines = [
     ...packageLines,
     ...(retainerReceived > 0
       ? [line({ kind: "retainer_received" as const, title: "Retainer received", description: "Retainer received — thank you", quantity: 1, unitPriceCents: -retainerReceived, taxable: false })]
+      : []),
+    ...(retainerOwed > 0
+      ? [line({ kind: "payments_received" as const, title: "Retainer", description: "Retainer, billed separately", quantity: 1, unitPriceCents: -retainerOwed, taxable: false })]
       : []),
     ...(installments > 0
       ? [line({ kind: "payments_received" as const, title: "Installments", description: "Installments, billed separately", quantity: 1, unitPriceCents: -installments, taxable: false })]

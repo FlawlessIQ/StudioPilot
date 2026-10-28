@@ -240,7 +240,11 @@ export async function raiseFinalInvoice(
     return { raised: false, reason: "nothing_owed" };
 
   const discrepancies: string[] = [];
-  if (retainerPaidCents !== retainerExpectedCents) discrepancies.push("RETAINER_EVIDENCE_MISMATCH");
+  // What's still owed of the retainer is on its own bill, so the records
+  // match what was agreed when paid and owed add up to it. Paid alone held
+  // every import with part of its deposit owed for a "mismatch" that wasn't
+  // one, and it never reached QuickBooks (sandbox walk, 2026-10-28).
+  if (retainerPaidCents + retainerOpenCents !== retainerExpectedCents) discrepancies.push("RETAINER_EVIDENCE_MISMATCH");
   const readyForProviderDraft = discrepancies.length === 0;
   const due = new Date(`${options.dueDate ?? String(project.get("eventDate"))}T00:00:00Z`);
   // Two weeks before, or on the day for a makeup artist or hair stylist (trades.ts).
@@ -293,6 +297,9 @@ export async function raiseFinalInvoice(
     retainerExpectedCents,
     retainerPaidCents,
     ...(installmentsCents ? { installmentsCents } : {}),
+    // A retainer still owed, on its own bill: the QuickBooks lines name it
+    // as that, not as a payment received (quickbooks-invoice-lines.ts).
+    ...(retainerOpenCents ? { retainerOpenCents } : {}),
     expectedBalanceCents: amountCents,
     discrepancies,
     authority: studioBilled ? "studio" : provider,
