@@ -31,6 +31,7 @@ import { Avatar, Button, CopyId, Empty, Health, KV, NameCell, Notice, Panel, Pil
 import { useCommand } from "../use-command";
 import { BillingDialogs, useBillingDialogs } from "../billing-dialogs";
 import { NotesPanel } from "../notes";
+import { StudioProfilePanels } from "../studio-profile";
 import { TasksList, type ConsoleTask } from "../tasks";
 
 /** One studio, everything about it (docs/console.md, "Studio record"). */
@@ -134,7 +135,7 @@ export function StudioRecord({ tenantId }: { tenantId: string }) {
     );
   }
 
-  const badge = subscriptionBadge(studio.subscriptionStatus, studio.comped);
+  const badge = subscriptionBadge(studio.subscriptionStatus, studio.comped, studio.cancelAtPeriodEnd);
   const moment = billingMomentText(studio.billingMoment);
   const openTasks = (tasks.rows ?? []).filter((task) => task.status === "open");
   const liveNotes = (notes.rows ?? []).filter((note) => !note.archivedAt);
@@ -334,6 +335,7 @@ export function StudioRecord({ tenantId }: { tenantId: string }) {
                 />
               </Panel>
             </div>
+            <StudioProfilePanels tenantId={tenantId} />
             <StudioTimeline compact tenantId={tenantId} />
           </div>
           {sideRail}
@@ -582,7 +584,7 @@ function BillingTab({ studio, billing }: { studio: ConsoleStudio; billing: Retur
   const invoices = useLiveQuery<Raw>(`invoices:${studio.tenantId}`, (firestore) =>
     query(collection(firestore, "saasInvoices"), where("tenantId", "==", studio.tenantId), orderBy("createdAt", "desc"), limit(100)),
   );
-  const badge = subscriptionBadge(studio.subscriptionStatus, studio.comped);
+  const badge = subscriptionBadge(studio.subscriptionStatus, studio.comped, studio.cancelAtPeriodEnd);
   const columns: ColumnDef<Raw, unknown>[] = [
     { id: "date", header: "Date", accessorFn: (row) => String(row.createdAt ?? ""), meta: { width: 120 }, cell: ({ row }) => shortDate(String(row.original.createdAt ?? "")) },
     { id: "number", header: "Invoice", accessorFn: (row) => String(row.number ?? row.id), meta: { width: 160 }, cell: ({ row }) => <span className="cx-mono">{String(row.original.number ?? row.original.id)}</span> },

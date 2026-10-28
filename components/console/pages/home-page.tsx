@@ -57,7 +57,10 @@ export function HomePage() {
   const mrr = all.reduce((sum, studio) => sum + studio.mrrCents, 0);
   const monthAgo = metrics.rows?.[0];
   const netNew = monthAgo && metrics.rows && metrics.rows.length > 1 ? mrr - monthAgo.mrrCents : null;
-  const trialsEnding = all.filter((studio) => studio.subscriptionStatus === "trialing" && !studio.comped && (daysUntil(studio.trialEndsAt, now) ?? 99) <= 7 && (daysUntil(studio.trialEndsAt, now) ?? -1) >= 0);
+  // Canceled in Stripe but not over: said once, as leaving, never also as a
+  // trial about to convert (Alex Knight, 2026-10-28 — nothing said it at all).
+  const canceling = all.filter((studio) => studio.cancelAtPeriodEnd && !studio.comped && studio.subscriptionStatus !== "cancelled");
+  const trialsEnding = all.filter((studio) => studio.subscriptionStatus === "trialing" && !studio.comped && !studio.cancelAtPeriodEnd && (daysUntil(studio.trialEndsAt, now) ?? 99) <= 7 && (daysUntil(studio.trialEndsAt, now) ?? -1) >= 0);
   const pastDue = all.filter((studio) => studio.subscriptionStatus === "past_due" || studio.subscriptionStatus === "unpaid" || studio.subscriptionStatus === "paused");
   const newFeedback = (feedback.rows ?? []).filter((item) => triageOf(item) === "new");
   const deadJobs = (jobs.rows ?? []).filter((job) => !job.dismissedAt);
@@ -66,6 +69,8 @@ export function HomePage() {
     const list: Need[] = [];
     for (const studio of pastDue)
       list.push({ key: `pd:${studio.tenantId}`, tone: "bad", tag: "Past due", title: `${studio.name}'s payment failed`, detail: `${planLabel(studio.plan, studio.cadence)} · ${studio.lastPaymentFailedAt ? `failed ${relative(studio.lastPaymentFailedAt, now)}` : "Stripe is retrying"}`, href: studioHref(studio.tenantId, "billing"), action: "Open billing", order: 0 });
+    for (const studio of canceling)
+      list.push({ key: `cancel:${studio.tenantId}`, tone: "bad", tag: "Canceling", title: `${studio.name} canceled — ends ${shortDate(studio.billingMoment.at ?? studio.currentPeriodEnd, now)}`, detail: `${planLabel(studio.plan, studio.cadence)} · ${studio.subscriptionStatus === "trialing" ? "during the trial" : "paid until then"} · setup ${studio.setupDone} of 6 · ${studio.jobs.total} jobs`, href: studioHref(studio.tenantId), action: "Reach out", order: 0 });
     for (const studio of trialsEnding) {
       const days = daysUntil(studio.trialEndsAt, now) ?? 0;
       const ready = studio.setupDone >= 4;

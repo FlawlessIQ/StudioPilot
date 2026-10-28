@@ -100,3 +100,21 @@ test("the reconciler is deployed, invocable, keyed and alerting", () => {
   assert.match(reconcile, /studiocueOperationalError: true,\s+code: "SUBSCRIPTION_RECONCILE_FAILED"/);
   assert.match(reconcile, /startAfter\(/, "pages through every studio");
 });
+
+// Alex Knight, 2026-10-28: canceled from Stripe's side, which sets
+// `cancel_at` and leaves `cancel_at_period_end` false. Stored as a plain trial.
+test("a dated cancellation (cancel_at) is a scheduled cancellation, and its drift is repaired", () => {
+  const cancelAt = Date.parse("2026-10-30T15:55:57.000Z") / 1000;
+  const state = stripeSubscriptionState({ status: "trialing", cancel_at_period_end: false, cancel_at: cancelAt }, false);
+  assert.equal(state.cancelAtPeriodEnd, true);
+  assert.equal(state.cancelAt, "2026-10-30T15:55:57.000Z");
+  assert.equal(stripeSubscriptionState({ status: "trialing", cancel_at: null }, false).cancelAtPeriodEnd, false);
+  // The six-hourly reconciler sees what the webhook missed.
+  assert.deepEqual(
+    subscriptionDrift(
+      { status: "trialing", currentPeriodEnd: PERIOD_END_ISO, cancelAtPeriodEnd: false },
+      { status: "trialing", current_period_end: PERIOD_END, cancel_at: cancelAt },
+    ),
+    ["cancelAtPeriodEnd"],
+  );
+});

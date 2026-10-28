@@ -73,7 +73,7 @@ export function SubscriptionsPage() {
         accessorFn: (studio) => studio.subscriptionStatus ?? "",
         meta: { width: 118 },
         cell: ({ row }) => {
-          const badge = subscriptionBadge(row.original.subscriptionStatus, row.original.comped);
+          const badge = subscriptionBadge(row.original.subscriptionStatus, row.original.comped, row.original.cancelAtPeriodEnd);
           return <Pill tone={badge.tone}>{badge.label}</Pill>;
         },
       },
@@ -190,7 +190,7 @@ export function SubscriptionsPage() {
           initialSort={[{ id: "mrr", desc: true }]}
           label="Subscriptions"
           mobile={(studio) => {
-            const badge = subscriptionBadge(studio.subscriptionStatus, studio.comped);
+            const badge = subscriptionBadge(studio.subscriptionStatus, studio.comped, studio.cancelAtPeriodEnd);
             return { title: studio.name, end: <Pill tone={badge.tone}>{badge.label}</Pill>, meta: `${planLabel(studio.plan, studio.cadence)} · ${studio.mrrCents ? money(studio.mrrCents) : "no MRR"} · ${billingMomentText(studio.billingMoment).text}` };
           }}
           onRowClick={(studio) => router.push(studioHref(studio.tenantId, "billing"))}

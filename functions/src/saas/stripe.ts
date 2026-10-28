@@ -776,10 +776,17 @@ export const stripeWebhook = onRequest(
           entityType: "subscription",
           entityId: tenantId,
           timestamp: now,
+          // The cancel state too, so the Console's timeline can say a
+          // cancellation was scheduled or undone, not only "Now trialing".
           before: current.exists
-            ? { status: current.get("status"), plan: current.get("plan") }
+            ? { status: current.get("status"), plan: current.get("plan"), cancelAtPeriodEnd: current.get("cancelAtPeriodEnd") === true }
             : null,
-          after: { status, plan },
+          after: {
+            status,
+            plan,
+            cancelAtPeriodEnd: stripeSubscriptionState(object, deleted).cancelAtPeriodEnd,
+            cancelAt: stripeSubscriptionState(object, deleted).cancelAt,
+          },
           ipAddress: null,
           userAgent: null,
           correlationId: event.id,
@@ -828,6 +835,7 @@ export function stripeSubscriptionState(
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  cancelAt: string | null;
 } {
   const items = object.items as
     | { data?: Array<{ current_period_start?: number; current_period_end?: number }> }
@@ -839,7 +847,13 @@ export function stripeSubscriptionState(
     status: deleted ? "cancelled" : normalizeStatus(object.status),
     currentPeriodStart: period.start,
     currentPeriodEnd: period.end,
-    cancelAtPeriodEnd: Boolean(object.cancel_at_period_end),
+    // Canceling from Stripe's dashboard or customer portal now sets a date
+    // (`cancel_at`) and leaves `cancel_at_period_end` false. Read only the
+    // flag, Alex Knight's cancellation (2026-10-28, "Cancels Oct 30" in
+    // Stripe) reached us as a plain trial: the Console said "ends in 2d"
+    // and "75 · Good". Either one means the subscription is ending.
+    cancelAtPeriodEnd: Boolean(object.cancel_at_period_end) || typeof object.cancel_at === "number",
+    cancelAt: typeof object.cancel_at === "number" ? new Date(object.cancel_at * 1000).toISOString() : null,
   };
 }
 
@@ -965,6 +979,7 @@ export async function writeSubscriptionFromStripe(
       currentPeriodEnd:
         state.currentPeriodEnd ?? (current.get("currentPeriodEnd") ?? null),
       cancelAtPeriodEnd: state.cancelAtPeriodEnd,
+      cancelAt: state.cancelAt,
       unitAmountCents:
         typeof firstItem?.price?.unit_amount === "number"
           ? firstItem.price.unit_amount

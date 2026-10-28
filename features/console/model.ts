@@ -65,6 +65,7 @@ export type HealthWeightKey =
   | "activityDrop"
   | "setupStalled"
   | "trialEndingUnready"
+  | "cancelScheduled"
   | "integrationDegraded"
   | "deadLetters"
   | "openFeedback";
@@ -75,6 +76,7 @@ export const DEFAULT_HEALTH_WEIGHTS: Record<HealthWeightKey, number> = {
   activityDrop: 15,
   setupStalled: 15,
   trialEndingUnready: 10,
+  cancelScheduled: 40,
   integrationDegraded: 10,
   deadLetters: 5,
   openFeedback: 5,
@@ -86,6 +88,7 @@ export const HEALTH_WEIGHT_LABELS: Record<HealthWeightKey, string> = {
   activityDrop: "Activity down 40% or more against the prior 30 days",
   setupStalled: "Setup stalled during the trial",
   trialEndingUnready: "Trial ends within 3 days with setup unfinished",
+  cancelScheduled: "Canceled in Stripe, ending at period end",
   integrationDegraded: "Each integration in error (up to 2)",
   deadLetters: "Each failed job (up to 3)",
   openFeedback: "Each unanswered feedback item (up to 2)",

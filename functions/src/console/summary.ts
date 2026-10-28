@@ -82,6 +82,7 @@ export function buildStudioSummary(
     unitAmountCents: number(sub.unitAmountCents),
     discount: discountFrom(sub.discount),
     suspended,
+    cancelScheduled: sub.cancelAtPeriodEnd === true && text(sub.status) !== "cancelled",
   } as const;
   // A trial's period end is its trial end (resolveSubscriptionPeriod); the
   // tenant's own trialEndAt is the fallback from before Checkout ran.
@@ -114,6 +115,7 @@ export function buildStudioSummary(
     trialEndsAt: signals.trialEndsAt,
     currentPeriodEnd: text(sub.currentPeriodEnd),
     cancelAtPeriodEnd: sub.cancelAtPeriodEnd === true,
+    cancelAt: text(sub.cancelAt),
   });
   const entitlements = (sub.entitlements ?? {}) as Record<string, unknown>;
   const name =

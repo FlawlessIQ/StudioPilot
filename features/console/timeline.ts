@@ -7,6 +7,7 @@
  * tests/console-timeline.test.ts pins the labels and the order.
  */
 import type { Tone } from "./model";
+import { describeAction, isSystemNoise } from "./studio-actions";
 
 export type TimelineKind = "billing" | "email" | "feedback" | "note" | "task" | "system" | "product" | "team" | "lifecycle";
 
@@ -117,18 +118,36 @@ function auditEntry(event: Raw): TimelineEntry | null {
   }
   if (action === "subscription.changed" || action === "subscription.confirmed_on_return") {
     const status = text(after.status);
-    return { key: `audit:${String(event.id ?? at)}`, at, kind: "billing", title: STUDIO_ACTIONS[action]!, detail: status ? `Now ${status.replace(/_/g, " ")}` : null };
+    const before = (event.before ?? {}) as Raw;
+    // A cancellation is the line worth reading, not "Now trialing" (Alex
+    // Knight, 2026-10-28: canceled in Stripe, invisible here).
+    const cancelAt = text(after.cancelAt);
+    const cancelDay = cancelAt
+      ? new Date(cancelAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+      : null;
+    const detail =
+      after.cancelAtPeriodEnd === true && before.cancelAtPeriodEnd !== true
+        ? `Canceled — ends ${cancelDay ?? "at period end"}`
+        : after.cancelAtPeriodEnd === false && before.cancelAtPeriodEnd === true
+          ? "Cancellation undone"
+          : status
+            ? `Now ${status.replace(/_/g, " ")}`
+            : null;
+    return { key: `audit:${String(event.id ?? at)}`, at, kind: "billing", title: STUDIO_ACTIONS[action]!, detail };
   }
   if (action === "tenant.created") return { key: `audit:${String(event.id ?? at)}`, at, kind: "lifecycle", title: "Studio created" };
   if (action.startsWith("feedback.")) return null; // shown from the feedback itself
   if (event.actorType !== "user") return null;
-  return { key: `audit:${String(event.id ?? at + action)}`, at, kind: "product", title: STUDIO_ACTIONS[action] ?? humanize(action) };
+  return { key: `audit:${String(event.id ?? at + action)}`, at, kind: "product", title: STUDIO_ACTIONS[action] ?? describeAction(action).label };
 }
 
 function productEntry(event: Raw): TimelineEntry | null {
   const at = text(event.occurredAt);
   const name = text(event.eventName) ?? text(event.name) ?? text(event.type);
   if (!at || !name) return null;
+  // The email worker's "accepted" and "delivered" filled a studio's Recent
+  // and said nothing about what its people did (2026-10-28).
+  if (isSystemNoise(name)) return null;
   return { key: `product:${String(event.id ?? at + name)}`, at, kind: "product", title: humanize(name) };
 }
 

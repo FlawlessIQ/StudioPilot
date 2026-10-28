@@ -9,8 +9,11 @@ export function planLabel(plan: string | null, cadence?: string | null): string 
   return cadence ? `${name} · ${cadence === "yearly" ? "yr" : "mo"}` : name;
 }
 
-export function subscriptionBadge(status: string | null, comped = false): { label: string; tone: Tone } {
+export function subscriptionBadge(status: string | null, comped = false, cancelAtPeriodEnd = false): { label: string; tone: Tone } {
   if (comped) return { label: "Comped", tone: "accent" };
+  // Canceled in Stripe but not over yet (Alex Knight read "Trialing" for the
+  // two days his canceled trial had left, 2026-10-28).
+  if (cancelAtPeriodEnd && status !== "cancelled") return { label: "Canceling", tone: "warn" };
   return SUBSCRIPTION_STATUS[status ?? ""] ?? { label: status ? status.replace(/_/g, " ") : "None", tone: "neutral" };
 }
 

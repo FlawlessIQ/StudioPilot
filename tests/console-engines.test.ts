@@ -225,3 +225,38 @@ test("Console roles: the claim gates, the role decides", () => {
   assert.equal(roleCan("owner", "deletion.approve"), true);
   assert.equal(roleCan(null, "console.read"), false);
 });
+
+// Alex Knight, 2026-10-28: canceled his trial in Stripe and the Console read
+// "Trialing · ends in 2d · 75 Good · Setting up".
+test("a scheduled cancellation reads as canceling: billing moment, health, lifecycle", () => {
+  const trialEnd = day(2);
+  const moment = server.nextBillingMoment({
+    status: "trialing",
+    comped: false,
+    compEndsAt: null,
+    trialEndsAt: trialEnd,
+    currentPeriodEnd: trialEnd,
+    cancelAtPeriodEnd: true,
+    cancelAt: trialEnd,
+  });
+  assert.deepEqual(moment, { kind: "cancels", at: trialEnd });
+  // Not cancelling: the trial ends as before.
+  assert.equal(
+    server.nextBillingMoment({ status: "trialing", comped: false, compEndsAt: null, trialEndsAt: trialEnd, currentPeriodEnd: trialEnd, cancelAtPeriodEnd: false }).kind,
+    "trial_ends",
+  );
+
+  const leaving = signals({ subscription: facts({ status: "trialing", cancelScheduled: true }), trialEndsAt: trialEnd, jobsTotal: 0, setupDone: 1 });
+  const health = server.healthScore(leaving, NOW);
+  assert.ok(health.reasons.some((reason) => reason.key === "cancelScheduled"), "costs health points");
+  assert.equal(server.lifecycleStage(leaving, health.score, NOW), "at_risk");
+  // A paying studio canceling is at risk too; a comped one is not judged on it.
+  const paying = signals({ subscription: facts({ cancelScheduled: true }) });
+  assert.equal(server.lifecycleStage(paying, server.healthScore(paying, NOW).score, NOW), "at_risk");
+  const comped = signals({ subscription: facts({ comped: true, cancelScheduled: true }) });
+  assert.ok(!server.healthScore(comped, NOW).reasons.some((reason) => reason.key === "cancelScheduled"));
+
+  // Both copies of the weights agree, and Lifecycle has a play for it.
+  assert.equal(browser.DEFAULT_HEALTH_WEIGHTS.cancelScheduled, server.DEFAULT_HEALTH_WEIGHTS.cancelScheduled);
+  assert.match(readFileSync("features/console/lifecycle.ts", "utf8"), /cancelScheduled: \{ action:/);
+});

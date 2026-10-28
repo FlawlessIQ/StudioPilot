@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { describeDiscount, previewDiscount } from "../features/console/discount-preview.ts";
 import { explainJobError, providerFromCode, statusFromMessage } from "../features/console/job-errors.ts";
@@ -99,7 +100,7 @@ test("the timeline merges every source newest first, with plain labels", () => {
   });
   assert.deepEqual(
     entries.map((entry) => entry.title),
-    ["Payment failed: $399.00", "Team emailed the owner: Checking in", "Trial extended", "Project created", "Offer annual", "Something's broken: “Deposit says $0”", "Task: Call Sam"],
+    ["Payment failed: $399.00", "Team emailed the owner: Checking in", "Trial extended", "Created a job", "Offer annual", "Something's broken: “Deposit says $0”", "Task: Call Sam"],
   );
   assert.equal(entries[0]!.tone, "bad");
   assert.match(entries[2]!.detail ?? "", /“Asked for more time” · by team@x.test/);
@@ -139,4 +140,22 @@ test("inbox triage, derived for feedback from before the Console", () => {
   assert.equal(issueTypeForKind("broken"), "bug");
   assert.equal(issueTypeForKind("confusing"), "ux");
   assert.equal(issueTypeForKind("idea"), "request");
+});
+
+test("a canceled-but-not-over subscription badges as Canceling, and Home lists it", () => {
+  assert.deepEqual(subscriptionBadge("trialing", false, true), { label: "Canceling", tone: "warn" });
+  assert.equal(subscriptionBadge("trialing", false, false).label, "Trialing");
+  assert.equal(subscriptionBadge("trialing", true, true).label, "Comped");
+  const home = readFileSync("components/console/pages/home-page.tsx", "utf8");
+  assert.match(home, /tag: "Canceling"/);
+  assert.match(home, /!studio\.cancelAtPeriodEnd && \(daysUntil/);
+});
+
+test("the timeline says a cancellation was scheduled or undone", () => {
+  const entry = (before: Record<string, unknown>, after: Record<string, unknown>) =>
+    buildTimeline({ audit: [{ id: "a", timestamp: "2026-10-28T15:56:07.000Z", action: "subscription.changed", before, after }] } as never)
+      .find((item: { title: string }) => item.title === "Subscription changed in Stripe");
+  assert.equal(entry({ status: "trialing", cancelAtPeriodEnd: false }, { status: "trialing", cancelAtPeriodEnd: true, cancelAt: "2026-10-30T15:55:57.000Z" })?.detail, "Canceled — ends Oct 30");
+  assert.equal(entry({ status: "trialing", cancelAtPeriodEnd: true }, { status: "trialing", cancelAtPeriodEnd: false })?.detail, "Cancellation undone");
+  assert.equal(entry({ status: "trialing" }, { status: "active" })?.detail, "Now active");
 });

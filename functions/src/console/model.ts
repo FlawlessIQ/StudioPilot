@@ -54,6 +54,7 @@ export type HealthWeightKey =
   | "activityDrop"
   | "setupStalled"
   | "trialEndingUnready"
+  | "cancelScheduled"
   | "integrationDegraded"
   | "deadLetters"
   | "openFeedback";
@@ -65,6 +66,7 @@ export const DEFAULT_HEALTH_WEIGHTS: Record<HealthWeightKey, number> = {
   activityDrop: 15,
   setupStalled: 15,
   trialEndingUnready: 10,
+  cancelScheduled: 40,
   integrationDegraded: 10,
   deadLetters: 5,
   openFeedback: 5,
@@ -76,6 +78,7 @@ export const HEALTH_WEIGHT_LABELS: Record<HealthWeightKey, string> = {
   activityDrop: "Activity down 40% or more against the prior 30 days",
   setupStalled: "Setup stalled during the trial",
   trialEndingUnready: "Trial ends within 3 days with setup unfinished",
+  cancelScheduled: "Canceled in Stripe, ending at period end",
   integrationDegraded: "Each integration in error (up to 2)",
   deadLetters: "Each failed job (up to 3)",
   openFeedback: "Each unanswered feedback item (up to 2)",
@@ -122,6 +125,12 @@ export type SubscriptionFacts = {
   unitAmountCents: number | null;
   discount: DiscountSummary | null;
   suspended: boolean;
+  /**
+   * Canceled but not over yet: Stripe's `cancel_at_period_end` or a
+   * `cancel_at` date (saas/stripe.ts). Alex Knight canceled during his trial
+   * on 2026-10-28 and the Console still read "Setting up · 75 Good".
+   */
+  cancelScheduled?: boolean;
 };
 
 /** The discount is still taking money off at `now`. */
@@ -222,6 +231,8 @@ export function healthScore(
   };
 
   if (status === "past_due" || status === "unpaid" || status === "paused") add("paymentFailed", "Payment failed or past due");
+  if (signals.subscription.cancelScheduled && !signals.subscription.comped)
+    add("cancelScheduled", "Canceled in Stripe, ending at period end");
 
   const idle = daysSince(signals.activity.lastActiveAt ?? signals.tenantCreatedAt, now);
   if (signals.activity.events30d === 0 && idle !== null && idle >= 14) {
@@ -267,6 +278,8 @@ export function lifecycleStage(signals: StudioSignals, healthScoreValue: number,
   if (status === "cancelled") return "churned";
   if (status === "incomplete" || status === null) return "signed_up";
   if (status === "past_due" || status === "unpaid" || status === "paused") return "at_risk";
+  // They've said they're leaving: whatever else is true, it's at risk.
+  if (signals.subscription.cancelScheduled && !signals.subscription.comped) return "at_risk";
   if (status === "trialing") {
     const idle = daysSince(signals.activity.lastActiveAt ?? signals.tenantCreatedAt, now);
     if (signals.jobsTotal > 0) return healthScoreValue < 50 ? "at_risk" : "activated";
@@ -284,10 +297,16 @@ export function nextBillingMoment(input: {
   trialEndsAt: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  /** Stripe's `cancel_at`, when the cancellation has a date of its own. */
+  cancelAt?: string | null;
 }): { kind: "trial_ends" | "renews" | "cancels" | "comp_ends" | "ended" | "none"; at: string | null } {
   if (input.comped) return input.compEndsAt ? { kind: "comp_ends", at: input.compEndsAt } : { kind: "none", at: null };
-  if (input.status === "trialing") return { kind: "trial_ends", at: input.trialEndsAt ?? input.currentPeriodEnd };
   if (input.status === "cancelled") return { kind: "ended", at: input.currentPeriodEnd };
+  // Before the trial: a canceled trial "cancels Oct 30", it doesn't "end in 2d"
+  // as if it were about to convert.
+  if (input.cancelAtPeriodEnd && input.status !== "incomplete")
+    return { kind: "cancels", at: input.cancelAt ?? input.trialEndsAt ?? input.currentPeriodEnd };
+  if (input.status === "trialing") return { kind: "trial_ends", at: input.trialEndsAt ?? input.currentPeriodEnd };
   if (input.status === "incomplete" || !input.currentPeriodEnd) return { kind: "none", at: null };
   return { kind: input.cancelAtPeriodEnd ? "cancels" : "renews", at: input.currentPeriodEnd };
 }

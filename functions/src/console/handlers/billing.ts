@@ -227,9 +227,15 @@ export const billingHandlers = {
         if (!confirmsName(input.confirmName ?? "", [tenant.get("brandName"), tenant.get("businessName"), tenant.get("legalName")]))
           fail("CONFIRMATION_NAME_MISMATCH");
       }
-      if (stripeMock()) await sub.reference.set({ cancelAtPeriodEnd: input.cancel, updatedAt: now }, { merge: true });
+      if (stripeMock()) await sub.reference.set({ cancelAtPeriodEnd: input.cancel, ...(input.cancel ? {} : { cancelAt: null }), updatedAt: now }, { merge: true });
       else {
-        await stripeRequest("POST", `subscriptions/${encodeURIComponent(sub.stripeId)}`, { cancel_at_period_end: input.cancel });
+        // Undoing clears a dated cancellation too: one made in Stripe's
+        // dashboard or portal sets `cancel_at`, which the flag leaves standing
+        // (an empty value unsets it).
+        await stripeRequest("POST", `subscriptions/${encodeURIComponent(sub.stripeId)}`, {
+          cancel_at_period_end: input.cancel,
+          ...(input.cancel ? {} : { cancel_at: "" }),
+        });
         await syncFromStripe(db, input.tenantId, sub.stripeId, now);
       }
       await refreshStudioSummary(db, auth, input.tenantId);

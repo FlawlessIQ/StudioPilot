@@ -14,6 +14,7 @@ export type Play = { key: HealthWeightKey; action: string; task: string; tab: st
 
 const PLAYS: Record<HealthWeightKey, Omit<Play, "key">> = {
   paymentFailed: { action: "Their card failed. Email them to update it.", task: "Help them update their card", tab: "billing" },
+  cancelScheduled: { action: "They canceled in Stripe. Ask why before it ends.", task: "Ask why they canceled before it ends", tab: "billing" },
   trialEndingUnready: { action: "Trial ends soon with setup unfinished. Offer a setup call.", task: "Offer a setup call before the trial ends", tab: null },
   setupStalled: { action: "Setup has stalled. Offer to finish it with them.", task: "Offer to finish setup together", tab: null },
   noActivity: { action: "Nobody has signed in for two weeks. Check in.", task: "Check in: no activity in two weeks", tab: "usage" },

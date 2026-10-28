@@ -233,7 +233,7 @@ export function StudiosPage() {
         accessorFn: (studio) => (studio.comped ? "comped" : (studio.subscriptionStatus ?? "")),
         meta: { width: 118 },
         cell: ({ row }) => {
-          const badge = subscriptionBadge(row.original.subscriptionStatus, row.original.comped);
+          const badge = subscriptionBadge(row.original.subscriptionStatus, row.original.comped, row.original.cancelAtPeriodEnd);
           return row.original.suspended ? <Pill tone="bad">Suspended</Pill> : <Pill tone={badge.tone}>{badge.label}</Pill>;
         },
       },
@@ -418,7 +418,7 @@ export function StudiosPage() {
           initialSort={[{ id: "active", desc: true }]}
           label="Studios"
           mobile={(studio) => {
-            const badge = subscriptionBadge(studio.subscriptionStatus, studio.comped);
+            const badge = subscriptionBadge(studio.subscriptionStatus, studio.comped, studio.cancelAtPeriodEnd);
             return {
               title: studio.name,
               end: <Pill tone={studio.suspended ? "bad" : badge.tone}>{studio.suspended ? "Suspended" : badge.label}</Pill>,
