@@ -1,5 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
 import type { Auth } from "firebase-admin/auth";
+import { isSignupStarterForm } from "./model.js";
 
 /**
  * Everything a studio has told StudioCue about itself, and what it has done,
@@ -164,7 +165,11 @@ export async function loadStudioProfile(db: Firestore, auth: Auth, tenantId: str
         .sort((a, b) => Number(b.active) - Number(a.active) || (b.priceCents ?? 0) - (a.priceCents ?? 0)),
       forms: forms.docs
         .filter((doc) => !doc.get("archivedAt"))
-        .map((doc) => ({ name: text(doc.get("name")) ?? "Untitled form", status: text(doc.get("status")) })),
+        .map((doc) => ({
+          name: text(doc.get("name")) ?? "Untitled form",
+          status: text(doc.get("status")),
+          starter: isSignupStarterForm({ version: doc.get("version"), createdAt: doc.get("createdAt") }, tenant.get("createdAt")),
+        })),
       agreement: {
         signatureMode: text(contract.signatureMode),
         hasTemplate: Boolean(text(contract.templateId) || text(contract.agreementTemplateId)),

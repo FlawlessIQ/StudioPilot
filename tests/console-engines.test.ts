@@ -260,3 +260,18 @@ test("a scheduled cancellation reads as canceling: billing moment, health, lifec
   assert.equal(browser.DEFAULT_HEALTH_WEIGHTS.cancelScheduled, server.DEFAULT_HEALTH_WEIGHTS.cancelScheduled);
   assert.match(readFileSync("features/console/lifecycle.ts", "utf8"), /cancelScheduled: \{ action:/);
 });
+
+test("forms signup wrote don't count as the studio setting up", () => {
+  // Diniz Studio, 2026-10-29: stopped at the card screen, yet "Details form"
+  // was ticked and "Forms · 7" listed, because signup writes them.
+  const signedUp = "2026-10-29T14:02:11.000Z";
+  assert.equal(server.isSignupStarterForm({ version: 1, createdAt: signedUp }, signedUp), true);
+  // Edited (a new version) or added later: the studio's own.
+  assert.equal(server.isSignupStarterForm({ version: 2, createdAt: signedUp }, signedUp), false);
+  assert.equal(server.isSignupStarterForm({ version: 1, createdAt: "2026-10-30T09:00:00.000Z" }, signedUp), false);
+  // A tenant with no createdAt can't prove a form is ours: count it.
+  assert.equal(server.isSignupStarterForm({ version: 1, createdAt: signedUp }, undefined), false);
+  // The rollup and the profile both use it.
+  assert.match(readFileSync("functions/src/console/rollup.ts", "utf8"), /questionnaire: activeForms\.docs\.some\(\s*\(doc\) => !isSignupStarterForm/);
+  assert.match(readFileSync("functions/src/console/studio-profile.ts", "utf8"), /starter: isSignupStarterForm/);
+});

@@ -43,7 +43,7 @@ type Profile = {
   team: Array<{ name: string | null; email: string | null; role: string; lastSignInAt: string | null }>;
   built: {
     packages: Array<{ name: string; priceCents: number | null; eventType: string | null; active: boolean }>;
-    forms: Array<{ name: string; status: string | null }>;
+    forms: Array<{ name: string; status: string | null; starter?: boolean }>;
     agreement: { signatureMode: string | null; hasTemplate: boolean; nativeSigning: boolean; signingProviders: string[] };
     consultation: { mode: string | null; durationMinutes: number | null; windows: Array<{ day: string; startMinute: number | null; endMinute: number | null }> } | null;
     inquiries: { lastForwardedAt: string | null; lastTestAt: string | null; formInquiries: number };
@@ -140,6 +140,8 @@ export function StudioProfilePanels({ tenantId }: { tenantId: string }) {
       </Panel>
     );
   const { about, built, business, team, actions } = data;
+  const ownForms = built.forms.filter((form) => !form.starter);
+  const starterForms = built.forms.filter((form) => form.starter);
   const heard = about.attribution;
   const source = heard
     ? [heard.manual, heard.heard ? humanize(heard.heard) : null, heard.heardDetail, heard.source ? `${heard.source}${heard.medium ? ` / ${heard.medium}` : ""}` : null, heard.campaign, heard.referrer]
@@ -189,7 +191,12 @@ export function StudioProfilePanels({ tenantId }: { tenantId: string }) {
                       .join(" · ") + (built.packages.length > 6 ? ` · +${built.packages.length - 6} more` : "")
                   : none,
               ],
-              [`Forms · ${built.forms.length}`, built.forms.length ? built.forms.map((form) => form.name).join(" · ") : none],
+              // Signup adds starter forms to every studio; only the ones they
+              // made or changed are theirs.
+              [`Forms · ${ownForms.length}`, ownForms.length ? ownForms.map((form) => form.name).join(" · ") : none],
+              ...(starterForms.length
+                ? [[`Starter forms · ${starterForms.length}`, "Added at signup, unchanged"] as [string, string]]
+                : []),
               ["How clients sign", agreement ?? none],
               [
                 "Consultation hours",

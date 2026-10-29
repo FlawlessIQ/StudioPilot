@@ -134,6 +134,28 @@ export type SubscriptionFacts = {
 };
 
 /** The discount is still taking money off at `now`. */
+/**
+ * A form signup put there, still exactly as signup wrote it.
+ *
+ * Signup writes the recommended forms and the starter briefs in the same
+ * transaction as the tenant, all stamped with the tenant's own createdAt and
+ * version 1 (saas/onboarding.ts); an edit saves a new version. So every studio
+ * had "Details form" ticked and "Forms · 7" before it reached the card screen,
+ * and a studio that stopped at checkout read as one setting up (Diniz Studio,
+ * 2026-10-29). Those forms are ours, not the studio's work.
+ */
+export function isSignupStarterForm(
+  form: { version?: unknown; createdAt?: unknown },
+  tenantCreatedAt: unknown,
+): boolean {
+  return (
+    Number(form.version ?? 1) === 1 &&
+    typeof tenantCreatedAt === "string" &&
+    tenantCreatedAt !== "" &&
+    form.createdAt === tenantCreatedAt
+  );
+}
+
 export function discountActive(discount: DiscountSummary | null, now: Date): boolean {
   if (!discount) return false;
   if (!discount.endsAt) return true;

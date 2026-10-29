@@ -1,6 +1,6 @@
 import type { Auth, UserRecord } from "firebase-admin/auth";
 import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
-import { DEFAULT_HEALTH_WEIGHTS, type HealthWeightKey, type SetupKey } from "./model.js";
+import { DEFAULT_HEALTH_WEIGHTS, isSignupStarterForm, type HealthWeightKey, type SetupKey } from "./model.js";
 import { roleFromClaims } from "./roles.js";
 import { buildStudioSummary, type StudioRaw } from "./summary.js";
 import { isTestStudio } from "./test-studios.js";
@@ -96,7 +96,7 @@ async function gatherStudio(
     projects,
     connections,
     hasPackage,
-    hasQuestionnaire,
+    activeForms,
     hasPublicInquiry,
   ] = await Promise.all([
     db.doc(`subscriptions/${tenantId}`).get(),
@@ -109,7 +109,7 @@ async function gatherStudio(
     byTenant("projects").select("state", "archivedAt", "createdAt").get(),
     byTenant("integrationConnections").select("provider", "status", "archivedAt").get(),
     exists(byTenant("packages").where("active", "==", true)),
-    exists(byTenant("questionnaireTemplates").where("status", "==", "active")),
+    byTenant("questionnaireTemplates").where("status", "==", "active").select("version", "createdAt").get(),
     exists(byTenant("leads").where("source", "==", "public_inquiry")),
   ]);
 
@@ -163,7 +163,10 @@ async function gatherStudio(
       text(contract.signatureMode) === "record_own" ||
       (nativeSigning && Boolean(text(contract.agreementTemplateId))) ||
       signingConnected,
-    questionnaire: hasQuestionnaire,
+    // Forms signup wrote don't count until the studio changes or adds one.
+    questionnaire: activeForms.docs.some(
+      (doc) => !isSignupStarterForm({ version: doc.get("version"), createdAt: doc.get("createdAt") }, tenant.get("createdAt")),
+    ),
     insurance: coi.exists,
   };
 
